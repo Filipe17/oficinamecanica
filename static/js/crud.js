@@ -65,13 +65,16 @@ const Mascaras = {
       const resp = await fetch(`https://viacep.com.br/ws/${num}/json/`);
       const d = await resp.json();
       if (d.erro) { toast("CEP não encontrado", "warning"); return; }
-      const set = (nome, val) => { if (form[nome] && val) form[nome].value = val; };
+      // O container é uma <div> (não <form>), então buscamos por [name="..."].
+      const campo = (nome) => form.querySelector(`[name="${nome}"]`);
+      const set = (nome, val) => { const el = campo(nome); if (el && val) el.value = val; };
       set("endereco", d.logradouro);
       set("bairro", d.bairro);
       set("cidade", d.localidade);
       set("estado", d.uf);
       // Foca no número, que o ViaCEP não fornece.
-      if (form.numero) form.numero.focus();
+      const numEl = campo("numero");
+      if (numEl) numEl.focus();
     } catch (_) { /* offline ou serviço fora: ignora silenciosamente */ }
   },
 };
