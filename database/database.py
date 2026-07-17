@@ -175,6 +175,8 @@ def init_db():
             email TEXT,
             cep TEXT,
             endereco TEXT,
+            numero TEXT,
+            bairro TEXT,
             cidade TEXT,
             estado TEXT,
             observacoes TEXT,
@@ -378,7 +380,32 @@ def init_db():
     finally:
         conn.close()
 
+    _migrar_colunas()
     _seed()
+
+
+def _garantir_coluna(tabela, coluna, definicao):
+    """
+    Adiciona uma coluna a uma tabela existente, se ela ainda não existir.
+    Necessário porque CREATE TABLE IF NOT EXISTS não altera tabelas já criadas
+    (ex.: bancos que já estão no ar). Funciona em SQLite e PostgreSQL.
+    """
+    if DB_ENGINE == "postgres":
+        cols = query(
+            "SELECT column_name FROM information_schema.columns WHERE table_name=?",
+            (tabela,))
+        existentes = {c["column_name"] for c in cols}
+    else:
+        cols = query(f"PRAGMA table_info({tabela})")
+        existentes = {c["name"] for c in cols}
+    if coluna not in existentes:
+        query(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}", commit=True)
+
+
+def _migrar_colunas():
+    """Migrações leves de schema aplicadas a cada boot (idempotentes)."""
+    _garantir_coluna("clientes", "numero", "TEXT")
+    _garantir_coluna("clientes", "bairro", "TEXT")
 
 
 def _seed():

@@ -72,11 +72,12 @@ def criar():
         return jsonify({"erro": "Nome é obrigatório"}), 400
     res = query(
         "INSERT INTO clientes (tipo, cpf_cnpj, nome, telefone, whatsapp, email, "
-        "cep, endereco, cidade, estado, observacoes, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "cep, endereco, numero, bairro, cidade, estado, observacoes, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get("tipo", "PF"), d.get("cpf_cnpj"), d.get("nome"), d.get("telefone"),
          d.get("whatsapp"), d.get("email"), d.get("cep"), d.get("endereco"),
-         d.get("cidade"), d.get("estado"), d.get("observacoes"), now()),
+         d.get("numero"), d.get("bairro"), d.get("cidade"), d.get("estado"),
+         d.get("observacoes"), now()),
         commit=True,
     )
     registrar_log(session["user_id"], "criar_cliente", d.get("nome"))
@@ -89,10 +90,12 @@ def editar(cid):
     d = request.get_json(force=True)
     query(
         "UPDATE clientes SET tipo=?, cpf_cnpj=?, nome=?, telefone=?, whatsapp=?, "
-        "email=?, cep=?, endereco=?, cidade=?, estado=?, observacoes=? WHERE id=?",
+        "email=?, cep=?, endereco=?, numero=?, bairro=?, cidade=?, estado=?, "
+        "observacoes=? WHERE id=?",
         (d.get("tipo", "PF"), d.get("cpf_cnpj"), d.get("nome"), d.get("telefone"),
          d.get("whatsapp"), d.get("email"), d.get("cep"), d.get("endereco"),
-         d.get("cidade"), d.get("estado"), d.get("observacoes"), cid),
+         d.get("numero"), d.get("bairro"), d.get("cidade"), d.get("estado"),
+         d.get("observacoes"), cid),
         commit=True,
     )
     registrar_log(session["user_id"], "editar_cliente", str(cid))

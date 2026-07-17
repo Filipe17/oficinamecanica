@@ -15,6 +15,67 @@
    }
    ======================================================================= */
 
+/* -----------------------------------------------------------------------
+   Máscaras de digitação e busca de CEP (reutilizáveis).
+   Aplicadas via config do campo: { mascara: "cpf_cnpj" | "telefone" | "cep" }
+   e { cep: true } para o campo que dispara a busca de endereço.
+   ----------------------------------------------------------------------- */
+const Mascaras = {
+  cpf_cnpj(v) {
+    v = (v || "").replace(/\D/g, "").slice(0, 14);
+    if (v.length <= 11) {
+      // CPF: 000.000.000-00
+      return v
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    }
+    // CNPJ: 00.000.000/0000-00
+    return v
+      .replace(/(\d{2})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1/$2")
+      .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+  },
+  telefone(v) {
+    v = (v || "").replace(/\D/g, "").slice(0, 11);
+    if (v.length <= 10) {
+      // Fixo: (00) 0000-0000
+      return v
+        .replace(/(\d{2})(\d)/, "($1) $2")
+        .replace(/(\d{4})(\d{1,4})$/, "$1-$2");
+    }
+    // Celular: (00) 00000-0000
+    return v
+      .replace(/(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{5})(\d{1,4})$/, "$1-$2");
+  },
+  cep(v) {
+    v = (v || "").replace(/\D/g, "").slice(0, 8);
+    return v.replace(/(\d{5})(\d{1,3})$/, "$1-$2");
+  },
+  aplicar(tipo, valor) {
+    return typeof this[tipo] === "function" ? this[tipo](valor) : valor;
+  },
+  // Busca o endereço no ViaCEP e preenche os campos do formulário por nome.
+  async buscarCep(cep, form) {
+    const num = (cep || "").replace(/\D/g, "");
+    if (num.length !== 8) return;
+    try {
+      const resp = await fetch(`https://viacep.com.br/ws/${num}/json/`);
+      const d = await resp.json();
+      if (d.erro) { toast("CEP não encontrado", "warning"); return; }
+      const set = (nome, val) => { if (form[nome] && val) form[nome].value = val; };
+      set("endereco", d.logradouro);
+      set("bairro", d.bairro);
+      set("cidade", d.localidade);
+      set("estado", d.uf);
+      // Foca no número, que o ViaCEP não fornece.
+      if (form.numero) form.numero.focus();
+    } catch (_) { /* offline ou serviço fora: ignora silenciosamente */ }
+  },
+};
+
 class Crud {
   constructor(config) {
     this.cfg = config;
@@ -129,7 +190,25 @@ class Crud {
       this.cfg.modalGrande
     );
     document.getElementById("crud-salvar").onclick = () => this.salvar(ed ? registro.id : null);
+    this._aplicarMascaras();
     window.__crud = this;
+  }
+
+  // Liga as máscaras de digitação e a busca de CEP nos campos configurados.
+  _aplicarMascaras() {
+    const form = document.getElementById("crud-form");
+    if (!form) return;
+    form.querySelectorAll("[data-mascara]").forEach((inp) => {
+      const tipo = inp.dataset.mascara;
+      const aplicar = () => { inp.value = Mascaras.aplicar(tipo, inp.value); };
+      if (inp.value) aplicar();                 // formata valor já existente (edição)
+      inp.addEventListener("input", aplicar);
+    });
+    const cepInp = form.querySelector("[data-cep]");
+    if (cepInp) {
+      cepInp.addEventListener("input", () => { cepInp.value = Mascaras.cep(cepInp.value); });
+      cepInp.addEventListener("blur", () => Mascaras.buscarCep(cepInp.value, form));
+    }
   }
 
   _campoHtml(f, registro) {
@@ -145,8 +224,13 @@ class Crud {
     } else if (f.tipo === "textarea") {
       input = `<textarea name="${f.nome}">${val}</textarea>`;
     } else {
-      input = `<input type="${f.tipo || "text"}" name="${f.nome}" value="${val}"
-                 ${f.obrigatorio ? "required" : ""}>`;
+      const extra = [
+        f.obrigatorio ? "required" : "",
+        f.mascara ? `data-mascara="${f.mascara}"` : "",
+        f.cep ? `data-cep="1"` : "",
+        f.placeholder ? `placeholder="${f.placeholder}"` : "",
+      ].filter(Boolean).join(" ");
+      input = `<input type="${f.tipo || "text"}" name="${f.nome}" value="${val}" ${extra}>`;
     }
     return `<div class="${cls}"><label>${f.label}${f.obrigatorio ? " *" : ""}</label>${input}</div>`;
   }
