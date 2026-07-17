@@ -1,0 +1,13 @@
+/* dashboard.css — grade de gráficos do painel */
+.dash-charts {
+  display: grid; gap: 16px; margin-top: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+.dash-charts .card__body { min-height: 220px; }
+/* O fluxo de caixa ocupa a linha inteira quando houver espaço */
+.dash-charts .card:first-child { grid-column: 1 / -1; }
+.stat--skel {
+  height: 78px; background: linear-gradient(90deg, var(--surface) 25%, var(--bg) 37%, var(--surface) 63%);
+  background-size: 400% 100%; animation: skel 1.4s ease infinite; border-left: 0;
+}
+@keyframes skel { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }

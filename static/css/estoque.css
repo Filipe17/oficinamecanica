@@ -1,0 +1,5 @@
+/* estoque.css — telas de alertas, movimentações e curva ABC */
+.estoque-h3 {
+  margin: 18px 0 10px; font-size: 15px; display: flex; align-items: center; gap: 8px;
+}
+.estoque-h3:first-child { margin-top: 0; }

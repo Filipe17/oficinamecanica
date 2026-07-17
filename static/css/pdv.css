@@ -1,0 +1,50 @@
+/* pdv.css — Ponto de Venda */
+.pdv-grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+.pdv-resultados { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; }
+.pdv-res-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.pdv-res-item:hover { border-color: var(--primary); background: var(--primary-soft); }
+.pdv-res-item small { display: block; color: var(--muted); font-size: 11px; }
+.pdv-res-preco { font-weight: 700; white-space: nowrap; }
+
+.pdv-carrinho h3 { font-size: 15px; margin-bottom: 12px; }
+.pdv-itens { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; min-height: 80px; }
+.pdv-item { display: grid; grid-template-columns: 1fr 64px auto auto; align-items: center; gap: 8px; font-size: 13px; }
+.pdv-item__qtd { width: 100%; padding: 5px 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.pdv-item__sub { font-weight: 600; white-space: nowrap; }
+
+.pdv-resumo { border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.pdv-linha { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+.pdv-linha input, .pdv-linha select { max-width: 150px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.pdv-total { display: flex; align-items: center; justify-content: space-between; font-size: 15px; padding: 8px 0; }
+.pdv-total b { font-size: 26px; letter-spacing: -.02em; }
+
+.pdv-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.pdv-fechado { display: grid; place-items: center; min-height: 60vh; }
+.pdv-fechado__card { text-align: center; padding: 34px; max-width: 360px; }
+.pdv-fechado__card i { font-size: 40px; color: var(--primary); margin-bottom: 10px; }
+.pdv-fechado__card h2 { margin-bottom: 6px; }
+.pdv-fechado__card .field { margin: 18px 0; text-align: left; }
+
+.pdv-resumo-fech { display: flex; flex-direction: column; gap: 10px; }
+.pdv-resumo-fech > div { display: flex; justify-content: space-between; font-size: 14px; }
+.pdv-resumo-fech__total { border-top: 1px solid var(--border); padding-top: 10px; font-size: 16px; }
+.pdv-resumo-fech__total b { font-size: 20px; }
+
+/* XML import (reaproveita este CSS quando presente) */
+.xml-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 40px; border: 2px dashed var(--border); border-radius: var(--radius); cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.xml-drop:hover, .xml-drop.drag { border-color: var(--primary); background: var(--primary-soft); }
+.xml-drop i { font-size: 34px; color: var(--primary); }
+.xml-drop small { color: var(--muted); font-size: 12px; max-width: 420px; }
+.xml-ok { display: flex; gap: 14px; align-items: center; margin-top: 18px; padding: 16px; border-radius: var(--radius); background: var(--success-soft); }
+.xml-ok i { font-size: 28px; color: var(--success); }
+
+@media (max-width: 900px) { .pdv-grid { grid-template-columns: 1fr; } }
