@@ -432,3 +432,6 @@ table.data tbody tr:last-child td { border-bottom: 0; }
 }
 .rel-card:hover { border-color: var(--primary); transform: translateY(-2px); }
 .rel-card i { font-size: 24px; color: var(--primary); }
+
+/* Ações agrupadas no cabeçalho da página (ex.: Dados da oficina + Novo) */
+.page-head__acoes { display: flex; gap: 8px; flex-wrap: wrap; }
