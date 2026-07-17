@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Banco de dados local (SQLite) — NÃO versionar
+database/banco.db
+*.db
+*.sqlite3
+
+# Dados gerados em runtime
+uploads/*
+backup/*
+logs/*
+!uploads/.gitkeep
+!backup/.gitkeep
+!logs/.gitkeep
+
+# Segredos e ambiente
+.env
+.env.*
+!.env.example
+
+# Sistema/editor
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,9 @@
+# Dependências do backend
+Flask==3.0.3
+Werkzeug==3.0.3
+
+# Servidor WSGI de produção (usado no Railway/qualquer host)
+gunicorn==22.0.0
+
+# Driver PostgreSQL — usado automaticamente quando há DATABASE_URL (Railway)
+psycopg2-binary==2.9.9
