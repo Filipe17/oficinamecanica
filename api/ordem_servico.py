@@ -36,6 +36,17 @@ STATUS_VALIDOS = {
 }
 
 
+def _dono_os(oid):
+    """
+    True se o usuário logado pode acessar esta OS. Mecânicos só acessam as OS
+    em que são o responsável; demais perfis não têm essa restrição.
+    """
+    if session.get("perfil") != "mecanico":
+        return True
+    row = query("SELECT mecanico_id FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
+    return bool(row) and row["mecanico_id"] == session.get("user_id")
+
+
 def _proximo_numero():
     """Gera número sequencial no formato OS-000001."""
     r = query("SELECT COUNT(*) AS n FROM ordens_servico", fetchone=True)
@@ -71,6 +82,11 @@ def listar():
         where.append("(o.numero LIKE ? OR c.nome LIKE ? OR v.placa LIKE ?)")
         params += [f"%{q}%"] * 3
 
+    # Mecânico só enxerga as OS em que ele é o responsável (não as dos colegas).
+    if session.get("perfil") == "mecanico":
+        where.append("o.mecanico_id = ?")
+        params.append(session.get("user_id"))
+
     clausula = "WHERE " + " AND ".join(where)
     lista = query(
         f"SELECT o.*, c.nome AS cliente_nome, v.placa AS veiculo_placa, "
@@ -85,6 +101,8 @@ def listar():
 @os_bp.route("/api/os/<int:oid>", methods=["GET"])
 @login_obrigatorio
 def detalhe(oid):
+    if not _dono_os(oid):
+        return jsonify({"erro": "Esta OS pertence a outro mecânico"}), 403
     o = query(
         "SELECT o.*, c.nome AS cliente_nome, v.placa AS veiculo_placa, "
         "v.modelo AS veiculo_modelo, u.nome AS mecanico_nome "
@@ -104,13 +122,18 @@ def detalhe(oid):
 def criar():
     d = request.get_json(force=True)
     eh_orc = int(d.get("eh_orcamento", 0))
+    # Se um mecânico cria a OS sem escolher responsável, assume ele mesmo —
+    # assim a OS aparece na lista dele (que só mostra as próprias).
+    mecanico_id = d.get("mecanico_id")
+    if session.get("perfil") == "mecanico" and not mecanico_id:
+        mecanico_id = session.get("user_id")
     res = query(
         "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
         "data, previsao, status, problema, diagnostico, horas_trabalhadas, garantia, "
         "observacoes, eh_orcamento, desconto, total, criado_em) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (_proximo_numero(), d.get("cliente_id"), d.get("veiculo_id"),
-         d.get("mecanico_id"), d.get("data", now()), d.get("previsao"),
+         mecanico_id, d.get("data", now()), d.get("previsao"),
          d.get("status", "aberta"), d.get("problema"), d.get("diagnostico"),
          d.get("horas_trabalhadas", 0), d.get("garantia"), d.get("observacoes"),
          eh_orc, d.get("desconto", 0), 0, now()),
@@ -126,6 +149,8 @@ def criar():
 @os_bp.route("/api/os/<int:oid>", methods=["PUT"])
 @login_obrigatorio
 def editar(oid):
+    if not _dono_os(oid):
+        return jsonify({"erro": "Esta OS pertence a outro mecânico"}), 403
     d = request.get_json(force=True)
     if d.get("status") and d["status"] not in STATUS_VALIDOS:
         return jsonify({"erro": "Status inválido"}), 400
@@ -167,6 +192,8 @@ def finalizar(oid):
     """
     Finaliza a OS: baixa produtos do estoque e (opcional) gera conta a receber.
     """
+    if not _dono_os(oid):
+        return jsonify({"erro": "Esta OS pertence a outro mecânico"}), 403
     o = query("SELECT * FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
     if not o:
         return jsonify({"erro": "OS não encontrada"}), 404
@@ -211,6 +238,8 @@ def converter_orcamento(oid):
 @os_bp.route("/api/os/<int:oid>", methods=["DELETE"])
 @login_obrigatorio
 def excluir(oid):
+    if not _dono_os(oid):
+        return jsonify({"erro": "Esta OS pertence a outro mecânico"}), 403
     query("DELETE FROM os_itens WHERE os_id=?", (oid,), commit=True)
     query("DELETE FROM ordens_servico WHERE id=?", (oid,), commit=True)
     registrar_log(session["user_id"], "excluir_os", str(oid))
