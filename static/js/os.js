@@ -34,7 +34,8 @@
     ]);
     clientes = rc.dados || [];
     veiculos = rv.dados || [];
-    mecanicos = (ru.dados || ru || []).filter((u) => ["mecanico", "gerente", "administrador"].includes(u.perfil));
+    // Apenas usuários com perfil "mecânico" aparecem no seletor de mecânico.
+    mecanicos = (ru.dados || ru || []).filter((u) => u.perfil === "mecanico");
     produtos = rp.dados || [];
     servicos = rs.dados || rs || [];
   } catch (_) {}
