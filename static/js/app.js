@@ -145,6 +145,12 @@ const MENU = [
   ]},
 ];
 
+/* Itens de menu visíveis por perfil. Perfis não listados aqui veem tudo.
+   O mecânico só enxerga Dashboard, Clientes, Veículos e Ordem de Serviço. */
+const MENU_POR_PERFIL = {
+  mecanico: ["dashboard", "clientes", "veiculos", "ordem_servico"],
+};
+
 /* ---------------------- Layout: monta a "casca" da página ---------------------- */
 const Layout = {
   usuario: null,
@@ -166,14 +172,19 @@ const Layout = {
     const iniciais = (this.usuario.nome || "?").split(" ")
       .map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
-    const nav = MENU.map((g) => `
+    const permitidos = MENU_POR_PERFIL[this.usuario.perfil] || null;
+    const nav = MENU.map((g) => {
+      const itens = permitidos ? g.itens.filter((i) => permitidos.includes(i.id)) : g.itens;
+      if (!itens.length) return "";   // não mostra grupo sem itens
+      return `
       <div class="sidebar__group">
         <div class="sidebar__group-label">${g.grupo}</div>
-        ${g.itens.map((i) => `
+        ${itens.map((i) => `
           <a href="/${i.id}" class="sidebar__link ${i.id === ativa ? "active" : ""}">
             <i class="fa-solid ${i.icone}"></i><span>${i.nome}</span>
           </a>`).join("")}
-      </div>`).join("");
+      </div>`;
+    }).join("");
 
     const temaEscuro = document.documentElement.getAttribute("data-theme") === "dark";
 

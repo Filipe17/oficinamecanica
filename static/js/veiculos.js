@@ -38,11 +38,15 @@
     if (dl) dl.innerHTML = itens.map((i) => `<option value="${i.nome}">`).join("");
   }
 
+  // Mecânico só visualiza veículos (sem criar/editar/excluir).
+  const somenteLeitura = Layout.usuario?.perfil === "mecanico";
+
   const crud = new Crud({
     endpoint: "/api/veiculos",
     titulo: "Veículos",
     singular: "Veículo",
     subtitulo: "Frota dos clientes e histórico de manutenções",
+    somenteLeitura,
     paginado: true,
     ordemPadrao: "modelo",
     modalGrande: true,

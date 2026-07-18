@@ -91,9 +91,9 @@ class Crud {
     document.getElementById(alvo).innerHTML = `
       <div class="page-head">
         <div><h1>${this.cfg.titulo}</h1><p>${this.cfg.subtitulo || ""}</p></div>
-        <button class="btn btn--primary" id="crud-novo">
+        ${this.cfg.somenteLeitura ? "" : `<button class="btn btn--primary" id="crud-novo">
           <i class="fa-solid fa-plus"></i> Novo
-        </button>
+        </button>`}
       </div>
       <div class="card">
         <div class="card__body">
@@ -108,7 +108,8 @@ class Crud {
         </div>
       </div>`;
 
-    document.getElementById("crud-novo").onclick = () => this.abrirForm();
+    const btnNovo = document.getElementById("crud-novo");
+    if (btnNovo) btnNovo.onclick = () => this.abrirForm();
     document.getElementById("crud-busca").oninput = debounce((e) => {
       this.q = e.target.value.trim(); this.pagina = 1; this.carregar();
     });
@@ -147,12 +148,16 @@ class Crud {
       return `<tr>
         ${celulas}
         <td class="text-right">
+          ${this.cfg.somenteLeitura ? `
+          <button class="icon-btn btn--sm" title="Ver" onclick='window.__crud.abrirForm(${JSON.stringify(row).replace(/'/g, "&#39;")})'>
+            <i class="fa-solid fa-eye"></i>
+          </button>` : `
           <button class="icon-btn btn--sm" title="Editar" onclick='window.__crud.abrirForm(${JSON.stringify(row).replace(/'/g, "&#39;")})'>
             <i class="fa-solid fa-pen"></i>
           </button>
           <button class="icon-btn btn--sm" title="Excluir" onclick="window.__crud.excluir(${row.id})">
             <i class="fa-solid fa-trash"></i>
-          </button>
+          </button>`}
         </td></tr>`;
     }).join("");
 
@@ -184,14 +189,24 @@ class Crud {
 
   abrirForm(registro = null) {
     const ed = registro && registro.id;
+    const ro = !!this.cfg.somenteLeitura;
     const campos = this.cfg.campos.map((f) => this._campoHtml(f, registro)).join("");
     Modal.abrir(
-      `${ed ? "Editar" : "Novo"} — ${this.cfg.singular || this.cfg.titulo}`,
+      `${ro ? "Visualizar" : (ed ? "Editar" : "Novo")} — ${this.cfg.singular || this.cfg.titulo}`,
       `<div class="form-grid" id="crud-form">${campos}</div>`,
-      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
-       <button class="btn btn--primary" id="crud-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`,
+      ro
+        ? `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`
+        : `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+           <button class="btn btn--primary" id="crud-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`,
       this.cfg.modalGrande
     );
+    if (ro) {
+      // Somente leitura: desabilita todos os campos, sem botão de salvar.
+      document.querySelectorAll("#crud-form input, #crud-form select, #crud-form textarea")
+        .forEach((el) => { el.disabled = true; });
+      window.__crud = this;
+      return;
+    }
     document.getElementById("crud-salvar").onclick = () => this.salvar(ed ? registro.id : null);
     this._aplicarMascaras();
     this._aplicarMaiusculas();

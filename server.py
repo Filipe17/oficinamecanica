@@ -21,7 +21,7 @@ import os
 import shutil
 from datetime import datetime, timedelta
 
-from flask import Flask, send_from_directory, jsonify, session, redirect
+from flask import Flask, send_from_directory, jsonify, session, redirect, request
 
 from database.database import init_db, SQLITE_PATH
 from api.usuarios import usuarios_bp, login_obrigatorio, perfil_permitido
@@ -54,6 +54,52 @@ app.permanent_session_lifetime = timedelta(days=30)   # "lembrar acesso"
 for bp in (usuarios_bp, clientes_bp, veiculos_bp, produtos_bp, estoque_bp,
            os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp):
     app.register_blueprint(bp)
+
+
+# -------------------------------------------------------------------------
+# Controle de acesso por perfil (aplicado a cada requisição)
+# -------------------------------------------------------------------------
+# Regras do perfil "mecânico": só acessa Dashboard (leitura), Clientes e
+# Veículos (somente leitura) e a Ordem de Serviço (completa). Todo o resto é
+# bloqueado aqui no servidor — não basta esconder o botão no front.
+
+# APIs de LEITURA liberadas ao mecânico (apenas GET nesses prefixos).
+_MEC_API_GET = ("/api/dashboard", "/api/clientes", "/api/veiculos",
+                "/api/financeiro/fluxo")
+# Páginas HTML liberadas ao mecânico.
+_MEC_PAGINAS = ("/dashboard", "/clientes", "/veiculos", "/ordem_servico")
+
+
+def _mecanico_liberado(path, metodo):
+    # Sessão / autenticação sempre liberadas
+    if path in ("/api/me", "/api/logout", "/api/login", "/api/health", "/", "/login"):
+        return True
+    # Ordem de Serviço: acesso total (API — inclui /api/os/mecanicos — e página)
+    if path.startswith("/api/os") or path == "/ordem_servico":
+        return True
+    # Páginas HTML: apenas as da lista
+    if not path.startswith("/api/"):
+        return path in _MEC_PAGINAS
+    # APIs de leitura: apenas GET nos prefixos liberados
+    if metodo == "GET":
+        return any(path == p or path.startswith(p + "/") for p in _MEC_API_GET)
+    return False
+
+
+@app.before_request
+def _controle_acesso():
+    # Estáticos sempre liberados
+    if request.path.startswith("/static/"):
+        return
+    # Só o mecânico tem regras extras; demais perfis seguem as travas das rotas
+    if session.get("perfil") != "mecanico":
+        return
+    if _mecanico_liberado(request.path, request.method):
+        return
+    # Bloqueio: API responde 403; página redireciona ao dashboard
+    if request.path.startswith("/api/"):
+        return jsonify({"erro": "Acesso não permitido para o seu perfil"}), 403
+    return redirect("/dashboard")
 
 
 # -------------------------------------------------------------------------

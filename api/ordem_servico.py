@@ -16,6 +16,20 @@ from api.estoque import movimentar_estoque
 
 os_bp = Blueprint("ordem_servico", __name__)
 
+
+@os_bp.route("/api/os/mecanicos", methods=["GET"])
+@login_obrigatorio
+def listar_mecanicos():
+    """
+    Lista os usuários com perfil 'mecânico' (id e nome) para preencher o
+    seletor de mecânico da OS. Fica sob o prefixo /api/os de propósito: assim
+    o próprio mecânico consegue acessá-la sem liberar o cadastro de usuários.
+    """
+    lista = query("SELECT id, nome FROM usuarios WHERE perfil='mecanico' "
+                  "AND ativo=1 ORDER BY nome")
+    return jsonify({"dados": lista})
+
+
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
     "em_execucao", "finalizada", "cancelada",

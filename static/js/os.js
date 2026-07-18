@@ -25,19 +25,21 @@
   // Dados auxiliares para os selects e itens
   let clientes = [], veiculos = [], mecanicos = [], produtos = [], servicos = [];
   try {
-    const [rc, rv, ru, rp, rs] = await Promise.all([
+    // allSettled: se algum recurso for bloqueado pelo perfil (ex.: mecânico não
+    // acessa produtos/serviços), os demais continuam funcionando.
+    const [rc, rv, rm, rp, rs] = await Promise.allSettled([
       API.get("/api/clientes?por_pagina=1000&ordem=nome"),
       API.get("/api/veiculos?por_pagina=1000"),
-      API.get("/api/usuarios"),
+      API.get("/api/os/mecanicos"),
       API.get("/api/produtos?por_pagina=1000&ordem=nome"),
       API.get("/api/servicos"),
     ]);
-    clientes = rc.dados || [];
-    veiculos = rv.dados || [];
-    // Apenas usuários com perfil "mecânico" aparecem no seletor de mecânico.
-    mecanicos = (ru.dados || ru || []).filter((u) => u.perfil === "mecanico");
-    produtos = rp.dados || [];
-    servicos = rs.dados || rs || [];
+    const ok = (r) => (r.status === "fulfilled" ? r.value : {});
+    clientes = ok(rc).dados || [];
+    veiculos = ok(rv).dados || [];
+    mecanicos = ok(rm).dados || [];   // já vem só com perfil "mecânico"
+    produtos = ok(rp).dados || [];
+    servicos = ok(rs).dados || [];
   } catch (_) {}
 
   let filtroStatus = "", busca = "";

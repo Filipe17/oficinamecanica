@@ -4,11 +4,15 @@
 (async () => {
   await Layout.iniciar("clientes", "Clientes");
 
+  // Mecânico só visualiza clientes (sem criar/editar/excluir).
+  const somenteLeitura = Layout.usuario?.perfil === "mecanico";
+
   const crud = new Crud({
     endpoint: "/api/clientes",
     titulo: "Clientes",
     singular: "Cliente",
     subtitulo: "Cadastro de pessoas físicas e jurídicas",
+    somenteLeitura,
     paginado: true,
     ordemPadrao: "nome",
     modalGrande: true,
