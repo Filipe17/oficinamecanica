@@ -141,25 +141,32 @@ const MENU = [
   { grupo: "Sistema", itens: [
     { id: "relatorios", nome: "Relatórios", icone: "fa-chart-column" },
     { id: "usuarios", nome: "Usuários", icone: "fa-user-gear" },
+    { id: "permissoes", nome: "Permissões", icone: "fa-user-shield" },
     { id: "logs", nome: "Logs", icone: "fa-clipboard-list" },
   ]},
 ];
 
-/* Itens de menu visíveis por perfil. Perfis não listados aqui veem tudo.
-   O mecânico só enxerga Dashboard, Clientes, Veículos e Ordem de Serviço. */
-const MENU_POR_PERFIL = {
-  mecanico: ["dashboard", "clientes", "veiculos", "ordem_servico"],
+/* Cada item de menu depende de um "módulo" de permissão. Itens de mesmo módulo
+   (ex.: orcamentos→ordem_servico, cobrancas→financeiro) seguem o mesmo nível. */
+const MODULO_DO_ITEM = {
+  dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
+  ordem_servico: "ordem_servico", orcamentos: "ordem_servico",
+  servicos: "servicos", produtos: "produtos", estoque: "estoque", xml: "xml",
+  financeiro: "financeiro", cobrancas: "financeiro", pdv: "pdv",
+  relatorios: "relatorios", usuarios: "usuarios", logs: "logs",
 };
 
 /* ---------------------- Layout: monta a "casca" da página ---------------------- */
 const Layout = {
   usuario: null,
+  permissoes: {},
 
   // Protege a página, carrega o usuário e injeta sidebar/topbar
   async iniciar(paginaAtiva, titulo) {
     try {
       const r = await API.get("/api/me");
       this.usuario = r.usuario;
+      this.permissoes = r.permissoes || {};
     } catch (_) {
       location.href = "/login";
       return null;
@@ -172,9 +179,15 @@ const Layout = {
     const iniciais = (this.usuario.nome || "?").split(" ")
       .map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
-    const permitidos = MENU_POR_PERFIL[this.usuario.perfil] || null;
+    const ehAdmin = this.usuario.perfil === "administrador";
+    const podeVer = (id) => {
+      if (id === "permissoes") return ehAdmin;          // só o admin
+      if (ehAdmin) return true;
+      const mod = MODULO_DO_ITEM[id];
+      return !mod || (this.permissoes[mod] || 0) > 0;   // nível > 0 = visível
+    };
     const nav = MENU.map((g) => {
-      const itens = permitidos ? g.itens.filter((i) => permitidos.includes(i.id)) : g.itens;
+      const itens = g.itens.filter((i) => podeVer(i.id));
       if (!itens.length) return "";   // não mostra grupo sem itens
       return `
       <div class="sidebar__group">

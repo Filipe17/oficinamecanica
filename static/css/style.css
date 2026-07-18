@@ -435,3 +435,14 @@ table.data tbody tr:last-child td { border-bottom: 0; }
 
 /* Ações agrupadas no cabeçalho da página (ex.: Dados da oficina + Novo) */
 .page-head__acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Tela de Permissões — matriz perfil x módulo */
+.perm-tabela th { white-space: nowrap; }
+.perm-cell { text-align: center; }
+.perm-sel {
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+}
+.perm-sel.n0 { background: var(--danger-soft);  color: var(--danger); }
+.perm-sel.n1 { background: var(--warning-soft); color: var(--warning); }
+.perm-sel.n2 { background: var(--success-soft); color: var(--success); }

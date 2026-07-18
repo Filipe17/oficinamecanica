@@ -95,6 +95,8 @@ def me():
     """Retorna o usuário logado — usado pelo front para validar a sessão."""
     if not session.get("user_id"):
         return jsonify({"autenticado": False}), 401
+    # Importação tardia evita dependência circular com o módulo de permissões.
+    from api.permissoes import permissoes_do_perfil
     return jsonify({
         "autenticado": True,
         "usuario": {
@@ -102,6 +104,7 @@ def me():
             "nome": session["nome"],
             "perfil": session["perfil"],
         },
+        "permissoes": permissoes_do_perfil(session["perfil"]),
     })
 
 

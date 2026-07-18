@@ -12,6 +12,10 @@
   const TITULO = EH_ORC ? "Orçamentos" : "Ordem de Serviço";
   await Layout.iniciar(PAG, TITULO);
 
+  // Só-leitura na OS quando o perfil tem nível "visualizar" (1) no módulo.
+  const soLeitura = Layout.usuario?.perfil !== "administrador"
+                 && (Layout.permissoes?.ordem_servico ?? 2) < 2;
+
   const STATUS = ["aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas", "em_execucao", "finalizada", "cancelada"];
   const STATUS_LABEL = {
     aberta: "Aberta", em_analise: "Em análise", aguardando_aprovacao: "Aguard. aprovação",
@@ -51,7 +55,7 @@
       <div class="page-head__acoes">
         <button class="btn btn--ghost" id="os-config" title="Dados que aparecem no recibo impresso">
           <i class="fa-solid fa-gear"></i> Dados da oficina</button>
-        <button class="btn btn--primary" id="os-novo"><i class="fa-solid fa-plus"></i> ${EH_ORC ? "Novo orçamento" : "Nova OS"}</button>
+        ${soLeitura ? "" : `<button class="btn btn--primary" id="os-novo"><i class="fa-solid fa-plus"></i> ${EH_ORC ? "Novo orçamento" : "Nova OS"}</button>`}
       </div>
     </div>
     <div class="card"><div class="card__body">
@@ -67,7 +71,8 @@
     </div></div>
   `);
 
-  document.getElementById("os-novo").onclick = () => abrirEditor();
+  const btnNovoOS = document.getElementById("os-novo");
+  if (btnNovoOS) btnNovoOS.onclick = () => abrirEditor();
   document.getElementById("os-config").onclick = () => editarDadosOficina();
   document.getElementById("os-busca").oninput = debounce((e) => { busca = e.target.value.trim(); carregar(); });
   document.getElementById("os-status").onchange = (e) => { filtroStatus = e.target.value; carregar(); };
@@ -92,7 +97,7 @@
           <td>${fmt.moeda(o.total)}</td>
           <td class="text-right">
             <button class="icon-btn btn--sm" title="Abrir" onclick="window.__os.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
-            <button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>
+            ${soLeitura ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
           </td></tr>`).join("")}
         </tbody></table></div>`;
     } catch (e) {
@@ -161,15 +166,21 @@
         </div>
       </div>` : ""}
     `, `
-      <button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+      <button class="btn btn--ghost" onclick="Modal.fechar()">${soLeitura ? "Fechar" : "Cancelar"}</button>
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
-      ${ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
-      ${ed && !EH_ORC && o.status !== "finalizada" ? `<button class="btn btn--success" onclick="window.__os.finalizar(${o.id})"><i class="fa-solid fa-flag-checkered"></i> Finalizar</button>` : ""}
-      <button class="btn btn--primary" id="os-salvar"><i class="fa-solid fa-check"></i> Salvar</button>
+      ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
+      ${!soLeitura && ed && !EH_ORC && o.status !== "finalizada" ? `<button class="btn btn--success" onclick="window.__os.finalizar(${o.id})"><i class="fa-solid fa-flag-checkered"></i> Finalizar</button>` : ""}
+      ${soLeitura ? "" : `<button class="btn btn--primary" id="os-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`}
     `, true);
 
-    document.getElementById("os-salvar").onclick = () => salvar(ed ? o.id : null, ed ? o : null);
     window.__os = api;
+    if (soLeitura) {
+      // Visualização: desabilita todos os campos, sem salvar.
+      document.querySelectorAll("#os-form input, #os-form select, #os-form textarea")
+        .forEach((el) => { el.disabled = true; });
+      return;
+    }
+    document.getElementById("os-salvar").onclick = () => salvar(ed ? o.id : null, ed ? o : null);
     api.calc();
   }
 

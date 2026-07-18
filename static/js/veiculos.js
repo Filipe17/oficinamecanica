@@ -38,8 +38,8 @@
     if (dl) dl.innerHTML = itens.map((i) => `<option value="${i.nome}">`).join("");
   }
 
-  // Mecânico só visualiza veículos (sem criar/editar/excluir).
-  const somenteLeitura = Layout.usuario?.perfil === "mecanico";
+  // Só-leitura quando o nível do perfil no módulo "veiculos" for < 2 (completo).
+  const somenteLeitura = (Layout.permissoes?.veiculos ?? 2) < 2;
 
   const crud = new Crud({
     endpoint: "/api/veiculos",

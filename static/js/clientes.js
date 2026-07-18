@@ -4,8 +4,8 @@
 (async () => {
   await Layout.iniciar("clientes", "Clientes");
 
-  // Mecânico só visualiza clientes (sem criar/editar/excluir).
-  const somenteLeitura = Layout.usuario?.perfil === "mecanico";
+  // Só-leitura quando o nível do perfil no módulo "clientes" for < 2 (completo).
+  const somenteLeitura = (Layout.permissoes?.clientes ?? 2) < 2;
 
   const crud = new Crud({
     endpoint: "/api/clientes",

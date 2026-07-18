@@ -368,6 +368,12 @@ def init_db():
             detalhe TEXT,
             criado_em TEXT
         )""",
+        f"""CREATE TABLE IF NOT EXISTS permissoes (
+            id {pk},
+            perfil TEXT NOT NULL,
+            modulo TEXT NOT NULL,
+            nivel INTEGER DEFAULT 0
+        )""",
     ]
 
     conn = get_connection()
@@ -381,6 +387,7 @@ def init_db():
         conn.close()
 
     _migrar_colunas()
+    _seed_permissoes()
     _seed()
 
 
@@ -406,6 +413,34 @@ def _migrar_colunas():
     """Migrações leves de schema aplicadas a cada boot (idempotentes)."""
     _garantir_coluna("clientes", "numero", "TEXT")
     _garantir_coluna("clientes", "bairro", "TEXT")
+
+
+# Módulos controláveis por permissão e o nível padrão de cada perfil.
+# Níveis: 0 = sem acesso, 1 = visualizar, 2 = completo (criar/editar/excluir).
+MODULOS_PERMISSAO = [
+    "dashboard", "clientes", "veiculos", "ordem_servico", "servicos",
+    "produtos", "estoque", "xml", "financeiro", "pdv", "relatorios",
+    "usuarios", "logs",
+]
+
+_PERMISSOES_PADRAO = {
+    "gerente":    {"dashboard":2,"clientes":2,"veiculos":2,"ordem_servico":2,"servicos":2,"produtos":2,"estoque":2,"xml":2,"financeiro":2,"pdv":2,"relatorios":2,"usuarios":1,"logs":1},
+    "atendente":  {"dashboard":1,"clientes":2,"veiculos":2,"ordem_servico":2,"servicos":1,"produtos":1,"estoque":1,"xml":0,"financeiro":1,"pdv":2,"relatorios":1,"usuarios":0,"logs":0},
+    "mecanico":   {"dashboard":1,"clientes":1,"veiculos":1,"ordem_servico":2,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":0,"pdv":0,"relatorios":0,"usuarios":0,"logs":0},
+    "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":2,"pdv":2,"relatorios":1,"usuarios":0,"logs":0},
+    "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":1,"pdv":2,"relatorios":0,"usuarios":0,"logs":0},
+}
+
+
+def _seed_permissoes():
+    """Cria as permissões padrão se a tabela ainda estiver vazia."""
+    existe = query("SELECT COUNT(*) AS n FROM permissoes", fetchone=True)
+    if existe and existe["n"]:
+        return
+    for perfil, mods in _PERMISSOES_PADRAO.items():
+        for modulo, nivel in mods.items():
+            query("INSERT INTO permissoes (perfil, modulo, nivel) VALUES (?,?,?)",
+                  (perfil, modulo, nivel), commit=True)
 
 
 def _seed():

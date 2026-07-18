@@ -34,6 +34,7 @@ from api.financeiro import financeiro_bp
 from api.pdv import pdv_bp
 from api.xml import xml_bp
 from api.relatorios import relatorios_bp
+from api.permissoes import permissoes_bp, nivel_de
 
 # Diretórios base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -52,54 +53,77 @@ app.permanent_session_lifetime = timedelta(days=30)   # "lembrar acesso"
 
 # Registro dos Blueprints (cada módulo cuida de um domínio)
 for bp in (usuarios_bp, clientes_bp, veiculos_bp, produtos_bp, estoque_bp,
-           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp):
+           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, permissoes_bp):
     app.register_blueprint(bp)
 
 
 # -------------------------------------------------------------------------
-# Controle de acesso por perfil (aplicado a cada requisição)
+# Controle de acesso por perfil (configurável pelo administrador)
 # -------------------------------------------------------------------------
-# Regras do perfil "mecânico": só acessa Dashboard (leitura), Clientes e
-# Veículos (somente leitura) e a Ordem de Serviço (completa). Todo o resto é
-# bloqueado aqui no servidor — não basta esconder o botão no front.
+# Cada rota é associada a um "módulo"; o nível do perfil naquele módulo
+# (0=sem acesso, 1=visualizar, 2=completo) define o que é permitido.
+# As regras vêm da tabela "permissoes" (tela de Permissões do admin).
 
-# APIs de LEITURA liberadas ao mecânico (apenas GET nesses prefixos).
-_MEC_API_GET = ("/api/dashboard", "/api/clientes", "/api/veiculos",
-                "/api/financeiro/fluxo")
-# Páginas HTML liberadas ao mecânico.
-_MEC_PAGINAS = ("/dashboard", "/clientes", "/veiculos", "/ordem_servico")
-
-
-def _mecanico_liberado(path, metodo):
-    # Sessão / autenticação sempre liberadas
-    if path in ("/api/me", "/api/logout", "/api/login", "/api/health", "/", "/login"):
-        return True
-    # Ordem de Serviço: acesso total (API — inclui /api/os/mecanicos — e página)
-    if path.startswith("/api/os") or path == "/ordem_servico":
-        return True
-    # Páginas HTML: apenas as da lista
-    if not path.startswith("/api/"):
-        return path in _MEC_PAGINAS
-    # APIs de leitura: apenas GET nos prefixos liberados
-    if metodo == "GET":
-        return any(path == p or path.startswith(p + "/") for p in _MEC_API_GET)
-    return False
+# Prefixo de API -> módulo
+_MODULO_API = [
+    ("/api/dashboard", "dashboard"),
+    ("/api/clientes", "clientes"),
+    ("/api/veiculos", "veiculos"),
+    ("/api/os", "ordem_servico"),
+    ("/api/servicos", "servicos"),
+    ("/api/produtos", "produtos"),
+    ("/api/estoque", "estoque"),
+    ("/api/xml", "xml"),
+    ("/api/financeiro", "financeiro"),
+    ("/api/cobrancas", "financeiro"),
+    ("/api/pdv", "pdv"),
+    ("/api/relatorios", "relatorios"),
+    ("/api/usuarios", "usuarios"),
+    ("/api/logs", "logs"),
+]
+# Página HTML -> módulo (orcamentos segue ordem_servico; cobrancas segue financeiro)
+_MODULO_PAGINA = {
+    "dashboard": "dashboard", "clientes": "clientes", "veiculos": "veiculos",
+    "ordem_servico": "ordem_servico", "orcamentos": "ordem_servico",
+    "servicos": "servicos", "produtos": "produtos", "estoque": "estoque",
+    "xml": "xml", "financeiro": "financeiro", "cobrancas": "financeiro",
+    "pdv": "pdv", "relatorios": "relatorios", "usuarios": "usuarios", "logs": "logs",
+}
+_SEMPRE_LIBERADO = ("/api/me", "/api/logout", "/api/login", "/api/health", "/", "/login")
 
 
 @app.before_request
 def _controle_acesso():
-    # Estáticos sempre liberados
     if request.path.startswith("/static/"):
         return
-    # Só o mecânico tem regras extras; demais perfis seguem as travas das rotas
-    if session.get("perfil") != "mecanico":
+    perfil = session.get("perfil")
+    if not perfil or perfil == "administrador":
+        return                       # não logado (rotas tratam) ou admin (tudo)
+    if request.path in _SEMPRE_LIBERADO:
         return
-    if _mecanico_liberado(request.path, request.method):
-        return
-    # Bloqueio: API responde 403; página redireciona ao dashboard
+
+    # A tela de Permissões é exclusiva do administrador.
+    if request.path == "/permissoes" or request.path.startswith("/api/permissoes"):
+        if request.path.startswith("/api/"):
+            return jsonify({"erro": "Acesso não permitido"}), 403
+        return redirect("/dashboard")
+
     if request.path.startswith("/api/"):
-        return jsonify({"erro": "Acesso não permitido para o seu perfil"}), 403
-    return redirect("/dashboard")
+        modulo = next((m for pref, m in _MODULO_API
+                       if request.path == pref or request.path.startswith(pref + "/")), None)
+        if modulo is None:
+            return                   # rota não mapeada segue as travas próprias
+        nivel = nivel_de(perfil, modulo)
+        if nivel == 0:
+            return jsonify({"erro": "Acesso não permitido para o seu perfil"}), 403
+        if request.method in ("POST", "PUT", "DELETE", "PATCH") and nivel < 2:
+            return jsonify({"erro": "Você só tem permissão de visualização aqui"}), 403
+        return
+    else:
+        modulo = _MODULO_PAGINA.get(request.path.strip("/"))
+        if modulo and nivel_de(perfil, modulo) == 0:
+            return redirect("/dashboard")
+        return
 
 
 # -------------------------------------------------------------------------
