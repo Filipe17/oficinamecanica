@@ -150,7 +150,7 @@ const MENU = [
    (ex.: orcamentos→ordem_servico, cobrancas→financeiro) seguem o mesmo nível. */
 const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
-  ordem_servico: "ordem_servico", orcamentos: "ordem_servico",
+  ordem_servico: "ordem_servico", orcamentos: "orcamentos",
   servicos: "servicos", produtos: "produtos", estoque: "estoque", xml: "xml",
   financeiro: "financeiro", cobrancas: "financeiro", pdv: "pdv",
   relatorios: "relatorios", usuarios: "usuarios", logs: "logs",

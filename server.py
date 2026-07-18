@@ -18,12 +18,13 @@ Execução local:
 """
 
 import os
+import re
 import shutil
 from datetime import datetime, timedelta
 
 from flask import Flask, send_from_directory, jsonify, session, redirect, request
 
-from database.database import init_db, SQLITE_PATH
+from database.database import init_db, SQLITE_PATH, query
 from api.usuarios import usuarios_bp, login_obrigatorio, perfil_permitido
 from api.clientes import clientes_bp
 from api.veiculos import veiculos_bp
@@ -69,7 +70,6 @@ _MODULO_API = [
     ("/api/dashboard", "dashboard"),
     ("/api/clientes", "clientes"),
     ("/api/veiculos", "veiculos"),
-    ("/api/os", "ordem_servico"),
     ("/api/servicos", "servicos"),
     ("/api/produtos", "produtos"),
     ("/api/estoque", "estoque"),
@@ -81,15 +81,39 @@ _MODULO_API = [
     ("/api/usuarios", "usuarios"),
     ("/api/logs", "logs"),
 ]
-# Página HTML -> módulo (orcamentos segue ordem_servico; cobrancas segue financeiro)
+# Página HTML -> módulo (OS e Orçamentos são módulos separados)
 _MODULO_PAGINA = {
     "dashboard": "dashboard", "clientes": "clientes", "veiculos": "veiculos",
-    "ordem_servico": "ordem_servico", "orcamentos": "ordem_servico",
+    "ordem_servico": "ordem_servico", "orcamentos": "orcamentos",
     "servicos": "servicos", "produtos": "produtos", "estoque": "estoque",
     "xml": "xml", "financeiro": "financeiro", "cobrancas": "financeiro",
     "pdv": "pdv", "relatorios": "relatorios", "usuarios": "usuarios", "logs": "logs",
 }
 _SEMPRE_LIBERADO = ("/api/me", "/api/logout", "/api/login", "/api/health", "/", "/login")
+
+
+def _modulo_os(path, metodo):
+    """
+    /api/os atende OS e Orçamentos (mesma tabela, flag eh_orcamento). Aqui
+    descobrimos a qual módulo a requisição pertence, para aplicar a permissão
+    certa (ex.: mecânico tem OS mas não Orçamento).
+    """
+    if path == "/api/os":
+        if metodo == "GET":
+            return "orcamentos" if request.args.get("orcamento") == "1" else "ordem_servico"
+        corpo = request.get_json(silent=True) or {}
+        try:
+            eh = int(corpo.get("eh_orcamento", 0) or 0)
+        except (TypeError, ValueError):
+            eh = 0
+        return "orcamentos" if eh == 1 else "ordem_servico"
+    m = re.match(r"^/api/os/(\d+)", path)
+    if m:
+        row = query("SELECT eh_orcamento FROM ordens_servico WHERE id=?",
+                    (int(m.group(1)),), fetchone=True)
+        if row and row.get("eh_orcamento") == 1:
+            return "orcamentos"
+    return "ordem_servico"
 
 
 @app.before_request
@@ -101,6 +125,9 @@ def _controle_acesso():
         return                       # não logado (rotas tratam) ou admin (tudo)
     if request.path in _SEMPRE_LIBERADO:
         return
+    # Lista de mecânicos: liberada a qualquer usuário logado (só nomes)
+    if request.path == "/api/os/mecanicos":
+        return
 
     # A tela de Permissões é exclusiva do administrador.
     if request.path == "/permissoes" or request.path.startswith("/api/permissoes"):
@@ -109,8 +136,11 @@ def _controle_acesso():
         return redirect("/dashboard")
 
     if request.path.startswith("/api/"):
-        modulo = next((m for pref, m in _MODULO_API
-                       if request.path == pref or request.path.startswith(pref + "/")), None)
+        if request.path == "/api/os" or request.path.startswith("/api/os/"):
+            modulo = _modulo_os(request.path, request.method)
+        else:
+            modulo = next((m for pref, m in _MODULO_API
+                           if request.path == pref or request.path.startswith(pref + "/")), None)
         if modulo is None:
             return                   # rota não mapeada segue as travas próprias
         nivel = nivel_de(perfil, modulo)

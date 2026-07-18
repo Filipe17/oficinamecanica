@@ -12,9 +12,10 @@
   const TITULO = EH_ORC ? "Orçamentos" : "Ordem de Serviço";
   await Layout.iniciar(PAG, TITULO);
 
-  // Só-leitura na OS quando o perfil tem nível "visualizar" (1) no módulo.
+  // Só-leitura quando o perfil tem nível "visualizar" (1) no módulo correspondente.
+  const MODULO_PAG = EH_ORC ? "orcamentos" : "ordem_servico";
   const soLeitura = Layout.usuario?.perfil !== "administrador"
-                 && (Layout.permissoes?.ordem_servico ?? 2) < 2;
+                 && (Layout.permissoes?.[MODULO_PAG] ?? 2) < 2;
 
   const STATUS = ["aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas", "em_execucao", "finalizada", "cancelada"];
   const STATUS_LABEL = {

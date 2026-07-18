@@ -13,7 +13,7 @@
 
   const ROTULO_MODULO = {
     dashboard: "Dashboard", clientes: "Clientes", veiculos: "Veículos",
-    ordem_servico: "Ordem de Serviço / Orçamentos", servicos: "Serviços",
+    ordem_servico: "Ordem de Serviço", orcamentos: "Orçamentos", servicos: "Serviços",
     produtos: "Produtos", estoque: "Estoque", xml: "Importação XML",
     financeiro: "Financeiro / Cobranças", pdv: "PDV", relatorios: "Relatórios",
     usuarios: "Usuários", logs: "Logs",

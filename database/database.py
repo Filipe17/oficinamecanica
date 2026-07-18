@@ -418,17 +418,17 @@ def _migrar_colunas():
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
 # Níveis: 0 = sem acesso, 1 = visualizar, 2 = completo (criar/editar/excluir).
 MODULOS_PERMISSAO = [
-    "dashboard", "clientes", "veiculos", "ordem_servico", "servicos",
-    "produtos", "estoque", "xml", "financeiro", "pdv", "relatorios",
-    "usuarios", "logs",
+    "dashboard", "clientes", "veiculos", "ordem_servico", "orcamentos",
+    "servicos", "produtos", "estoque", "xml", "financeiro", "pdv",
+    "relatorios", "usuarios", "logs",
 ]
 
 _PERMISSOES_PADRAO = {
-    "gerente":    {"dashboard":2,"clientes":2,"veiculos":2,"ordem_servico":2,"servicos":2,"produtos":2,"estoque":2,"xml":2,"financeiro":2,"pdv":2,"relatorios":2,"usuarios":1,"logs":1},
-    "atendente":  {"dashboard":1,"clientes":2,"veiculos":2,"ordem_servico":2,"servicos":1,"produtos":1,"estoque":1,"xml":0,"financeiro":1,"pdv":2,"relatorios":1,"usuarios":0,"logs":0},
-    "mecanico":   {"dashboard":1,"clientes":1,"veiculos":1,"ordem_servico":2,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":0,"pdv":0,"relatorios":0,"usuarios":0,"logs":0},
-    "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":2,"pdv":2,"relatorios":1,"usuarios":0,"logs":0},
-    "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":1,"pdv":2,"relatorios":0,"usuarios":0,"logs":0},
+    "gerente":    {"dashboard":2,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":2,"produtos":2,"estoque":2,"xml":2,"financeiro":2,"pdv":2,"relatorios":2,"usuarios":1,"logs":1},
+    "atendente":  {"dashboard":1,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":1,"produtos":1,"estoque":1,"xml":0,"financeiro":1,"pdv":2,"relatorios":1,"usuarios":0,"logs":0},
+    "mecanico":   {"dashboard":1,"clientes":1,"veiculos":1,"ordem_servico":2,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":0,"pdv":0,"relatorios":0,"usuarios":0,"logs":0},
+    "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":2,"pdv":2,"relatorios":1,"usuarios":0,"logs":0},
+    "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":1,"pdv":2,"relatorios":0,"usuarios":0,"logs":0},
 }
 
 
@@ -436,9 +436,32 @@ def _seed_permissoes():
     """Cria as permissões padrão se a tabela ainda estiver vazia."""
     existe = query("SELECT COUNT(*) AS n FROM permissoes", fetchone=True)
     if existe and existe["n"]:
+        _migrar_permissoes()   # tabela já existe: garante módulos novos
         return
     for perfil, mods in _PERMISSOES_PADRAO.items():
         for modulo, nivel in mods.items():
+            query("INSERT INTO permissoes (perfil, modulo, nivel) VALUES (?,?,?)",
+                  (perfil, modulo, nivel), commit=True)
+
+
+def _migrar_permissoes():
+    """
+    Garante que módulos de permissão adicionados depois existam para cada perfil.
+    Ex.: 'orcamentos' foi separado de 'ordem_servico' — bancos antigos não o têm.
+    Padrão: mesmo nível da OS, mas o mecânico nunca faz orçamento (0).
+    """
+    for perfil in ["gerente", "atendente", "mecanico", "financeiro", "caixa"]:
+        for modulo in MODULOS_PERMISSAO:
+            existe = query("SELECT id FROM permissoes WHERE perfil=? AND modulo=?",
+                           (perfil, modulo), fetchone=True)
+            if existe:
+                continue
+            if modulo == "orcamentos":
+                os_row = query("SELECT nivel FROM permissoes WHERE perfil=? AND modulo='ordem_servico'",
+                               (perfil,), fetchone=True)
+                nivel = 0 if perfil == "mecanico" else (os_row["nivel"] if os_row else 0)
+            else:
+                nivel = _PERMISSOES_PADRAO.get(perfil, {}).get(modulo, 0)
             query("INSERT INTO permissoes (perfil, modulo, nivel) VALUES (?,?,?)",
                   (perfil, modulo, nivel), commit=True)
 
