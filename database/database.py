@@ -374,6 +374,11 @@ def init_db():
             modulo TEXT NOT NULL,
             nivel INTEGER DEFAULT 0
         )""",
+        f"""CREATE TABLE IF NOT EXISTS configuracoes (
+            id {pk},
+            chave TEXT UNIQUE,
+            valor TEXT
+        )""",
     ]
 
     conn = get_connection()

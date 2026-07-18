@@ -54,8 +54,6 @@
     <div class="page-head">
       <div><h1>${TITULO}</h1><p>${EH_ORC ? "Propostas para aprovação do cliente" : "Ordens de serviço e acompanhamento"}</p></div>
       <div class="page-head__acoes">
-        <button class="btn btn--ghost" id="os-config" title="Dados que aparecem no recibo impresso">
-          <i class="fa-solid fa-gear"></i> Dados da oficina</button>
         ${soLeitura ? "" : `<button class="btn btn--primary" id="os-novo"><i class="fa-solid fa-plus"></i> ${EH_ORC ? "Novo orçamento" : "Nova OS"}</button>`}
       </div>
     </div>
@@ -74,7 +72,6 @@
 
   const btnNovoOS = document.getElementById("os-novo");
   if (btnNovoOS) btnNovoOS.onclick = () => abrirEditor();
-  document.getElementById("os-config").onclick = () => editarDadosOficina();
   document.getElementById("os-busca").oninput = debounce((e) => { busca = e.target.value.trim(); carregar(); });
   document.getElementById("os-status").onchange = (e) => { filtroStatus = e.target.value; carregar(); };
 
@@ -318,31 +315,15 @@
   // Simples e imediato; se quiser compartilhar entre computadores/usuários,
   // dá para migrar para uma tabela de configurações no banco depois.
   // ---------------------------------------------------------------------
+  // Dados da empresa vêm das Configurações (banco), carregados em Layout.config.
   function _dadosOficina() {
-    try { return JSON.parse(localStorage.getItem("oficina_dados") || "{}"); }
-    catch (_) { return {}; }
-  }
-
-  function editarDadosOficina(aoSalvar) {
-    const d = _dadosOficina();
-    Modal.abrir("Dados da oficina (recibo)", `
-      <p class="text-muted" style="margin-bottom:12px">Estas informações aparecem no topo do recibo impresso.</p>
-      <div class="form-grid" id="ofc-form">
-        <div class="field col-2"><label>Nome da oficina</label><input name="nome" value="${d.nome || ""}"></div>
-        <div class="field col-2"><label>Endereço</label><input name="endereco" value="${d.endereco || ""}"></div>
-        <div class="field"><label>Telefone</label><input name="telefone" value="${d.telefone || ""}"></div>
-        <div class="field"><label>CNPJ</label><input name="cnpj" value="${d.cnpj || ""}"></div>
-      </div>`,
-      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
-       <button class="btn btn--primary" id="ofc-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`);
-    document.getElementById("ofc-salvar").onclick = () => {
-      const f = document.getElementById("ofc-form");
-      const novo = { nome: f.nome.value.trim(), endereco: f.endereco.value.trim(),
-                     telefone: f.telefone.value.trim(), cnpj: f.cnpj.value.trim() };
-      localStorage.setItem("oficina_dados", JSON.stringify(novo));
-      toast("Dados da oficina salvos");
-      Modal.fechar();
-      if (typeof aoSalvar === "function") aoSalvar();
+    const c = Layout.config || {};
+    return {
+      nome: c.empresa_nome || "",
+      endereco: c.empresa_endereco || "",
+      telefone: c.empresa_telefone || "",
+      cnpj: c.empresa_cnpj || "",
+      logo: c.empresa_logo || "",
     };
   }
 
@@ -351,9 +332,7 @@
   function imprimirRecibo(o) {
     const ofc = _dadosOficina();
     if (!ofc.nome) {
-      // Primeira vez: pede os dados da oficina e, ao salvar, imprime.
-      toast("Preencha os dados da oficina para o recibo", "warning");
-      editarDadosOficina(() => imprimirRecibo(o));
+      toast("Configure os dados da empresa em Configurações (administrador).", "warning");
       return;
     }
 
@@ -406,12 +385,15 @@
         @media print { body { padding: 0; } @page { margin: 16mm; } }
       </style></head><body>
       <div class="topo">
-        <div>
-          <div class="of-nome">${ofc.nome}</div>
-          <div class="of-dados">
-            ${ofc.endereco ? ofc.endereco + "<br>" : ""}
-            ${ofc.telefone ? "Tel: " + ofc.telefone + " &nbsp; " : ""}
-            ${ofc.cnpj ? "CNPJ: " + ofc.cnpj : ""}
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          ${ofc.logo ? `<img src="${ofc.logo}" alt="logo" style="max-height:64px;max-width:120px;object-fit:contain">` : ""}
+          <div>
+            <div class="of-nome">${ofc.nome}</div>
+            <div class="of-dados">
+              ${ofc.endereco ? ofc.endereco + "<br>" : ""}
+              ${ofc.telefone ? "Tel: " + ofc.telefone + " &nbsp; " : ""}
+              ${ofc.cnpj ? "CNPJ: " + ofc.cnpj : ""}
+            </div>
           </div>
         </div>
         <div class="doc">

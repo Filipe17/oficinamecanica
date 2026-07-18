@@ -36,6 +36,7 @@ from api.pdv import pdv_bp
 from api.xml import xml_bp
 from api.relatorios import relatorios_bp
 from api.permissoes import permissoes_bp, nivel_de
+from api.configuracoes import configuracoes_bp
 
 # Diretórios base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +55,8 @@ app.permanent_session_lifetime = timedelta(days=30)   # "lembrar acesso"
 
 # Registro dos Blueprints (cada módulo cuida de um domínio)
 for bp in (usuarios_bp, clientes_bp, veiculos_bp, produtos_bp, estoque_bp,
-           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, permissoes_bp):
+           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, permissoes_bp,
+           configuracoes_bp):
     app.register_blueprint(bp)
 
 
@@ -133,6 +135,11 @@ def _controle_acesso():
     if request.path == "/permissoes" or request.path.startswith("/api/permissoes"):
         if request.path.startswith("/api/"):
             return jsonify({"erro": "Acesso não permitido"}), 403
+        return redirect("/dashboard")
+
+    # A página de Configurações é exclusiva do administrador (a leitura da API
+    # de configurações continua liberada, pois o recibo/menu precisam dela).
+    if request.path == "/configuracoes":
         return redirect("/dashboard")
 
     if request.path.startswith("/api/"):

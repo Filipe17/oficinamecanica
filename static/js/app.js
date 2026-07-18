@@ -142,6 +142,7 @@ const MENU = [
     { id: "relatorios", nome: "Relatórios", icone: "fa-chart-column" },
     { id: "usuarios", nome: "Usuários", icone: "fa-user-gear" },
     { id: "permissoes", nome: "Permissões", icone: "fa-user-shield" },
+    { id: "configuracoes", nome: "Configurações", icone: "fa-gear" },
     { id: "logs", nome: "Logs", icone: "fa-clipboard-list" },
   ]},
 ];
@@ -160,6 +161,7 @@ const MODULO_DO_ITEM = {
 const Layout = {
   usuario: null,
   permissoes: {},
+  config: {},
 
   // Protege a página, carrega o usuário e injeta sidebar/topbar
   async iniciar(paginaAtiva, titulo) {
@@ -171,6 +173,7 @@ const Layout = {
       location.href = "/login";
       return null;
     }
+    try { this.config = await API.get("/api/configuracoes"); } catch (_) { this.config = {}; }
     this._render(paginaAtiva, titulo);
     return this.usuario;
   },
@@ -181,7 +184,7 @@ const Layout = {
 
     const ehAdmin = this.usuario.perfil === "administrador";
     const podeVer = (id) => {
-      if (id === "permissoes") return ehAdmin;          // só o admin
+      if (id === "permissoes" || id === "configuracoes") return ehAdmin;  // só o admin
       if (ehAdmin) return true;
       const mod = MODULO_DO_ITEM[id];
       return !mod || (this.permissoes[mod] || 0) > 0;   // nível > 0 = visível
@@ -205,8 +208,10 @@ const Layout = {
       <div class="app">
         <aside class="sidebar" id="sidebar">
           <div class="sidebar__brand">
-            <div class="sidebar__logo"><i class="fa-solid fa-gear"></i></div>
-            <div class="sidebar__title">Oficina ERP<small>Gestão completa</small></div>
+            <div class="sidebar__logo">${this.config.empresa_logo
+              ? `<img src="${this.config.empresa_logo}" alt="logo">`
+              : `<i class="fa-solid fa-gear"></i>`}</div>
+            <div class="sidebar__title">${this.config.empresa_nome || "Oficina ERP"}<small>${this.config.empresa_nome ? "Gestão da oficina" : "Gestão completa"}</small></div>
           </div>
           <nav class="sidebar__nav">${nav}</nav>
         </aside>
