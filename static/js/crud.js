@@ -194,6 +194,9 @@ class Crud {
     );
     document.getElementById("crud-salvar").onclick = () => this.salvar(ed ? registro.id : null);
     this._aplicarMascaras();
+    // Gancho opcional: permite à página customizar o formulário após montado
+    // (ex.: carregar marcas/modelos da FIPE e ligar campos dependentes).
+    if (typeof this.cfg.aoAbrirForm === "function") this.cfg.aoAbrirForm(registro || {});
     window.__crud = this;
   }
 
@@ -231,9 +234,12 @@ class Crud {
         f.obrigatorio ? "required" : "",
         f.mascara ? `data-mascara="${f.mascara}"` : "",
         f.cep ? `data-cep="1"` : "",
+        f.datalist ? `list="dl-${f.nome}" autocomplete="off"` : "",
         f.placeholder ? `placeholder="${f.placeholder}"` : "",
       ].filter(Boolean).join(" ");
       input = `<input type="${f.tipo || "text"}" name="${f.nome}" value="${val}" ${extra}>`;
+      // Lista de sugestões (preenchida dinamicamente pela página, ex.: FIPE).
+      if (f.datalist) input += `<datalist id="dl-${f.nome}"></datalist>`;
     }
     return `<div class="${cls}"><label>${f.label}${f.obrigatorio ? " *" : ""}</label>${input}</div>`;
   }
