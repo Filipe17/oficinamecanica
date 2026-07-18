@@ -193,15 +193,20 @@
       desc.setAttribute("list", tipo === "produto" ? "dl-produtos" : "dl-servicos");
     },
     calc() {
+      const body = document.getElementById("os-itens-body");
+      const totalEl = document.getElementById("os-total-val");
+      // No modo OS não há seção de itens/desconto/total — nada a calcular.
+      if (!body || !totalEl) return;
       let total = 0;
-      document.querySelectorAll("#os-itens-body tr").forEach((tr) => {
+      body.querySelectorAll("tr").forEach((tr) => {
         const q = parseFloat(tr.querySelector(".it-qtd").value) || 0;
         const v = parseFloat(tr.querySelector(".it-val").value) || 0;
         tr.querySelector(".it-sub").textContent = fmt.moeda(q * v);
         total += q * v;
       });
-      const desc = parseFloat(document.querySelector('[name="desconto"]').value) || 0;
-      document.getElementById("os-total-val").textContent = fmt.moeda(Math.max(0, total - desc));
+      const descEl = document.querySelector('[name="desconto"]');
+      const desc = descEl ? (parseFloat(descEl.value) || 0) : 0;
+      totalEl.textContent = fmt.moeda(Math.max(0, total - desc));
     },
     _coletarItens() {
       const itens = [];
@@ -251,24 +256,29 @@
 
   async function salvar(id, original) {
     const f = document.getElementById("os-form");
-    if (!f.cliente_id.value) { toast("Selecione o cliente", "warning"); return; }
+    // O container é uma <div>, então lemos cada campo por [name="..."].
+    const g = (n) => f.querySelector(`[name="${n}"]`);
+    const val = (n) => { const el = g(n); return el ? el.value : ""; };
+
+    if (!val("cliente_id")) { toast("Selecione o cliente", "warning"); return; }
     const dados = {
-      cliente_id: f.cliente_id.value,
-      veiculo_id: f.veiculo_id.value || null,
-      mecanico_id: f.mecanico_id.value || null,
-      status: f.status.value,
-      previsao: f.previsao.value || null,
-      problema: f.problema.value,
-      diagnostico: f.diagnostico.value,
-      horas_trabalhadas: parseFloat(f.horas_trabalhadas.value) || 0,
+      cliente_id: val("cliente_id"),
+      veiculo_id: val("veiculo_id") || null,
+      mecanico_id: val("mecanico_id") || null,
+      status: val("status"),
+      previsao: val("previsao") || null,
+      problema: val("problema"),
+      diagnostico: val("diagnostico"),
+      horas_trabalhadas: parseFloat(val("horas_trabalhadas")) || 0,
       eh_orcamento: EH_ORC,
     };
 
     // Garantia, desconto e itens só existem no orçamento. Na OS (uso do
     // mecânico) esses campos não aparecem — então preservamos os valores que
     // já estavam gravados (importante quando a OS veio de um orçamento).
-    const descEl = document.querySelector('[name="desconto"]');
-    if (f.garantia) dados.garantia = f.garantia.value;
+    const garEl = g("garantia");
+    const descEl = g("desconto");
+    if (garEl) dados.garantia = garEl.value;
     else if (original) dados.garantia = original.garantia;
 
     if (descEl) {
