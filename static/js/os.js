@@ -137,9 +137,10 @@
         <div class="field col-2"><label>Problema relatado</label><textarea name="problema">${ed ? (o.problema || "") : ""}</textarea></div>
         <div class="field col-2"><label>Diagnóstico</label><textarea name="diagnostico">${ed ? (o.diagnostico || "") : ""}</textarea></div>
         <div class="field"><label>Horas trabalhadas</label><input type="number" step="0.5" name="horas_trabalhadas" value="${ed ? (o.horas_trabalhadas || 0) : 0}"></div>
-        <div class="field"><label>Garantia</label><input name="garantia" value="${ed ? (o.garantia || "") : ""}"></div>
+        ${EH_ORC ? `<div class="field"><label>Garantia</label><input name="garantia" value="${ed ? (o.garantia || "") : ""}"></div>` : ""}
       </div>
 
+      ${EH_ORC ? `
       <div class="os-itens">
         <div class="os-itens__head">
           <h3>Itens</h3>
@@ -156,7 +157,7 @@
             <input type="number" step="0.01" name="desconto" value="${ed ? (o.desconto || 0) : 0}" oninput="window.__os.calc()"></div>
           <div class="os-total__valor">Total: <b id="os-total-val">${fmt.moeda(ed ? o.total : 0)}</b></div>
         </div>
-      </div>
+      </div>` : ""}
     `, `
       <button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
@@ -165,7 +166,7 @@
       <button class="btn btn--primary" id="os-salvar"><i class="fa-solid fa-check"></i> Salvar</button>
     `, true);
 
-    document.getElementById("os-salvar").onclick = () => salvar(ed ? o.id : null);
+    document.getElementById("os-salvar").onclick = () => salvar(ed ? o.id : null, ed ? o : null);
     window.__os = api;
     api.calc();
   }
@@ -248,7 +249,7 @@
     },
   };
 
-  async function salvar(id) {
+  async function salvar(id, original) {
     const f = document.getElementById("os-form");
     if (!f.cliente_id.value) { toast("Selecione o cliente", "warning"); return; }
     const dados = {
@@ -260,11 +261,25 @@
       problema: f.problema.value,
       diagnostico: f.diagnostico.value,
       horas_trabalhadas: parseFloat(f.horas_trabalhadas.value) || 0,
-      garantia: f.garantia.value,
-      desconto: parseFloat(f.desconto.value) || 0,
       eh_orcamento: EH_ORC,
-      itens: api._coletarItens(),
     };
+
+    // Garantia, desconto e itens só existem no orçamento. Na OS (uso do
+    // mecânico) esses campos não aparecem — então preservamos os valores que
+    // já estavam gravados (importante quando a OS veio de um orçamento).
+    const descEl = document.querySelector('[name="desconto"]');
+    if (f.garantia) dados.garantia = f.garantia.value;
+    else if (original) dados.garantia = original.garantia;
+
+    if (descEl) {
+      // Modo orçamento: envia desconto e itens editados.
+      dados.desconto = parseFloat(descEl.value) || 0;
+      dados.itens = api._coletarItens();
+    } else if (original) {
+      // Modo OS: mantém o desconto atual e NÃO envia "itens" (backend preserva).
+      dados.desconto = original.desconto || 0;
+    }
+
     try {
       if (id) await API.put(`/api/os/${id}`, dados);
       else await API.post("/api/os", dados);
