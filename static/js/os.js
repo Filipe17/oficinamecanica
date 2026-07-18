@@ -88,13 +88,13 @@
       const lista = r.dados || [];
       if (!lista.length) { alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-inbox"></i>Nenhum registro</div>`; return; }
       alvo.innerHTML = `<div class="table-wrap"><table class="data">
-        <thead><tr><th>Número</th><th>Cliente</th><th>Veículo</th><th>Status</th><th>Total</th><th></th></tr></thead>
+        <thead><tr><th>Número</th><th>Cliente</th><th>Veículo</th><th>Status</th><th>Mecânico</th><th></th></tr></thead>
         <tbody>${lista.map((o) => `<tr>
           <td><b>${o.numero || "-"}</b></td>
           <td>${o.cliente_nome || "-"}</td>
           <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
           <td><span class="badge badge--${STATUS_TOM[o.status] || ""}">${STATUS_LABEL[o.status] || o.status}</span></td>
-          <td>${fmt.moeda(o.total)}</td>
+          <td>${o.mecanico_nome || "-"}</td>
           <td class="text-right">
             <button class="icon-btn btn--sm" title="Abrir" onclick="window.__os.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
             ${soLeitura ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}

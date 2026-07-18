@@ -74,9 +74,10 @@ def listar():
     clausula = "WHERE " + " AND ".join(where)
     lista = query(
         f"SELECT o.*, c.nome AS cliente_nome, v.placa AS veiculo_placa, "
-        f"v.modelo AS veiculo_modelo FROM ordens_servico o "
+        f"v.modelo AS veiculo_modelo, u.nome AS mecanico_nome FROM ordens_servico o "
         f"LEFT JOIN clientes c ON c.id=o.cliente_id "
         f"LEFT JOIN veiculos v ON v.id=o.veiculo_id "
+        f"LEFT JOIN usuarios u ON u.id=o.mecanico_id "
         f"{clausula} ORDER BY o.id DESC LIMIT 200", params)
     return jsonify({"dados": lista})
 
