@@ -61,7 +61,7 @@
       { nome: "placa", label: "Placa" },
       { nome: "cor", label: "Cor" },
       { nome: "motor", label: "Motor" },
-      { nome: "combustivel", label: "Combustível", tipo: "select", opcoes: ["", "Gasolina", "Etanol", "Flex", "Diesel", "GNV", "Elétrico", "Híbrido"] },
+      { nome: "combustivel", label: "Combustível", tipo: "select", opcoes: ["", "Gasolina", "Etanol", "Etanol/Gasolina", "Flex", "Diesel", "GNV", "Elétrico", "Híbrido"] },
       { nome: "renavam", label: "RENAVAM" },
       { nome: "chassi", label: "Chassi" },
       { nome: "quilometragem", label: "Quilometragem", tipo: "number" },

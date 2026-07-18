@@ -194,10 +194,32 @@ class Crud {
     );
     document.getElementById("crud-salvar").onclick = () => this.salvar(ed ? registro.id : null);
     this._aplicarMascaras();
+    this._aplicarMaiusculas();
     // Gancho opcional: permite à página customizar o formulário após montado
     // (ex.: carregar marcas/modelos da FIPE e ligar campos dependentes).
     if (typeof this.cfg.aoAbrirForm === "function") this.cfg.aoAbrirForm(registro || {});
     window.__crud = this;
+  }
+
+  // Converte para MAIÚSCULAS enquanto o usuário digita (em todos os campos de
+  // texto do cadastro), preservando a posição do cursor. E-mail, senha e
+  // campos numéricos ficam de fora.
+  _aplicarMaiusculas() {
+    const form = document.getElementById("crud-form");
+    if (!form) return;
+    form.querySelectorAll("input, textarea").forEach((el) => {
+      const tipo = (el.getAttribute("type") || "text").toLowerCase();
+      if (["email", "password", "number", "date"].includes(tipo)) return;
+      if (el.value) el.value = el.value.toUpperCase();   // valor já existente (edição)
+      el.addEventListener("input", () => {
+        const ini = el.selectionStart, fim = el.selectionEnd;
+        const cima = el.value.toUpperCase();
+        if (el.value !== cima) {
+          el.value = cima;
+          try { el.setSelectionRange(ini, fim); } catch (_) {}
+        }
+      });
+    });
   }
 
   // Liga as máscaras de digitação e a busca de CEP nos campos configurados.
