@@ -117,29 +117,23 @@
           </div>
         </div>
 
-        <!-- Cliente/veículo + observações -->
-        <div class="orc-grid2">
-          <div class="orc-secao">
-            <div class="orc-secao__titulo"><i class="fa-solid fa-user"></i> Dados do Cliente e Veículo</div>
-            <div class="orc-cv">
-              <label class="orc-campo"><span>Cliente</span>
-                <select id="orc-cliente">${clientes.map((c) => `<option value="${c.id}" ${cli && cli.id === c.id ? "selected" : ""}>${c.nome}</option>`).join("")}</select>
-              </label>
-              <label class="orc-campo"><span>Veículo</span>
-                <select id="orc-veiculo"></select>
-              </label>
-              <div class="orc-campo"><span>Telefone</span><div id="d-tel" class="orc-val">—</div></div>
-              <div class="orc-campo"><span>Placa</span><div id="d-placa" class="orc-val">—</div></div>
-              <div class="orc-campo"><span>E-mail</span><div id="d-email" class="orc-val">—</div></div>
-              <div class="orc-campo"><span>KM</span><div id="d-km" class="orc-val">—</div></div>
-              <div class="orc-campo"><span>CPF/CNPJ</span><div id="d-doc" class="orc-val">—</div></div>
-              <div class="orc-campo"><span>Ano/Modelo</span><div id="d-ano" class="orc-val">—</div></div>
-              <div class="orc-campo"><span>Combustível</span><div id="d-comb" class="orc-val">—</div></div>
-            </div>
-          </div>
-          <div class="orc-secao">
-            <div class="orc-secao__titulo"><i class="fa-solid fa-pen"></i> Observações</div>
-            <textarea id="orc-obs" class="orc-obs" placeholder="Descreva condições, serviços ou informações importantes...">${esc(orc?.observacoes || "")}</textarea>
+        <!-- Cliente/veículo -->
+        <div class="orc-secao">
+          <div class="orc-secao__titulo"><i class="fa-solid fa-user"></i> Dados do Cliente e Veículo</div>
+          <div class="orc-cv">
+            <label class="orc-campo"><span>Cliente</span>
+              <select id="orc-cliente">${clientes.map((c) => `<option value="${c.id}" ${cli && cli.id === c.id ? "selected" : ""}>${c.nome}</option>`).join("")}</select>
+            </label>
+            <label class="orc-campo"><span>Veículo</span>
+              <select id="orc-veiculo"></select>
+            </label>
+            <div class="orc-campo"><span>Telefone</span><div id="d-tel" class="orc-val">—</div></div>
+            <div class="orc-campo"><span>Placa</span><div id="d-placa" class="orc-val">—</div></div>
+            <div class="orc-campo"><span>E-mail</span><div id="d-email" class="orc-val">—</div></div>
+            <div class="orc-campo"><span>KM</span><div id="d-km" class="orc-val">—</div></div>
+            <div class="orc-campo"><span>CPF/CNPJ</span><div id="d-doc" class="orc-val">—</div></div>
+            <div class="orc-campo"><span>Ano/Modelo</span><div id="d-ano" class="orc-val">—</div></div>
+            <div class="orc-campo"><span>Combustível</span><div id="d-comb" class="orc-val">—</div></div>
           </div>
         </div>
 
@@ -326,7 +320,7 @@
       validade: document.getElementById("orc-validade")?.value.trim(),
       forma_pagamento: document.getElementById("orc-forma")?.value,
       condicoes: document.getElementById("orc-cond")?.value.trim(),
-      observacoes: document.getElementById("orc-obs")?.value.trim(),
+      observacoes: editando?.observacoes || "",   // campo removido da tela; preserva o que já existia
       obs_finais: document.getElementById("orc-obsf")?.value.trim(),
       desconto: parseFloat(document.getElementById("orc-desc")?.value) || 0,
       status: editando?.status || "aberta",
