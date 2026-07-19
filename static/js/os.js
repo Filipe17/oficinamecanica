@@ -320,7 +320,7 @@
     const c = Layout.config || {};
     return {
       nome: c.empresa_nome || "",
-      endereco: c.empresa_endereco || "",
+      endereco: Layout.enderecoLinhas().join("<br>"),
       telefone: c.empresa_telefone || "",
       cnpj: c.empresa_cnpj || "",
       logo: c.empresa_logo || "",

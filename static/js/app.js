@@ -163,6 +163,17 @@ const Layout = {
   permissoes: {},
   config: {},
 
+  // Monta o endereço da empresa em 1-2 linhas a partir dos campos estruturados
+  // (com compatibilidade para o endereço antigo em um campo só).
+  enderecoLinhas() {
+    const c = this.config || {};
+    const rua = [c.empresa_endereco, c.empresa_numero].filter(Boolean).join(", ");
+    const l1 = [rua, c.empresa_bairro].filter(Boolean).join(" - ");
+    const cidUf = [c.empresa_cidade, c.empresa_estado].filter(Boolean).join("/");
+    const l2 = [c.empresa_cep ? "CEP: " + c.empresa_cep : "", cidUf].filter(Boolean).join(" - ");
+    return [l1, l2].filter(Boolean);
+  },
+
   // Protege a página, carrega o usuário e injeta sidebar/topbar
   async iniciar(paginaAtiva, titulo) {
     try {

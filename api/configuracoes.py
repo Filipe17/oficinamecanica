@@ -16,7 +16,9 @@ from api.usuarios import login_obrigatorio, perfil_permitido
 
 configuracoes_bp = Blueprint("configuracoes", __name__)
 
-CHAVES = ["empresa_nome", "empresa_cnpj", "empresa_telefone", "empresa_endereco", "empresa_logo"]
+CHAVES = ["empresa_nome", "empresa_cnpj", "empresa_telefone", "empresa_cep",
+          "empresa_endereco", "empresa_numero", "empresa_bairro", "empresa_cidade",
+          "empresa_estado", "empresa_logo"]
 
 # Limite da logo em base64 (~400 KB de imagem) para não inchar o banco/respostas.
 LIMITE_LOGO = 600_000

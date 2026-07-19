@@ -105,7 +105,7 @@
               <div class="orc-empresa__nome">${cfg.empresa_nome || "Sua Empresa"}</div>
               <div class="orc-empresa__linha">${cfg.empresa_cnpj ? "CNPJ: " + cfg.empresa_cnpj : ""}</div>
               <div class="orc-empresa__linha">${cfg.empresa_telefone ? "<i class='fa-solid fa-phone'></i> " + cfg.empresa_telefone : ""}</div>
-              <div class="orc-empresa__linha">${cfg.empresa_endereco ? "<i class='fa-solid fa-location-dot'></i> " + cfg.empresa_endereco : ""}</div>
+              ${Layout.enderecoLinhas().map((l) => `<div class="orc-empresa__linha"><i class='fa-solid fa-location-dot'></i> ${l}</div>`).join("")}
             </div>
           </div>
           <div class="orc-doc-meta">
@@ -391,7 +391,7 @@
       <div class="topo">
         <div class="emp">${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}">` : ""}
           <div><div class="nome">${cfg.empresa_nome || ""}</div>
-          <div class="muted">${cfg.empresa_cnpj ? "CNPJ: " + cfg.empresa_cnpj + "<br>" : ""}${cfg.empresa_telefone || ""}<br>${cfg.empresa_endereco || ""}</div></div>
+          <div class="muted">${cfg.empresa_cnpj ? "CNPJ: " + cfg.empresa_cnpj + "<br>" : ""}${cfg.empresa_telefone || ""}<br>${Layout.enderecoLinhas().join("<br>")}</div></div>
         </div>
         <div style="text-align:right"><h2>ORÇAMENTO</h2><div class="num">Nº ${editando?.numero || "—"}</div>
           <div class="muted">Data: ${fmt.data(new Date().toISOString())}<br>Validade: ${d.validade || ""}</div></div>
