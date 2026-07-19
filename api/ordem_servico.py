@@ -130,13 +130,15 @@ def criar():
     res = query(
         "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
         "data, previsao, status, problema, diagnostico, horas_trabalhadas, garantia, "
-        "observacoes, eh_orcamento, desconto, total, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "observacoes, validade, forma_pagamento, condicoes, obs_finais, eh_orcamento, "
+        "desconto, total, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (_proximo_numero(), d.get("cliente_id"), d.get("veiculo_id"),
          mecanico_id, d.get("data", now()), d.get("previsao"),
          d.get("status", "aberta"), d.get("problema"), d.get("diagnostico"),
          d.get("horas_trabalhadas", 0), d.get("garantia"), d.get("observacoes"),
-         eh_orc, d.get("desconto", 0), 0, now()),
+         d.get("validade"), d.get("forma_pagamento"), d.get("condicoes"),
+         d.get("obs_finais"), eh_orc, d.get("desconto", 0), 0, now()),
         commit=True,
     )
     oid = res["_lastid"]
@@ -157,11 +159,13 @@ def editar(oid):
     query(
         "UPDATE ordens_servico SET cliente_id=?, veiculo_id=?, mecanico_id=?, "
         "previsao=?, status=?, problema=?, diagnostico=?, horas_trabalhadas=?, "
-        "garantia=?, observacoes=?, desconto=? WHERE id=?",
+        "garantia=?, observacoes=?, validade=?, forma_pagamento=?, condicoes=?, "
+        "obs_finais=?, desconto=? WHERE id=?",
         (d.get("cliente_id"), d.get("veiculo_id"), d.get("mecanico_id"),
          d.get("previsao"), d.get("status", "aberta"), d.get("problema"),
          d.get("diagnostico"), d.get("horas_trabalhadas", 0), d.get("garantia"),
-         d.get("observacoes"), d.get("desconto", 0), oid),
+         d.get("observacoes"), d.get("validade"), d.get("forma_pagamento"),
+         d.get("condicoes"), d.get("obs_finais"), d.get("desconto", 0), oid),
         commit=True,
     )
     if "itens" in d:
@@ -173,15 +177,18 @@ def editar(oid):
 
 
 def _salvar_itens(oid, itens):
-    """Grava a lista de itens (produtos/serviços) de uma OS."""
+    """Grava a lista de itens (produtos/serviços) de uma OS/orçamento."""
     for it in itens:
-        qtd = float(it.get("quantidade", 1))
-        vu = float(it.get("valor_unitario", 0))
+        qtd = float(it.get("quantidade", 1) or 0)
+        vu = float(it.get("valor_unitario", 0) or 0)
+        desc = float(it.get("desconto", 0) or 0)
+        subtotal = qtd * vu - desc
         query(
-            "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, "
-            "quantidade, valor_unitario, subtotal) VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, codigo, "
+            "unidade, quantidade, valor_unitario, desconto, subtotal) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (oid, it.get("tipo"), it.get("referencia_id"), it.get("descricao"),
-             qtd, vu, qtd * vu),
+             it.get("codigo"), it.get("unidade"), qtd, vu, desc, subtotal),
             commit=True,
         )
 

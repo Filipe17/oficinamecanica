@@ -418,6 +418,15 @@ def _migrar_colunas():
     """Migrações leves de schema aplicadas a cada boot (idempotentes)."""
     _garantir_coluna("clientes", "numero", "TEXT")
     _garantir_coluna("clientes", "bairro", "TEXT")
+    # Campos do orçamento (página dedicada)
+    _garantir_coluna("ordens_servico", "validade", "TEXT")
+    _garantir_coluna("ordens_servico", "forma_pagamento", "TEXT")
+    _garantir_coluna("ordens_servico", "condicoes", "TEXT")
+    _garantir_coluna("ordens_servico", "obs_finais", "TEXT")
+    # Campos por item (código, unidade e desconto por linha)
+    _garantir_coluna("os_itens", "codigo", "TEXT")
+    _garantir_coluna("os_itens", "unidade", "TEXT")
+    _garantir_coluna("os_itens", "desconto", "REAL DEFAULT 0")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.

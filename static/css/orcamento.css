@@ -1,0 +1,122 @@
+/* =======================================================================
+   orcamento.css — Estilos da página de Orçamento (documento inteiro).
+   Segue a estrutura do mockup usando os tokens do sistema (teal + tema).
+   ======================================================================= */
+
+.orc { display: flex; flex-direction: column; gap: 16px; }
+
+/* Barra superior */
+.orc-topbar {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow);
+}
+.orc-topbar h1 { font-size: 18px; margin: 0; }
+.orc-topbar__acoes { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.orc-voltar {
+  width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); cursor: pointer; font-size: 15px;
+}
+.orc-voltar:hover { background: var(--primary-soft); color: var(--primary); }
+.btn--zap { background: #25d366; color: #fff; border: none; }
+.btn--zap:hover { filter: brightness(0.94); }
+.btn--danger-ghost { background: var(--danger-soft); color: var(--danger); border: 1px solid transparent; }
+
+/* Cabeçalho do documento */
+.orc-doc-head {
+  display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow);
+}
+.orc-empresa { display: flex; gap: 16px; align-items: flex-start; }
+.orc-empresa img { max-height: 84px; max-width: 150px; object-fit: contain; }
+.orc-empresa__semlogo {
+  width: 84px; height: 84px; border-radius: 12px; background: var(--primary-soft);
+  color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 34px;
+}
+.orc-empresa__nome { font-size: 20px; font-weight: 800; color: var(--text); }
+.orc-empresa__linha { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.orc-empresa__linha i { width: 14px; color: var(--primary); }
+.orc-doc-meta { text-align: right; min-width: 220px; }
+.orc-doc-titulo { font-size: 26px; font-weight: 800; color: var(--primary); letter-spacing: 1px; }
+.orc-doc-num {
+  display: inline-block; margin: 6px 0 10px; padding: 6px 18px; font-size: 18px; font-weight: 800;
+  color: var(--primary); border: 2px solid var(--primary); border-radius: 10px;
+}
+.orc-doc-info { color: var(--muted); font-size: 13px; margin-top: 4px; display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.orc-doc-info i { color: var(--primary); }
+
+/* Seções genéricas */
+.orc-secao {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow);
+}
+.orc-secao__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 10px; flex-wrap: wrap; }
+.orc-secao__titulo { font-size: 13px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+.orc-secao__head .orc-secao__titulo { margin-bottom: 0; }
+.orc-secao__acoes { display: flex; gap: 8px; }
+
+.orc-grid2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+.orc-grid-final { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .orc-grid2, .orc-grid-final { grid-template-columns: 1fr; } }
+
+/* Cliente / veículo */
+.orc-cv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
+@media (max-width: 560px) { .orc-cv { grid-template-columns: 1fr; } }
+.orc-campo { display: flex; flex-direction: column; gap: 3px; }
+.orc-campo > span { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.orc-val { font-size: 14px; color: var(--text); font-weight: 500; padding: 4px 0; }
+.orc-campo select, .orc-campo input {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
+}
+.orc-obs {
+  width: 100%; min-height: 130px; resize: vertical; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+  color: var(--text); font: inherit; font-size: 14px;
+}
+.orc-mini {
+  width: 110px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font: inherit; text-align: right;
+}
+
+/* Tabela de itens */
+.orc-itens { width: 100%; border-collapse: collapse; }
+.orc-itens th {
+  background: var(--primary); color: #fff; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .4px; padding: 10px 8px; text-align: left; white-space: nowrap;
+}
+.orc-itens td { border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: middle; }
+.orc-item-num { font-weight: 700; color: var(--muted); }
+.orc-item-total { font-weight: 700; white-space: nowrap; }
+.orc-cel {
+  width: 100%; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--text); font: inherit; font-size: 13px;
+}
+.orc-cel:focus { border-color: var(--primary); background: var(--bg); outline: none; }
+.orc-cel--num { text-align: right; max-width: 90px; }
+.orc-cel--un { max-width: 60px; text-align: center; }
+.orc-cel--cod { max-width: 100px; }
+
+/* Totais */
+.orc-totais {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px;
+}
+.orc-totais__linha { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+.orc-totais__linha span { color: var(--muted); font-weight: 600; }
+.orc-totais__total {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; padding-top: 12px; border-top: 2px solid var(--border);
+}
+.orc-totais__total span { font-weight: 700; color: var(--text); }
+.orc-totais__total b { font-size: 20px; color: var(--primary); }
+
+/* Rodapé de ações */
+.orc-rodape-acoes {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  padding: 6px 0 10px;
+}
+
+.pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; background: var(--primary-soft); color: var(--primary); }
+.pill--accent { background: var(--accent-soft); color: var(--accent); }

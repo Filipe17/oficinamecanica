@@ -1,0 +1,437 @@
+/* =======================================================================
+   orcamentos.js — Orçamentos em PÁGINA INTEIRA (estilo documento).
+   Lista + editor completo: cabeçalho da empresa, dados do cliente/veículo,
+   tabela de produtos/serviços, condições de pagamento e totais.
+   Usa o mesmo backend da OS (/api/os com eh_orcamento=1).
+   ======================================================================= */
+(async () => {
+  await Layout.iniciar("orcamentos", "Orçamentos");
+
+  const soLeitura = Layout.usuario?.perfil !== "administrador"
+                 && (Layout.permissoes?.orcamentos ?? 2) < 2;
+  const cfg = Layout.config || {};
+
+  let clientes = [], veiculos = [], produtos = [], servicos = [];
+  let itens = [];         // itens do orçamento em edição
+  let editando = null;    // registro em edição (null = novo)
+
+  const FORMAS = ["Dinheiro", "Pix", "Cartão de Crédito", "Cartão de Débito", "Boleto", "Transferência"];
+
+  const money = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const esc = (s) => (s == null ? "" : String(s).replace(/"/g, "&quot;"));
+
+  await carregarRefs();
+  renderLista();
+
+  async function carregarRefs() {
+    const [rc, rv, rp, rs] = await Promise.allSettled([
+      API.get("/api/clientes?por_pagina=1000&ordem=nome"),
+      API.get("/api/veiculos?por_pagina=1000"),
+      API.get("/api/produtos?por_pagina=1000&ordem=nome"),
+      API.get("/api/servicos"),
+    ]);
+    const ok = (r) => (r.status === "fulfilled" ? r.value : {});
+    clientes = ok(rc).dados || [];
+    veiculos = ok(rv).dados || [];
+    produtos = ok(rp).dados || [];
+    servicos = ok(rs).dados || [];
+  }
+
+  /* ------------------------------------------------------------------ LISTA */
+  async function renderLista() {
+    editando = null;
+    let lista = [];
+    try { lista = (await API.get("/api/os?orcamento=1")).dados || []; } catch (_) {}
+
+    Layout.set(`
+      <div class="page-head">
+        <div><h1>Orçamentos</h1><p>Crie e gerencie orçamentos para seus clientes</p></div>
+        ${soLeitura ? "" : `<button class="btn btn--primary" id="orc-novo"><i class="fa-solid fa-plus"></i> Novo orçamento</button>`}
+      </div>
+      <div class="card"><div class="card__body">
+        <div class="table-wrap"><table class="data">
+          <thead><tr><th>Número</th><th>Cliente</th><th>Veículo</th><th>Data</th><th>Total</th><th></th></tr></thead>
+          <tbody>
+            ${lista.length ? lista.map((o) => `<tr>
+              <td><b>${o.numero || "-"}</b></td>
+              <td>${o.cliente_nome || "-"}</td>
+              <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
+              <td>${fmt.data(o.data || o.criado_em)}</td>
+              <td>${money(o.total)}</td>
+              <td class="text-right">
+                <button class="icon-btn btn--sm" title="Abrir" onclick="window.__orc.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
+                ${soLeitura ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__orc.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
+              </td></tr>`).join("") : `<tr><td colspan="6" class="text-center text-muted" style="padding:30px">Nenhum orçamento ainda.</td></tr>`}
+          </tbody>
+        </table></div>
+      </div></div>
+    `);
+    window.__orc = api;
+    const bn = document.getElementById("orc-novo");
+    if (bn) bn.onclick = () => abrirEditor(null);
+  }
+
+  /* ----------------------------------------------------------------- EDITOR */
+  async function abrirEditor(id) {
+    let orc = null;
+    if (id) { try { orc = await API.get(`/api/os/${id}`); } catch (_) {} }
+    editando = orc;
+    itens = (orc?.itens || []).map((it) => ({
+      tipo: it.tipo || "produto", referencia_id: it.referencia_id || null,
+      codigo: it.codigo || "", descricao: it.descricao || "",
+      unidade: it.unidade || "UN", quantidade: Number(it.quantidade) || 1,
+      valor_unitario: Number(it.valor_unitario) || 0, desconto: Number(it.desconto) || 0,
+    }));
+
+    const cli = orc ? clientes.find((c) => c.id === orc.cliente_id) : null;
+
+    Layout.set(`
+      <div class="orc">
+        <div class="orc-topbar">
+          <button class="orc-voltar" id="orc-voltar"><i class="fa-solid fa-arrow-left"></i></button>
+          <h1>Orçamento</h1>
+          <div class="orc-topbar__acoes">
+            <button class="btn btn--ghost" id="orc-imprimir"><i class="fa-solid fa-print"></i> Imprimir</button>
+            <button class="btn btn--ghost" id="orc-pdf"><i class="fa-solid fa-file-pdf"></i> Gerar PDF</button>
+            <button class="btn btn--zap" id="orc-whats"><i class="fa-brands fa-whatsapp"></i> Enviar WhatsApp</button>
+          </div>
+        </div>
+
+        <!-- Cabeçalho da empresa / documento -->
+        <div class="orc-doc-head">
+          <div class="orc-empresa">
+            ${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}" alt="logo">` : `<div class="orc-empresa__semlogo"><i class="fa-solid fa-gear"></i></div>`}
+            <div>
+              <div class="orc-empresa__nome">${cfg.empresa_nome || "Sua Empresa"}</div>
+              <div class="orc-empresa__linha">${cfg.empresa_cnpj ? "CNPJ: " + cfg.empresa_cnpj : ""}</div>
+              <div class="orc-empresa__linha">${cfg.empresa_telefone ? "<i class='fa-solid fa-phone'></i> " + cfg.empresa_telefone : ""}</div>
+              <div class="orc-empresa__linha">${cfg.empresa_endereco ? "<i class='fa-solid fa-location-dot'></i> " + cfg.empresa_endereco : ""}</div>
+            </div>
+          </div>
+          <div class="orc-doc-meta">
+            <div class="orc-doc-titulo">ORÇAMENTO</div>
+            <div class="orc-doc-num">Nº ${orc?.numero || "novo"}</div>
+            <div class="orc-doc-info"><i class="fa-solid fa-calendar"></i> Data: ${fmt.data(orc?.data || new Date().toISOString())}</div>
+            <div class="orc-doc-info"><i class="fa-solid fa-clock"></i> Validade:
+              <input id="orc-validade" class="orc-mini" value="${esc(orc?.validade || "10 dias")}"></div>
+          </div>
+        </div>
+
+        <!-- Cliente/veículo + observações -->
+        <div class="orc-grid2">
+          <div class="orc-secao">
+            <div class="orc-secao__titulo"><i class="fa-solid fa-user"></i> Dados do Cliente e Veículo</div>
+            <div class="orc-cv">
+              <label class="orc-campo"><span>Cliente</span>
+                <select id="orc-cliente">${clientes.map((c) => `<option value="${c.id}" ${cli && cli.id === c.id ? "selected" : ""}>${c.nome}</option>`).join("")}</select>
+              </label>
+              <label class="orc-campo"><span>Veículo</span>
+                <select id="orc-veiculo"></select>
+              </label>
+              <div class="orc-campo"><span>Telefone</span><div id="d-tel" class="orc-val">—</div></div>
+              <div class="orc-campo"><span>Placa</span><div id="d-placa" class="orc-val">—</div></div>
+              <div class="orc-campo"><span>E-mail</span><div id="d-email" class="orc-val">—</div></div>
+              <div class="orc-campo"><span>KM</span><div id="d-km" class="orc-val">—</div></div>
+              <div class="orc-campo"><span>CPF/CNPJ</span><div id="d-doc" class="orc-val">—</div></div>
+              <div class="orc-campo"><span>Ano/Modelo</span><div id="d-ano" class="orc-val">—</div></div>
+              <div class="orc-campo"><span>Combustível</span><div id="d-comb" class="orc-val">—</div></div>
+            </div>
+          </div>
+          <div class="orc-secao">
+            <div class="orc-secao__titulo"><i class="fa-solid fa-pen"></i> Observações</div>
+            <textarea id="orc-obs" class="orc-obs" placeholder="Descreva condições, serviços ou informações importantes...">${esc(orc?.observacoes || "")}</textarea>
+          </div>
+        </div>
+
+        <!-- Produtos / serviços -->
+        <div class="orc-secao">
+          <div class="orc-secao__head">
+            <div class="orc-secao__titulo"><i class="fa-solid fa-cart-shopping"></i> Produtos / Serviços</div>
+            ${soLeitura ? "" : `<div class="orc-secao__acoes">
+              <button class="btn btn--primary btn--sm" id="orc-add"><i class="fa-solid fa-plus"></i> Adicionar</button>
+              <button class="btn btn--ghost btn--sm" id="orc-buscar"><i class="fa-solid fa-magnifying-glass"></i> Buscar produto</button>
+            </div>`}
+          </div>
+          <div class="table-wrap"><table class="orc-itens">
+            <thead><tr>
+              <th>Item</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>Un</th>
+              <th>Valor Unit.</th><th>Desc.</th><th>Total</th><th></th>
+            </tr></thead>
+            <tbody id="orc-tbody"></tbody>
+          </table></div>
+        </div>
+
+        <!-- Pagamento / observações finais / totais -->
+        <div class="orc-grid-final">
+          <div class="orc-secao">
+            <div class="orc-secao__titulo"><i class="fa-solid fa-dollar-sign"></i> Condições de Pagamento</div>
+            <label class="orc-campo"><span>Forma de pagamento</span>
+              <select id="orc-forma">${FORMAS.map((f) => `<option ${orc?.forma_pagamento === f ? "selected" : ""}>${f}</option>`).join("")}</select>
+            </label>
+            <label class="orc-campo"><span>Condições</span>
+              <input id="orc-cond" value="${esc(orc?.condicoes || "À vista")}"></label>
+            <div class="orc-secao__titulo" style="margin-top:14px"><i class="fa-solid fa-note-sticky"></i> Observações finais</div>
+            <textarea id="orc-obsf" class="orc-obs" placeholder="Ex: Este orçamento tem validade de 10 dias.">${esc(orc?.obs_finais || "")}</textarea>
+          </div>
+          <div class="orc-totais">
+            <div class="orc-totais__linha"><span>Subtotal</span><b id="t-sub">R$ 0,00</b></div>
+            <div class="orc-totais__linha"><span>Desconto</span>
+              <input id="orc-desc" class="orc-mini" type="number" step="0.01" value="${Number(orc?.desconto) || 0}"></div>
+            <div class="orc-totais__total"><span>Total do Orçamento</span><b id="t-total">R$ 0,00</b></div>
+          </div>
+        </div>
+
+        <div class="orc-rodape-acoes">
+          ${soLeitura ? "" : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>
+          <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>
+          ${editando ? `<button class="btn btn--accent" id="orc-converter"><i class="fa-solid fa-file-arrow-up"></i> Converter em OS</button>` : ""}`}
+          <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${soLeitura ? "Voltar" : "Cancelar"}</button>
+        </div>
+      </div>
+    `);
+
+    window.__orc = api;
+    wireEditor();
+    preencherVeiculos(orc?.veiculo_id);
+    preencherCliente();
+    renderItens();
+    recalc();
+    if (soLeitura) document.querySelectorAll(".orc input, .orc select, .orc textarea").forEach((el) => el.disabled = true);
+  }
+
+  function wireEditor() {
+    const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    on("orc-voltar", "click", renderLista);
+    on("orc-cancelar", "click", renderLista);
+    on("orc-cliente", "change", () => { preencherVeiculos(); preencherCliente(); });
+    on("orc-veiculo", "change", preencherVeiculoDados);
+    on("orc-add", "click", () => { itens.push({ tipo: "produto", referencia_id: null, codigo: "", descricao: "", unidade: "UN", quantidade: 1, valor_unitario: 0, desconto: 0 }); renderItens(); recalc(); });
+    on("orc-buscar", "click", abrirBusca);
+    on("orc-desc", "input", recalc);
+    on("orc-salvar", "click", salvar);
+    on("orc-limpar", "click", () => abrirEditor(null));
+    on("orc-imprimir", "click", imprimir);
+    on("orc-pdf", "click", imprimir);
+    on("orc-whats", "click", enviarWhats);
+    const bc = document.getElementById("orc-converter");
+    if (bc && editando) bc.onclick = () => converter(editando.id);
+  }
+
+  function preencherCliente() {
+    const id = Number(document.getElementById("orc-cliente")?.value);
+    const c = clientes.find((x) => x.id === id) || {};
+    document.getElementById("d-tel").textContent = c.telefone || c.whatsapp || "—";
+    document.getElementById("d-email").textContent = c.email || "—";
+    document.getElementById("d-doc").textContent = c.cpf_cnpj || "—";
+  }
+
+  function preencherVeiculos(selecionado) {
+    const cid = Number(document.getElementById("orc-cliente")?.value);
+    const sel = document.getElementById("orc-veiculo");
+    if (!sel) return;
+    const doCliente = veiculos.filter((v) => v.cliente_id === cid);
+    sel.innerHTML = `<option value="">— selecione —</option>` +
+      doCliente.map((v) => `<option value="${v.id}" ${selecionado === v.id ? "selected" : ""}>${[v.marca, v.modelo, v.placa].filter(Boolean).join(" ")}</option>`).join("");
+    preencherVeiculoDados();
+  }
+
+  function preencherVeiculoDados() {
+    const id = Number(document.getElementById("orc-veiculo")?.value);
+    const v = veiculos.find((x) => x.id === id) || {};
+    document.getElementById("d-placa").textContent = v.placa || "—";
+    document.getElementById("d-km").textContent = v.quilometragem != null && v.placa ? Number(v.quilometragem).toLocaleString("pt-BR") : "—";
+    document.getElementById("d-ano").textContent = [v.marca, v.modelo].filter(Boolean).join(" ") + (v.ano ? " " + v.ano : "") || "—";
+    document.getElementById("d-comb").textContent = v.combustivel || "—";
+  }
+
+  /* --------------------------------------------------------- itens (tabela) */
+  function renderItens() {
+    const tb = document.getElementById("orc-tbody");
+    if (!tb) return;
+    if (!itens.length) {
+      tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted" style="padding:22px">Nenhum item. Clique em “Adicionar” ou “Buscar produto”.</td></tr>`;
+      return;
+    }
+    tb.innerHTML = itens.map((it, i) => {
+      const total = (it.quantidade * it.valor_unitario) - it.desconto;
+      const dis = soLeitura ? "disabled" : "";
+      return `<tr>
+        <td class="orc-item-num">${String(i + 1).padStart(3, "0")}</td>
+        <td><input class="orc-cel orc-cel--cod" data-i="${i}" data-f="codigo" value="${esc(it.codigo)}" ${dis}></td>
+        <td><input class="orc-cel orc-cel--desc" data-i="${i}" data-f="descricao" value="${esc(it.descricao)}" ${dis}></td>
+        <td><input class="orc-cel orc-cel--num" data-i="${i}" data-f="quantidade" type="number" step="0.01" value="${it.quantidade}" ${dis}></td>
+        <td><input class="orc-cel orc-cel--un" data-i="${i}" data-f="unidade" value="${esc(it.unidade)}" ${dis}></td>
+        <td><input class="orc-cel orc-cel--num" data-i="${i}" data-f="valor_unitario" type="number" step="0.01" value="${it.valor_unitario}" ${dis}></td>
+        <td><input class="orc-cel orc-cel--num" data-i="${i}" data-f="desconto" type="number" step="0.01" value="${it.desconto}" ${dis}></td>
+        <td class="orc-item-total">${money(total)}</td>
+        <td class="text-right">${soLeitura ? "" : `<button class="icon-btn btn--sm" title="Remover" onclick="window.__orc.remItem(${i})"><i class="fa-solid fa-trash"></i></button>`}</td>
+      </tr>`;
+    }).join("");
+
+    tb.querySelectorAll(".orc-cel").forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const i = +inp.dataset.i, f = inp.dataset.f;
+        itens[i][f] = (inp.type === "number") ? (parseFloat(inp.value) || 0) : inp.value;
+        // atualiza só o total da linha e os totais gerais
+        const linha = inp.closest("tr");
+        const it = itens[i];
+        linha.querySelector(".orc-item-total").textContent = money((it.quantidade * it.valor_unitario) - it.desconto);
+        recalc();
+      });
+    });
+  }
+
+  function recalc() {
+    const sub = itens.reduce((s, it) => s + ((it.quantidade * it.valor_unitario) - it.desconto), 0);
+    const desc = parseFloat(document.getElementById("orc-desc")?.value) || 0;
+    const ts = document.getElementById("t-sub"), tt = document.getElementById("t-total");
+    if (ts) ts.textContent = money(sub);
+    if (tt) tt.textContent = money(sub - desc);
+  }
+
+  /* ------------------------------------------------------- buscar produto */
+  function abrirBusca() {
+    const linhas = [
+      ...produtos.map((p) => ({ tipo: "produto", id: p.id, codigo: p.codigo || "", nome: p.nome, valor: p.preco_venda || 0, un: "UN" })),
+      ...servicos.map((s) => ({ tipo: "servico", id: s.id, codigo: "", nome: s.descricao, valor: s.valor || 0, un: "SV" })),
+    ];
+    Modal.abrir("Buscar produto ou serviço", `
+      <input id="busca-q" class="input" placeholder="Digite para filtrar..." style="width:100%;margin-bottom:10px">
+      <div class="table-wrap" style="max-height:50vh;overflow:auto"><table class="data"><tbody id="busca-lista">
+        ${linhas.map((l, i) => linhaBusca(l, i)).join("")}
+      </tbody></table></div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`);
+    const q = document.getElementById("busca-q");
+    q.oninput = () => {
+      const t = q.value.toLowerCase();
+      document.querySelectorAll("#busca-lista tr").forEach((tr) => {
+        tr.style.display = tr.textContent.toLowerCase().includes(t) ? "" : "none";
+      });
+    };
+    window.__buscaLinhas = linhas;
+    q.focus();
+  }
+  function linhaBusca(l, i) {
+    return `<tr style="cursor:pointer" onclick="window.__orc.pick(${i})">
+      <td><span class="pill ${l.tipo === "servico" ? "pill--accent" : ""}">${l.un}</span></td>
+      <td>${l.codigo ? "<b>" + l.codigo + "</b> · " : ""}${l.nome}</td>
+      <td class="text-right">${money(l.valor)}</td></tr>`;
+  }
+
+  /* --------------------------------------------------------------- salvar */
+  function coletar() {
+    return {
+      eh_orcamento: 1,
+      cliente_id: Number(document.getElementById("orc-cliente")?.value) || null,
+      veiculo_id: Number(document.getElementById("orc-veiculo")?.value) || null,
+      validade: document.getElementById("orc-validade")?.value.trim(),
+      forma_pagamento: document.getElementById("orc-forma")?.value,
+      condicoes: document.getElementById("orc-cond")?.value.trim(),
+      observacoes: document.getElementById("orc-obs")?.value.trim(),
+      obs_finais: document.getElementById("orc-obsf")?.value.trim(),
+      desconto: parseFloat(document.getElementById("orc-desc")?.value) || 0,
+      status: editando?.status || "aberta",
+      itens: itens.map((it) => ({
+        tipo: it.tipo, referencia_id: it.referencia_id, codigo: it.codigo,
+        descricao: it.descricao, unidade: it.unidade,
+        quantidade: it.quantidade, valor_unitario: it.valor_unitario, desconto: it.desconto,
+      })),
+    };
+  }
+
+  async function salvar() {
+    const d = coletar();
+    if (!d.cliente_id) { toast("Selecione um cliente", "warning"); return; }
+    try {
+      if (editando) await API.put(`/api/os/${editando.id}`, d);
+      else await API.post("/api/os", d);
+      toast("Orçamento salvo");
+      renderLista();
+    } catch (e) { toast(e.message || "Erro ao salvar", "error"); }
+  }
+
+  async function converter(id) {
+    if (!confirm("Converter este orçamento em Ordem de Serviço?")) return;
+    try { await API.post(`/api/os/${id}/converter`, {}); toast("Convertido em OS"); renderLista(); }
+    catch (e) { toast(e.message, "error"); }
+  }
+
+  async function excluir(id) {
+    if (!confirm("Excluir este orçamento?")) return;
+    try { await API.del(`/api/os/${id}`); toast("Orçamento excluído"); renderLista(); }
+    catch (e) { toast(e.message, "error"); }
+  }
+
+  /* ----------------------------------------------------- imprimir / whats */
+  function imprimir() {
+    const d = coletar();
+    const cli = clientes.find((c) => c.id === d.cliente_id) || {};
+    const vei = veiculos.find((v) => v.id === d.veiculo_id) || {};
+    const sub = itens.reduce((s, it) => s + ((it.quantidade * it.valor_unitario) - it.desconto), 0);
+    const linhas = itens.map((it, i) => `<tr>
+      <td>${String(i + 1).padStart(3, "0")}</td><td>${it.codigo || ""}</td><td>${it.descricao || ""}</td>
+      <td style="text-align:center">${it.quantidade}</td><td style="text-align:center">${it.unidade || ""}</td>
+      <td style="text-align:right">${money(it.valor_unitario)}</td><td style="text-align:right">${money(it.desconto)}</td>
+      <td style="text-align:right">${money((it.quantidade * it.valor_unitario) - it.desconto)}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    w.document.write(`<html><head><meta charset="utf-8"><title>Orçamento ${editando?.numero || ""}</title>
+      <style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#222;padding:24px;font-size:13px}
+        .topo{display:flex;justify-content:space-between;border-bottom:3px solid #0d9488;padding-bottom:12px;margin-bottom:16px}
+        .emp{display:flex;gap:12px} .emp img{max-height:60px;max-width:110px;object-fit:contain}
+        .nome{font-size:18px;font-weight:bold} .muted{color:#666;font-size:12px}
+        h2{color:#0d9488;margin:0} .num{font-size:15px;font-weight:bold}
+        table{width:100%;border-collapse:collapse;margin-top:8px}
+        th,td{border:1px solid #ddd;padding:6px 8px} th{background:#0d9488;color:#fff;text-align:left;font-size:12px}
+        .tot{margin-top:12px;width:280px;margin-left:auto}
+        .tot td{border:none;padding:3px 8px} .tot .g{font-size:16px;font-weight:bold;color:#0d9488}
+        .bloco{margin:14px 0;padding:10px;background:#f6f6f6;border-radius:6px}
+        @media print{@page{margin:14mm}}
+      </style></head><body>
+      <div class="topo">
+        <div class="emp">${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}">` : ""}
+          <div><div class="nome">${cfg.empresa_nome || ""}</div>
+          <div class="muted">${cfg.empresa_cnpj ? "CNPJ: " + cfg.empresa_cnpj + "<br>" : ""}${cfg.empresa_telefone || ""}<br>${cfg.empresa_endereco || ""}</div></div>
+        </div>
+        <div style="text-align:right"><h2>ORÇAMENTO</h2><div class="num">Nº ${editando?.numero || "—"}</div>
+          <div class="muted">Data: ${fmt.data(new Date().toISOString())}<br>Validade: ${d.validade || ""}</div></div>
+      </div>
+      <div class="bloco"><b>Cliente:</b> ${cli.nome || "—"} &nbsp; <b>Tel:</b> ${cli.telefone || "—"} &nbsp; <b>CPF/CNPJ:</b> ${cli.cpf_cnpj || "—"}<br>
+        <b>Veículo:</b> ${[vei.marca, vei.modelo, vei.ano].filter(Boolean).join(" ") || "—"} &nbsp; <b>Placa:</b> ${vei.placa || "—"}</div>
+      ${d.observacoes ? `<div class="bloco"><b>Observações:</b> ${d.observacoes}</div>` : ""}
+      <table><thead><tr><th>Item</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>Un</th><th>Valor</th><th>Desc</th><th>Total</th></tr></thead>
+        <tbody>${linhas}</tbody></table>
+      <table class="tot"><tr><td>Subtotal</td><td style="text-align:right">${money(sub)}</td></tr>
+        <tr><td>Desconto</td><td style="text-align:right">${money(d.desconto)}</td></tr>
+        <tr><td class="g">TOTAL</td><td class="g" style="text-align:right">${money(sub - d.desconto)}</td></tr></table>
+      <div class="bloco"><b>Forma de pagamento:</b> ${d.forma_pagamento || "—"} &nbsp; <b>Condições:</b> ${d.condicoes || "—"}</div>
+      ${d.obs_finais ? `<div class="muted">${d.obs_finais}</div>` : ""}
+      </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
+  }
+
+  function enviarWhats() {
+    const cid = Number(document.getElementById("orc-cliente")?.value);
+    const c = clientes.find((x) => x.id === cid) || {};
+    const fone = (c.whatsapp || c.telefone || "").replace(/\D/g, "");
+    const sub = itens.reduce((s, it) => s + ((it.quantidade * it.valor_unitario) - it.desconto), 0);
+    const desc = parseFloat(document.getElementById("orc-desc")?.value) || 0;
+    const linhas = itens.map((it) => `• ${it.descricao} (${it.quantidade} ${it.unidade}) - ${money((it.quantidade * it.valor_unitario) - it.desconto)}`).join("\n");
+    const texto = `*Orçamento ${editando?.numero || ""}* - ${cfg.empresa_nome || ""}\n\n${linhas}\n\n*Total: ${money(sub - desc)}*\nValidade: ${document.getElementById("orc-validade")?.value || ""}`;
+    const base = fone ? `https://wa.me/55${fone}` : "https://wa.me/";
+    window.open(`${base}?text=${encodeURIComponent(texto)}`, "_blank");
+  }
+
+  /* --------------------------------------------------------------- API pública */
+  const api = {
+    abrir: (id) => abrirEditor(id),
+    excluir,
+    remItem: (i) => { itens.splice(i, 1); renderItens(); recalc(); },
+    pick: (i) => {
+      const l = window.__buscaLinhas[i];
+      itens.push({ tipo: l.tipo, referencia_id: l.id, codigo: l.codigo, descricao: l.nome, unidade: l.un, quantidade: 1, valor_unitario: l.valor, desconto: 0 });
+      Modal.fechar(); renderItens(); recalc();
+    },
+  };
+})();
