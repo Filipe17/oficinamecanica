@@ -91,9 +91,9 @@
           <button class="orc-voltar" id="orc-voltar"><i class="fa-solid fa-arrow-left"></i></button>
           <h1>Orçamento</h1>
           <div class="orc-topbar__acoes">
-            <button class="btn btn--ghost" id="orc-imprimir"><i class="fa-solid fa-print"></i> Imprimir</button>
+            ${editando ? `<button class="btn btn--ghost" id="orc-imprimir"><i class="fa-solid fa-print"></i> Imprimir</button>
             <button class="btn btn--ghost" id="orc-pdf"><i class="fa-solid fa-file-pdf"></i> Gerar PDF</button>
-            <button class="btn btn--zap" id="orc-whats"><i class="fa-brands fa-whatsapp"></i> Enviar WhatsApp</button>
+            <button class="btn btn--zap" id="orc-whats"><i class="fa-brands fa-whatsapp"></i> Enviar WhatsApp</button>` : ""}
           </div>
         </div>
 
@@ -182,9 +182,10 @@
         </div>
 
         <div class="orc-rodape-acoes">
-          ${soLeitura ? "" : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>
-          <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>
-          ${editando ? `<button class="btn btn--accent" id="orc-converter"><i class="fa-solid fa-file-arrow-up"></i> Converter em OS</button>` : ""}`}
+          ${soLeitura ? "" : (editando
+            ? `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>
+               <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
+            : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>`)}
           <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${soLeitura ? "Voltar" : "Cancelar"}</button>
         </div>
       </div>
@@ -211,10 +212,8 @@
     on("orc-salvar", "click", salvar);
     on("orc-limpar", "click", () => abrirEditor(null));
     on("orc-imprimir", "click", imprimir);
-    on("orc-pdf", "click", imprimir);
+    on("orc-pdf", "click", gerarPDF);
     on("orc-whats", "click", enviarWhats);
-    const bc = document.getElementById("orc-converter");
-    if (bc && editando) bc.onclick = () => converter(editando.id);
   }
 
   function preencherCliente() {
@@ -343,17 +342,18 @@
     const d = coletar();
     if (!d.cliente_id) { toast("Selecione um cliente", "warning"); return; }
     try {
-      if (editando) await API.put(`/api/os/${editando.id}`, d);
-      else await API.post("/api/os", d);
-      toast("Orçamento salvo");
-      renderLista();
+      if (editando) {
+        // Orçamento já salvo -> "Finalizar orçamento": grava e volta à lista.
+        await API.put(`/api/os/${editando.id}`, d);
+        toast("Orçamento finalizado");
+        renderLista();
+      } else {
+        // Novo -> salva e reabre já salvo (aí surgem Imprimir/PDF/WhatsApp/Finalizar).
+        const r = await API.post("/api/os", d);
+        toast("Orçamento salvo");
+        abrirEditor(r.id);
+      }
     } catch (e) { toast(e.message || "Erro ao salvar", "error"); }
-  }
-
-  async function converter(id) {
-    if (!confirm("Converter este orçamento em Ordem de Serviço?")) return;
-    try { await API.post(`/api/os/${id}/converter`, {}); toast("Convertido em OS"); renderLista(); }
-    catch (e) { toast(e.message, "error"); }
   }
 
   async function excluir(id) {
