@@ -362,65 +362,130 @@
     catch (e) { toast(e.message, "error"); }
   }
 
-  /* ----------------------------------------------------- imprimir / whats */
-  function imprimir() {
+  /* ------------------------------------------------ PDF (jsPDF) / whats */
+  function gerarPDFBlob() {
+    const JS = window.jspdf && window.jspdf.jsPDF;
+    if (!JS) return null;
+    const doc = new JS({ unit: "mm", format: "a4" });
+    const teal = [13, 148, 136];
+    const M = 14, LARG = 210 - M * 2;
     const d = coletar();
     const cli = clientes.find((c) => c.id === d.cliente_id) || {};
     const vei = veiculos.find((v) => v.id === d.veiculo_id) || {};
+    let y = 14;
+
+    if (cfg.empresa_logo) {
+      try {
+        const f = cfg.empresa_logo.includes("image/png") ? "PNG" : "JPEG";
+        doc.addImage(cfg.empresa_logo, f, M, y, 26, 26);
+      } catch (_) {}
+    }
+    const xe = cfg.empresa_logo ? M + 30 : M;
+    doc.setFont("helvetica", "bold").setFontSize(14).setTextColor(20);
+    doc.text(cfg.empresa_nome || "Orçamento", xe, y + 5);
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(90);
+    let ly = y + 10;
+    if (cfg.empresa_cnpj) { doc.text("CNPJ: " + cfg.empresa_cnpj, xe, ly); ly += 4; }
+    if (cfg.empresa_telefone) { doc.text("Tel: " + cfg.empresa_telefone, xe, ly); ly += 4; }
+    Layout.enderecoLinhas().forEach((l) => { doc.text(l, xe, ly); ly += 4; });
+
+    doc.setFont("helvetica", "bold").setFontSize(16).setTextColor(teal[0], teal[1], teal[2]);
+    doc.text("ORÇAMENTO", 210 - M, y + 4, { align: "right" });
+    doc.setFontSize(11).setTextColor(20);
+    doc.text("Nº " + (editando?.numero || "—"), 210 - M, y + 11, { align: "right" });
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(90);
+    doc.text("Data: " + fmt.data(new Date().toISOString()), 210 - M, y + 17, { align: "right" });
+    doc.text("Validade: " + (d.validade || ""), 210 - M, y + 22, { align: "right" });
+
+    y = Math.max(ly, y + 26) + 3;
+    doc.setDrawColor(teal[0], teal[1], teal[2]).setLineWidth(0.6).line(M, y, 210 - M, y);
+    y += 6;
+
+    doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(teal[0], teal[1], teal[2]);
+    doc.text("DADOS DO CLIENTE E VEÍCULO", M, y); y += 5;
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(40);
+    doc.text(`Cliente: ${cli.nome || "—"}   Tel: ${cli.telefone || "—"}   CPF/CNPJ: ${cli.cpf_cnpj || "—"}`, M, y); y += 5;
+    doc.text(`Veículo: ${[vei.marca, vei.modelo, vei.ano].filter(Boolean).join(" ") || "—"}   Placa: ${vei.placa || "—"}   Combustível: ${vei.combustivel || "—"}`, M, y); y += 3;
+    if (d.observacoes) { y += 3; doc.setTextColor(90); doc.text(doc.splitTextToSize("Obs: " + d.observacoes, LARG), M, y); y += 6; }
+
+    const body = itens.map((it, i) => [
+      String(i + 1).padStart(3, "0"), it.codigo || "", it.descricao || "",
+      String(it.quantidade), it.unidade || "", money(it.valor_unitario),
+      money(it.desconto), money((it.quantidade * it.valor_unitario) - it.desconto),
+    ]);
+    doc.autoTable({
+      startY: y + 2,
+      head: [["Item", "Código", "Descrição", "Qtd", "Un", "Valor Unit.", "Desc.", "Total"]],
+      body,
+      theme: "grid",
+      headStyles: { fillColor: teal, fontSize: 8, textColor: 255 },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: { 2: { cellWidth: 55 }, 3: { halign: "center" }, 4: { halign: "center" },
+                      5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
+      margin: { left: M, right: M },
+    });
+
+    let fy = doc.lastAutoTable.finalY + 7;
     const sub = itens.reduce((s, it) => s + ((it.quantidade * it.valor_unitario) - it.desconto), 0);
-    const linhas = itens.map((it, i) => `<tr>
-      <td>${String(i + 1).padStart(3, "0")}</td><td>${it.codigo || ""}</td><td>${it.descricao || ""}</td>
-      <td style="text-align:center">${it.quantidade}</td><td style="text-align:center">${it.unidade || ""}</td>
-      <td style="text-align:right">${money(it.valor_unitario)}</td><td style="text-align:right">${money(it.desconto)}</td>
-      <td style="text-align:right">${money((it.quantidade * it.valor_unitario) - it.desconto)}</td></tr>`).join("");
-    const w = window.open("", "_blank");
-    w.document.write(`<html><head><meta charset="utf-8"><title>Orçamento ${editando?.numero || ""}</title>
-      <style>
-        body{font-family:Arial,Helvetica,sans-serif;color:#222;padding:24px;font-size:13px}
-        .topo{display:flex;justify-content:space-between;border-bottom:3px solid #0d9488;padding-bottom:12px;margin-bottom:16px}
-        .emp{display:flex;gap:12px} .emp img{max-height:60px;max-width:110px;object-fit:contain}
-        .nome{font-size:18px;font-weight:bold} .muted{color:#666;font-size:12px}
-        h2{color:#0d9488;margin:0} .num{font-size:15px;font-weight:bold}
-        table{width:100%;border-collapse:collapse;margin-top:8px}
-        th,td{border:1px solid #ddd;padding:6px 8px} th{background:#0d9488;color:#fff;text-align:left;font-size:12px}
-        .tot{margin-top:12px;width:280px;margin-left:auto}
-        .tot td{border:none;padding:3px 8px} .tot .g{font-size:16px;font-weight:bold;color:#0d9488}
-        .bloco{margin:14px 0;padding:10px;background:#f6f6f6;border-radius:6px}
-        @media print{@page{margin:14mm}}
-      </style></head><body>
-      <div class="topo">
-        <div class="emp">${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}">` : ""}
-          <div><div class="nome">${cfg.empresa_nome || ""}</div>
-          <div class="muted">${cfg.empresa_cnpj ? "CNPJ: " + cfg.empresa_cnpj + "<br>" : ""}${cfg.empresa_telefone || ""}<br>${Layout.enderecoLinhas().join("<br>")}</div></div>
-        </div>
-        <div style="text-align:right"><h2>ORÇAMENTO</h2><div class="num">Nº ${editando?.numero || "—"}</div>
-          <div class="muted">Data: ${fmt.data(new Date().toISOString())}<br>Validade: ${d.validade || ""}</div></div>
-      </div>
-      <div class="bloco"><b>Cliente:</b> ${cli.nome || "—"} &nbsp; <b>Tel:</b> ${cli.telefone || "—"} &nbsp; <b>CPF/CNPJ:</b> ${cli.cpf_cnpj || "—"}<br>
-        <b>Veículo:</b> ${[vei.marca, vei.modelo, vei.ano].filter(Boolean).join(" ") || "—"} &nbsp; <b>Placa:</b> ${vei.placa || "—"}</div>
-      ${d.observacoes ? `<div class="bloco"><b>Observações:</b> ${d.observacoes}</div>` : ""}
-      <table><thead><tr><th>Item</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>Un</th><th>Valor</th><th>Desc</th><th>Total</th></tr></thead>
-        <tbody>${linhas}</tbody></table>
-      <table class="tot"><tr><td>Subtotal</td><td style="text-align:right">${money(sub)}</td></tr>
-        <tr><td>Desconto</td><td style="text-align:right">${money(d.desconto)}</td></tr>
-        <tr><td class="g">TOTAL</td><td class="g" style="text-align:right">${money(sub - d.desconto)}</td></tr></table>
-      <div class="bloco"><b>Forma de pagamento:</b> ${d.forma_pagamento || "—"} &nbsp; <b>Condições:</b> ${d.condicoes || "—"}</div>
-      ${d.obs_finais ? `<div class="muted">${d.obs_finais}</div>` : ""}
-      </body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 400);
+    doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(40);
+    doc.text(`Subtotal: ${money(sub)}`, 210 - M, fy, { align: "right" }); fy += 5;
+    doc.text(`Desconto: ${money(d.desconto)}`, 210 - M, fy, { align: "right" }); fy += 6;
+    doc.setFont("helvetica", "bold").setFontSize(12).setTextColor(teal[0], teal[1], teal[2]);
+    doc.text(`TOTAL DO ORÇAMENTO: ${money(sub - d.desconto)}`, 210 - M, fy, { align: "right" }); fy += 9;
+
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(60);
+    doc.text(`Forma de pagamento: ${d.forma_pagamento || "—"}    Condições: ${d.condicoes || "—"}`, M, fy); fy += 5;
+    if (d.obs_finais) doc.text(doc.splitTextToSize(d.obs_finais, LARG), M, fy);
+
+    return doc.output("blob");
   }
 
-  function enviarWhats() {
+  function baixarBlob(blob, nome) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  function nomePDF() { return `orcamento-${(editando?.numero || "novo").replace(/\W/g, "")}.pdf`; }
+
+  function gerarPDF() {
+    const blob = gerarPDFBlob();
+    if (!blob) { toast("PDF ainda carregando, tente novamente em 1s.", "warning"); return; }
+    baixarBlob(blob, nomePDF());
+  }
+
+  // Impressão simples (abre o PDF gerado para imprimir/salvar)
+  function imprimir() {
+    const blob = gerarPDFBlob();
+    if (!blob) { toast("PDF ainda carregando, tente novamente em 1s.", "warning"); return; }
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, "_blank");
+    if (w) setTimeout(() => { try { w.print(); } catch (_) {} }, 700);
+  }
+
+  async function enviarWhats() {
+    const blob = gerarPDFBlob();
+    if (!blob) { toast("PDF ainda carregando, tente novamente em 1s.", "warning"); return; }
+    const nome = nomePDF();
+    const file = new File([blob], nome, { type: "application/pdf" });
     const cid = Number(document.getElementById("orc-cliente")?.value);
     const c = clientes.find((x) => x.id === cid) || {};
     const fone = (c.whatsapp || c.telefone || "").replace(/\D/g, "");
     const sub = itens.reduce((s, it) => s + ((it.quantidade * it.valor_unitario) - it.desconto), 0);
     const desc = parseFloat(document.getElementById("orc-desc")?.value) || 0;
-    const linhas = itens.map((it) => `• ${it.descricao} (${it.quantidade} ${it.unidade}) - ${money((it.quantidade * it.valor_unitario) - it.desconto)}`).join("\n");
-    const texto = `*Orçamento ${editando?.numero || ""}* - ${cfg.empresa_nome || ""}\n\n${linhas}\n\n*Total: ${money(sub - desc)}*\nValidade: ${document.getElementById("orc-validade")?.value || ""}`;
+    const texto = `*Orçamento ${editando?.numero || ""}* — ${cfg.empresa_nome || ""}\nTotal: ${money(sub - desc)}`;
+
+    // Celular: compartilha o PDF direto (o WhatsApp aparece entre as opções).
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Orçamento", text: texto }); return; }
+      catch (_) { /* cancelado: segue para o fallback */ }
+    }
+    // Computador: baixa o PDF e abre o WhatsApp com a mensagem para anexar.
+    baixarBlob(blob, nome);
     const base = fone ? `https://wa.me/55${fone}` : "https://wa.me/";
-    window.open(`${base}?text=${encodeURIComponent(texto)}`, "_blank");
+    window.open(`${base}?text=${encodeURIComponent(texto + "\n\nSegue o orçamento em PDF (anexe o arquivo que acabou de ser baixado).")}`, "_blank");
+    toast("PDF baixado — anexe-o na conversa do WhatsApp.");
   }
 
   /* --------------------------------------------------------------- API pública */
