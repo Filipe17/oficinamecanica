@@ -357,7 +357,7 @@
   }
 
   /* ------------------------------------------------ PDF (jsPDF) / whats */
-  function gerarPDFBlob() {
+  function gerarPDFBlob(opts = {}) {
     const JS = window.jspdf && window.jspdf.jsPDF;
     if (!JS) return null;
     const doc = new JS({ unit: "mm", format: "a4" });
@@ -428,7 +428,10 @@
     doc.text(`TOTAL DO ORÇAMENTO: ${money(sub - d.desconto)}`, 210 - M, fy, { align: "right" }); fy += 9;
 
     doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(60);
-    doc.text(`Forma de pagamento: ${d.forma_pagamento || "—"}    Condições: ${d.condicoes || "—"}`, M, fy); fy += 5;
+    // A forma de pagamento não vai no orçamento enviado ao cliente (é acertada só no pagamento).
+    if (!opts.ocultarPagamento) {
+      doc.text(`Forma de pagamento: ${d.forma_pagamento || "—"}    Condições: ${d.condicoes || "—"}`, M, fy); fy += 5;
+    }
     if (d.obs_finais) doc.text(doc.splitTextToSize(d.obs_finais, LARG), M, fy);
 
     return doc.output("blob");
@@ -459,7 +462,7 @@
   }
 
   async function enviarWhats() {
-    const blob = gerarPDFBlob();
+    const blob = gerarPDFBlob({ ocultarPagamento: true });
     if (!blob) { toast("PDF ainda carregando, tente novamente em 1s.", "warning"); return; }
     const nome = nomePDF();
     const file = new File([blob], nome, { type: "application/pdf" });
