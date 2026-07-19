@@ -1,0 +1,84 @@
+/* =======================================================================
+   caixa.css — Tela dedicada do Caixa (standalone, sem a barra do ERP).
+   ======================================================================= */
+.caixa-body { background: var(--bg); }
+
+.cx-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 22px; background: var(--surface); border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow); position: sticky; top: 0; z-index: 10;
+}
+.cx-marca { display: flex; align-items: center; gap: 12px; }
+.cx-marca img { height: 40px; max-width: 90px; object-fit: contain; }
+.cx-marca > i { font-size: 26px; color: var(--primary); }
+.cx-marca b { display: block; font-size: 16px; color: var(--text); }
+.cx-marca span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.cx-op { display: flex; align-items: center; gap: 14px; }
+.cx-op > span { color: var(--muted); font-size: 14px; }
+
+.cx-centro { display: flex; justify-content: center; align-items: flex-start; padding: 50px 20px; }
+.cx-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 30px; }
+.cx-abrir { max-width: 420px; text-align: center; }
+.cx-icone { font-size: 46px; color: var(--primary); margin-bottom: 10px; }
+.cx-abrir h2 { margin: 6px 0; }
+
+.cx-campo { display: flex; flex-direction: column; gap: 5px; text-align: left; margin: 14px 0; }
+.cx-campo > span { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.cx-campo input {
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 16px;
+}
+.btn--lg { padding: 13px 20px; font-size: 15px; width: 100%; justify-content: center; }
+
+/* Painel do caixa aberto */
+.cx-painel { max-width: 900px; margin: 22px auto; padding: 0 18px; display: flex; flex-direction: column; gap: 18px; }
+.cx-totais { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+@media (max-width: 760px) { .cx-totais { grid-template-columns: repeat(2, 1fr); } }
+.cx-tot {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px; box-shadow: var(--shadow); text-align: center;
+}
+.cx-tot span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+.cx-tot b { font-size: 18px; color: var(--text); }
+.cx-tot--in b { color: var(--success); }
+.cx-tot--out b { color: var(--danger); }
+.cx-tot--saldo { background: var(--primary-soft); border-color: var(--primary); }
+.cx-tot--saldo b { color: var(--primary); font-size: 22px; }
+
+.cx-acoes { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+.cx-secao-tit { font-size: 13px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: .5px; }
+.cx-lista { display: flex; flex-direction: column; gap: 10px; }
+.cx-cob {
+  display: flex; align-items: center; gap: 14px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow);
+}
+.cx-cob__info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.cx-cob__info b { color: var(--text); }
+.cx-cob__info span { font-size: 13px; color: var(--muted); }
+.cx-atraso { color: var(--danger); font-style: normal; font-weight: 600; }
+.cx-cob__valor { font-size: 18px; font-weight: 700; color: var(--text); white-space: nowrap; }
+
+.cx-vazio, .cx-vazio-min { text-align: center; color: var(--muted); padding: 40px 20px; }
+.cx-vazio i { font-size: 40px; display: block; margin-bottom: 10px; }
+.cx-vazio-min {
+  background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius); padding: 26px;
+}
+
+/* Formas de pagamento (modal receber) */
+.cx-formas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cx-forma {
+  padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+  color: var(--text); font: inherit; cursor: pointer; transition: all .12s;
+}
+.cx-forma:hover { border-color: var(--primary); }
+.cx-forma.ativa { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+
+/* Relatório de fechamento */
+.cx-rel h3 { margin: 0 0 12px; color: var(--primary); }
+.cx-rel__l { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.cx-rel__l span { color: var(--muted); }
+.cx-rel__esp { font-weight: 700; }
+.cx-rel__dif { font-weight: 700; border-bottom: none; margin-top: 6px; padding-top: 10px; border-top: 2px solid var(--border); }
+.cx-dif--sobra b { color: var(--success); }
+.cx-dif--falta b { color: var(--danger); }
