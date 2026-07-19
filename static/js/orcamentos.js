@@ -203,7 +203,7 @@
     on("orc-add", "click", () => { itens.push({ tipo: "produto", referencia_id: null, codigo: "", descricao: "", unidade: "UN", quantidade: 1, valor_unitario: 0, desconto: 0 }); renderItens(); recalc(); });
     on("orc-buscar", "click", abrirBusca);
     on("orc-desc", "input", recalc);
-    on("orc-salvar", "click", salvar);
+    on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
     on("orc-limpar", "click", () => abrirEditor(null));
     on("orc-imprimir", "click", imprimir);
     on("orc-pdf", "click", gerarPDF);
@@ -354,6 +354,149 @@
     if (!confirm("Excluir este orçamento?")) return;
     try { await API.del(`/api/os/${id}`); toast("Orçamento excluído"); renderLista(); }
     catch (e) { toast(e.message, "error"); }
+  }
+
+  /* ------------------------------------------- FINALIZAR (baixa + caixa + A5) */
+  async function finalizarOrcamento() {
+    if (!editando) return;
+    const d = coletar();
+    if (!d.cliente_id) { toast("Selecione um cliente", "warning"); return; }
+    if (!confirm("Finalizar o orçamento?\n\nIsso dá baixa no estoque dos produtos e gera a cobrança em aberto no caixa (o pagamento é acertado depois).")) return;
+    try {
+      await API.put(`/api/os/${editando.id}`, d);                              // salva edições
+      await API.post(`/api/os/${editando.id}/finalizar`, { gerar_financeiro: true }); // baixa estoque + cobrança
+      toast("Orçamento finalizado — estoque baixado e cobrança gerada");
+      const o = await API.get(`/api/os/${editando.id}`);
+      telaA5(o);                                                               // vai para a folha A5
+    } catch (e) {
+      if (e && /finalizado/i.test(e.message || "")) {                          // já finalizado: só mostra a folha
+        try { telaA5(await API.get(`/api/os/${editando.id}`)); return; } catch (_) {}
+      }
+      toast(e.message || "Erro ao finalizar", "error");
+    }
+  }
+
+  /* --------------------------------------------- TELA A5 (documento + canhoto) */
+  function a5Conteudo(o) {
+    const cli = clientes.find((c) => c.id === o.cliente_id) || {};
+    const vei = veiculos.find((v) => v.id === o.veiculo_id) || {};
+    const its = o.itens || [];
+    const sub = its.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+    const total = Number(o.total) || (sub - (Number(o.desconto) || 0));
+    const dataStr = fmt.data(o.data || o.criado_em);
+    const linhas = its.map((it, i) => `<tr>
+      <td>${String(i + 1).padStart(2, "0")}</td>
+      <td>${it.descricao || ""}</td>
+      <td class="c">${it.quantidade}</td>
+      <td class="r">${money(it.valor_unitario)}</td>
+      <td class="r">${money(it.subtotal)}</td></tr>`).join("");
+
+    return `
+      <!-- CANHOTO (fica na oficina) -->
+      <div class="a5-canhoto">
+        <div class="a5-canhoto__tit">CANHOTO — via da oficina</div>
+        <div class="a5-canhoto__linhas">
+          <span><b>Orçamento:</b> ${o.numero || "—"}</span>
+          <span><b>Data:</b> ${dataStr}</span>
+          <span><b>Cliente:</b> ${cli.nome || "—"}</span>
+          <span><b>Placa:</b> ${vei.placa || "—"}</span>
+          <span><b>Total:</b> ${money(total)}</span>
+          <span><b>Forma pagto:</b> _____________</span>
+        </div>
+        <div class="a5-assinaturas">
+          <span>Recebido por: __________________</span>
+          <span>Cliente: __________________</span>
+        </div>
+      </div>
+      <div class="a5-corte"><span>✂</span></div>
+
+      <!-- ORÇAMENTO (via do cliente) -->
+      <div class="a5-doc">
+        <div class="a5-topo">
+          <div class="a5-emp">
+            ${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}">` : ""}
+            <div>
+              <div class="a5-emp__nome">${cfg.empresa_nome || ""}</div>
+              <div class="a5-emp__l">${cfg.empresa_cnpj ? "CNPJ: " + cfg.empresa_cnpj : ""}</div>
+              <div class="a5-emp__l">${cfg.empresa_telefone || ""}</div>
+              ${Layout.enderecoLinhas().map((l) => `<div class="a5-emp__l">${l}</div>`).join("")}
+            </div>
+          </div>
+          <div class="a5-meta">
+            <div class="a5-meta__tit">ORÇAMENTO</div>
+            <div class="a5-meta__num">Nº ${o.numero || "—"}</div>
+            <div class="a5-emp__l">Data: ${dataStr}</div>
+            <div class="a5-emp__l">Validade: ${o.validade || "—"}</div>
+          </div>
+        </div>
+        <div class="a5-cv">
+          <span><b>Cliente:</b> ${cli.nome || "—"}</span>
+          <span><b>Telefone:</b> ${cli.telefone || "—"}</span>
+          <span><b>Veículo:</b> ${[vei.marca, vei.modelo, vei.ano].filter(Boolean).join(" ") || "—"}</span>
+          <span><b>Placa:</b> ${vei.placa || "—"}</span>
+        </div>
+        <table class="a5-itens">
+          <thead><tr><th>#</th><th>Descrição</th><th class="c">Qtd</th><th class="r">Valor</th><th class="r">Total</th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        <div class="a5-totais">
+          <div><span>Subtotal</span><b>${money(sub)}</b></div>
+          <div><span>Desconto</span><b>${money(o.desconto)}</b></div>
+          <div class="a5-totais__g"><span>TOTAL</span><b>${money(total)}</b></div>
+        </div>
+        ${o.obs_finais ? `<div class="a5-obs">${o.obs_finais}</div>` : ""}
+        <div class="a5-rodape">Pagamento a acertar no caixa • Documento sem valor fiscal</div>
+      </div>`;
+  }
+
+  function telaA5(o) {
+    const conteudo = a5Conteudo(o);
+    Layout.set(`
+      <div class="a5-tela">
+        <div class="a5-barra">
+          <button class="btn btn--primary" id="a5-imprimir"><i class="fa-solid fa-print"></i> Imprimir A5</button>
+          <button class="btn btn--ghost" id="a5-voltar"><i class="fa-solid fa-list"></i> Voltar aos orçamentos</button>
+        </div>
+        <div class="a5-folha">${conteudo}</div>
+      </div>
+    `);
+    document.getElementById("a5-voltar").onclick = renderLista;
+    document.getElementById("a5-imprimir").onclick = () => {
+      const w = window.open("", "_blank");
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento ${o.numero || ""}</title>
+        <style>
+          @page { size: A5; margin: 8mm; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; font-size: 10px; margin: 0; }
+          .a5-canhoto { border: 1px solid #999; border-radius: 4px; padding: 6px 8px; }
+          .a5-canhoto__tit { font-weight: bold; font-size: 9px; color: #0d9488; letter-spacing: .5px; margin-bottom: 4px; }
+          .a5-canhoto__linhas { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+          .a5-canhoto__linhas span { font-size: 9px; }
+          .a5-assinaturas { display: flex; justify-content: space-between; margin-top: 8px; font-size: 9px; color: #444; }
+          .a5-corte { text-align: center; border-top: 1px dashed #999; margin: 6px 0; position: relative; height: 0; }
+          .a5-corte span { position: relative; top: -8px; background: #fff; padding: 0 6px; color: #999; }
+          .a5-topo { display: flex; justify-content: space-between; gap: 8px; border-bottom: 2px solid #0d9488; padding-bottom: 6px; margin-bottom: 6px; }
+          .a5-emp { display: flex; gap: 8px; }
+          .a5-emp img { max-height: 42px; max-width: 70px; object-fit: contain; }
+          .a5-emp__nome { font-weight: bold; font-size: 13px; }
+          .a5-emp__l { color: #555; font-size: 9px; }
+          .a5-meta { text-align: right; }
+          .a5-meta__tit { font-weight: bold; color: #0d9488; font-size: 14px; }
+          .a5-meta__num { font-weight: bold; font-size: 11px; }
+          .a5-cv { display: flex; flex-wrap: wrap; gap: 2px 14px; background: #f4f4f4; padding: 5px 7px; border-radius: 4px; margin-bottom: 6px; font-size: 9px; }
+          .a5-itens { width: 100%; border-collapse: collapse; }
+          .a5-itens th { background: #0d9488; color: #fff; font-size: 8px; padding: 3px 5px; text-align: left; }
+          .a5-itens td { border-bottom: 1px solid #ddd; padding: 3px 5px; font-size: 9px; }
+          .a5-itens .c { text-align: center; } .a5-itens .r { text-align: right; }
+          .a5-totais { margin-top: 6px; margin-left: auto; width: 45%; }
+          .a5-totais div { display: flex; justify-content: space-between; font-size: 10px; padding: 1px 0; }
+          .a5-totais__g { border-top: 1px solid #999; margin-top: 3px; padding-top: 3px; font-weight: bold; color: #0d9488; font-size: 12px; }
+          .a5-obs { margin-top: 8px; font-size: 9px; color: #444; }
+          .a5-rodape { margin-top: 10px; text-align: center; font-size: 8px; color: #888; }
+        </style></head><body>${conteudo}</body></html>`);
+      w.document.close();
+      setTimeout(() => { try { w.print(); } catch (_) {} }, 500);
+    };
   }
 
   /* ------------------------------------------------ PDF (jsPDF) / whats */

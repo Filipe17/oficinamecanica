@@ -197,13 +197,17 @@ def _salvar_itens(oid, itens):
 @login_obrigatorio
 def finalizar(oid):
     """
-    Finaliza a OS: baixa produtos do estoque e (opcional) gera conta a receber.
+    Finaliza a OS/orçamento: baixa produtos do estoque e (opcional) gera uma
+    conta a receber em aberto — o pagamento é acertado depois no caixa.
     """
     if not _dono_os(oid):
         return jsonify({"erro": "Esta OS pertence a outro mecânico"}), 403
     o = query("SELECT * FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
     if not o:
-        return jsonify({"erro": "OS não encontrada"}), 404
+        return jsonify({"erro": "Registro não encontrado"}), 404
+    if o.get("status") == "finalizada":
+        # Evita baixar estoque / gerar cobrança duas vezes
+        return jsonify({"erro": "Este orçamento já foi finalizado", "ja_finalizada": True}), 400
 
     # Baixa de estoque para itens do tipo produto
     itens = query("SELECT * FROM os_itens WHERE os_id=? AND tipo='produto'", (oid,))
@@ -217,15 +221,16 @@ def finalizar(oid):
 
     query("UPDATE ordens_servico SET status='finalizada' WHERE id=?", (oid,), commit=True)
 
-    # Gera conta a receber se solicitado
+    # Gera conta a receber se solicitado (forma de pagamento fica em aberto:
+    # é o caixa que define ao dar baixa).
     d = request.get_json(silent=True) or {}
     if d.get("gerar_financeiro"):
         query(
             "INSERT INTO financeiro (tipo, descricao, cliente_id, os_id, valor, "
             "vencimento, forma_pagamento, status, criado_em) "
             "VALUES ('receber',?,?,?,?,?,?, 'aberto', ?)",
-            (f"OS {o['numero']}", o["cliente_id"], oid, o["total"],
-             d.get("vencimento", now()), d.get("forma_pagamento", "dinheiro"), now()),
+            (f"Orçamento {o['numero']}", o["cliente_id"], oid, o["total"],
+             d.get("vencimento", now()), d.get("forma_pagamento"), now()),
             commit=True,
         )
     registrar_log(session["user_id"], "finalizar_os", str(oid))
