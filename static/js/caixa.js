@@ -7,12 +7,48 @@
   const app = document.getElementById("app");
   const money = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  let me, cfg = {};
-  try { me = (await API.get("/api/me")).usuario; }
-  catch (_) { location.href = "/login"; return; }
-  try { cfg = await API.get("/api/configuracoes"); } catch (_) {}
-
+  let me = null, cfg = {};
   const FORMAS = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito"];
+
+  // Ponto de entrada: se não houver sessão, mostra o login aqui mesmo (na aba do caixa).
+  async function boot() {
+    try { me = (await API.get("/api/me")).usuario; }
+    catch (_) { return telaLogin(); }
+    try { cfg = await API.get("/api/configuracoes"); } catch (_) {}
+    render();
+  }
+
+  // Login próprio da tela de Caixa (usuário e senha)
+  function telaLogin(aviso) {
+    app.innerHTML = `
+      <div class="cx-login-wrap">
+        <div class="cx-card cx-login">
+          <i class="fa-solid fa-cash-register cx-icone"></i>
+          <h2>Caixa</h2>
+          <p class="text-muted">Entre com seu usuário e senha</p>
+          ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
+          <label class="cx-campo"><span>E-mail</span>
+            <input id="lg-email" type="email" autocomplete="username"></label>
+          <label class="cx-campo"><span>Senha</span>
+            <input id="lg-senha" type="password" autocomplete="current-password"></label>
+          <button class="btn btn--primary btn--lg" id="lg-ok"><i class="fa-solid fa-right-to-bracket"></i> Entrar</button>
+        </div>
+      </div>`;
+    const entrar = async () => {
+      const email = document.getElementById("lg-email").value.trim();
+      const senha = document.getElementById("lg-senha").value;
+      if (!email || !senha) { toast("Informe e-mail e senha", "warning"); return; }
+      try {
+        await API.post("/api/login", { email, senha });
+        me = (await API.get("/api/me")).usuario;
+        try { cfg = await API.get("/api/configuracoes"); } catch (_) {}
+        render();
+      } catch (e) { toast(e.message || "Falha no login", "error"); }
+    };
+    document.getElementById("lg-ok").onclick = entrar;
+    document.getElementById("lg-senha").addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); });
+    const em = document.getElementById("lg-email"); if (em) em.focus();
+  }
 
   function cabecalho() {
     return `
@@ -30,19 +66,16 @@
   function ligarComuns() {
     document.getElementById("cx-sair").onclick = async () => {
       try { await API.post("/api/logout", {}); } catch (_) {}
-      location.href = "/login";
+      me = null; telaLogin();   // volta para o login do próprio caixa
     };
   }
 
   async function render() {
     let st;
     try { st = await API.get("/api/caixa/status"); }
-    catch (e) {
-      app.innerHTML = cabecalho() + `<div class="cx-vazio"><i class="fa-solid fa-lock"></i>
-        <p>${e.message || "Sem acesso ao caixa."}</p>
-        <a class="btn btn--ghost" href="/dashboard">Ir ao sistema</a></div>`;
-      ligarComuns();
-      return;
+    catch (_) {
+      // Logado, mas sem acesso ao caixa: pede login de um usuário de caixa.
+      return telaLogin("Este usuário não tem acesso ao caixa. Entre com um usuário de caixa.");
     }
     if (!st.aberto) renderFechado(); else renderAberto(st);
   }
@@ -211,5 +244,5 @@
   }
 
   const api = { receber, recarregar: render };
-  await render();
+  await boot();
 })();

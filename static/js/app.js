@@ -136,7 +136,7 @@ const MENU = [
   { grupo: "Financeiro", itens: [
     { id: "financeiro", nome: "Financeiro", icone: "fa-wallet" },
     { id: "cobrancas", nome: "Cobranças", icone: "fa-hand-holding-dollar" },
-    { id: "pdv", nome: "PDV", icone: "fa-cash-register" },
+    { id: "caixa", nome: "Caixa", icone: "fa-cash-register", novaAba: true },
   ]},
   { grupo: "Sistema", itens: [
     { id: "relatorios", nome: "Relatórios", icone: "fa-chart-column" },
@@ -153,7 +153,7 @@ const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
   ordem_servico: "ordem_servico", orcamentos: "orcamentos",
   servicos: "servicos", produtos: "produtos", estoque: "estoque", xml: "xml",
-  financeiro: "financeiro", cobrancas: "financeiro", pdv: "pdv",
+  financeiro: "financeiro", cobrancas: "financeiro", caixa: "caixa",
   relatorios: "relatorios", usuarios: "usuarios", logs: "logs",
 };
 
@@ -207,7 +207,7 @@ const Layout = {
       <div class="sidebar__group">
         <div class="sidebar__group-label">${g.grupo}</div>
         ${itens.map((i) => `
-          <a href="/${i.id}" class="sidebar__link ${i.id === ativa ? "active" : ""}">
+          <a href="/${i.id}" ${i.novaAba ? 'target="_blank" rel="noopener"' : ""} class="sidebar__link ${i.id === ativa ? "active" : ""}">
             <i class="fa-solid ${i.icone}"></i><span>${i.nome}</span>
           </a>`).join("")}
       </div>`;

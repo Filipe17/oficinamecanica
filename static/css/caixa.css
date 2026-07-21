@@ -82,3 +82,9 @@
 .cx-rel__dif { font-weight: 700; border-bottom: none; margin-top: 6px; padding-top: 10px; border-top: 2px solid var(--border); }
 .cx-dif--sobra b { color: var(--success); }
 .cx-dif--falta b { color: var(--danger); }
+
+/* Login próprio da aba do Caixa */
+.cx-login-wrap { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+.cx-login { width: 100%; max-width: 380px; text-align: center; }
+.cx-login h2 { margin: 6px 0 2px; }
+.cx-erro { background: var(--danger-soft); color: var(--danger); padding: 8px 12px; border-radius: 8px; font-size: 13px; margin: 10px 0; }
