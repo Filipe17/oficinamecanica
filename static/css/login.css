@@ -2,13 +2,12 @@
    login.css — Tela de login DevSystem PRIME (recriada em código).
    Painel de marca à esquerda (S de fundo + wordmark) e card de login à direita.
    ======================================================================= */
-.login-body { margin: 0; background: #f4f5f8; }
-.login-wrap { display: flex; min-height: 100vh; }
+.login-body { margin: 0; }
+.login-wrap { display: flex; min-height: 100vh; background: linear-gradient(135deg, #eceafb 0%, #f4f3fc 55%, #eaf0fe 100%); }
 
 /* ------------------------------- painel da marca (esquerda) */
 .login-side {
   flex: 1; position: relative; overflow: hidden;
-  background: linear-gradient(135deg, #eceafb 0%, #f4f3fc 55%, #eaf0fe 100%);
   display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
   padding: 0 9%;
 }
@@ -77,5 +76,4 @@
 /* ------------------------------- responsivo */
 @media (max-width: 880px) {
   .login-side { display: none; }
-  .login-form-side { background: linear-gradient(135deg, #eceafb, #eaf0fe); }
 }
