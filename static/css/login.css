@@ -13,10 +13,10 @@
   padding: 0 9%;
 }
 .login-side__s {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-family: var(--font); font-weight: 800; font-size: clamp(420px, 82vh, 860px); line-height: 1;
-  color: #dcdcf1; opacity: .55; user-select: none; pointer-events: none;
+  position: absolute; top: 50%; left: 52%; transform: translate(-50%, -50%);
+  height: 94%; width: auto; opacity: .5; pointer-events: none; user-select: none;
 }
+.login-side__s path { fill: #d6d5ef; }
 .login-side__brand { position: relative; z-index: 1; max-width: 460px; }
 .login-brand__nome { font-size: clamp(44px, 5.2vw, 70px); font-weight: 800; letter-spacing: -.03em; color: #171a2b; line-height: 1; }
 .login-brand__nome span {
