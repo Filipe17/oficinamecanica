@@ -44,17 +44,35 @@
   /* ---------------------------------------------------- login do caixa */
   function telaLogin(aviso) {
     app.innerHTML = `
-      <div class="cx-login-wrap">
-        <div class="cx-card cx-login">
-          <i class="fa-solid fa-cash-register cx-icone"></i>
-          <h2>Caixa</h2>
-          <p class="text-muted">Entre com um usuário de caixa</p>
-          ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
-          <label class="cx-campo"><span>E-mail</span>
-            <input id="lg-email" type="email" autocomplete="username"></label>
-          <label class="cx-campo"><span>Senha</span>
-            <input id="lg-senha" type="password" autocomplete="current-password"></label>
-          <button class="btn btn--primary btn--lg" id="lg-ok"><i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa</button>
+      <div class="login-wrap">
+        <div class="login-side">
+          <svg class="login-side__s" viewBox="0 0 300 380" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><path d="M 208 96 C 208 50, 118 42, 80 82 C 42 122, 72 168, 152 192 C 232 216, 258 264, 220 302 C 182 340, 96 332, 96 288" fill="none" stroke="currentColor" stroke-width="56" stroke-linecap="round"/></svg>
+          <div class="login-side__brand">
+            <div class="login-brand__nome">Dev<span>System</span></div>
+            <span class="login-brand__prime">PRIME</span>
+            <p class="login-brand__tag">Seu negócio, nosso sistema</p>
+            <div class="login-brand__bar"></div>
+            <p class="login-brand__desc">Transforme a gestão do seu negócio com um sistema moderno, completo e fácil de usar.</p>
+          </div>
+        </div>
+        <div class="login-form-side">
+          <div class="login-card">
+            <h1>Acesse o caixa</h1>
+            <p class="login-sub">Entre com seu usuário de caixa</p>
+            ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
+            <div class="field">
+              <label>E-mail</label>
+              <input class="login-input" id="lg-email" type="email" placeholder="voce@empresa.com" autocomplete="username">
+            </div>
+            <div class="field">
+              <label>Senha</label>
+              <div class="login-inp">
+                <input class="login-input" id="lg-senha" type="password" placeholder="••••••••" autocomplete="current-password">
+                <button type="button" class="login-eye" id="lg-eye"><i class="fa-solid fa-eye"></i></button>
+              </div>
+            </div>
+            <button class="login-btn" id="lg-ok" style="margin-top:8px"><i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa</button>
+          </div>
         </div>
       </div>`;
     const entrar = async () => {
@@ -69,6 +87,12 @@
     };
     document.getElementById("lg-ok").onclick = entrar;
     document.getElementById("lg-senha").addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); });
+    document.getElementById("lg-eye").onclick = () => {
+      const inp = document.getElementById("lg-senha");
+      const ic = document.querySelector("#lg-eye i");
+      if (inp.type === "password") { inp.type = "text"; ic.className = "fa-solid fa-eye-slash"; }
+      else { inp.type = "password"; ic.className = "fa-solid fa-eye"; }
+    };
     const em = document.getElementById("lg-email"); if (em) em.focus();
   }
 
