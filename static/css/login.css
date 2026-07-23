@@ -14,9 +14,8 @@
 }
 .login-side__s {
   position: absolute; top: 50%; left: 52%; transform: translate(-50%, -50%);
-  height: 94%; width: auto; opacity: .5; pointer-events: none; user-select: none;
+  height: 96%; width: auto; color: #d6d5ef; opacity: .55; pointer-events: none; user-select: none;
 }
-.login-side__s path { fill: #d6d5ef; }
 .login-side__brand { position: relative; z-index: 1; max-width: 460px; }
 .login-brand__nome { font-size: clamp(44px, 5.2vw, 70px); font-weight: 800; letter-spacing: -.03em; color: #171a2b; line-height: 1; }
 .login-brand__nome span {
