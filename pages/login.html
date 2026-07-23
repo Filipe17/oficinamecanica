@@ -8,25 +8,18 @@
   <link rel="stylesheet" href="/static/css/login.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
-<body>
-  <!-- Alternância de tema no canto -->
-  <button class="icon-btn login-tema" id="btn-tema" onclick="Tema.alternar()" title="Tema">
-    <i class="fa-solid fa-moon"></i>
-  </button>
-
+<body class="login-body">
   <div class="login-wrap">
-    <!-- Painel lateral com identidade da marca -->
+    <!-- Painel da marca (recriado em código) -->
     <div class="login-side">
+      <div class="login-side__s" aria-hidden="true">S</div>
       <div class="login-side__brand">
-        <img src="/static/img/devsystem-logo.png" alt="DevSystem PRIME — Seu negócio, nosso sistema">
+        <div class="login-brand__nome">Dev<span>System</span></div>
+        <span class="login-brand__prime">PRIME</span>
+        <p class="login-brand__tag">Seu negócio, nosso sistema</p>
+        <div class="login-brand__bar"></div>
+        <p class="login-brand__desc">Sistema completo e moderno para gestão eficiente do seu negócio. Simples, rápido e inteligente.</p>
       </div>
-      <h2>Gestão completa do seu negócio, num só lugar.</h2>
-      <p>Cadastros, estoque, financeiro, caixa e relatórios — rápido e organizado.</p>
-      <ul class="login-side__feats">
-        <li><i class="fa-solid fa-circle-check"></i> Vendas, orçamentos e ordens de serviço</li>
-        <li><i class="fa-solid fa-circle-check"></i> Estoque com importação de XML</li>
-        <li><i class="fa-solid fa-circle-check"></i> Financeiro, caixa e cobranças</li>
-      </ul>
     </div>
 
     <!-- Formulário -->
@@ -38,12 +31,12 @@
         <form id="form-login" autocomplete="on">
           <div class="field">
             <label>E-mail</label>
-            <input type="email" name="email" placeholder="voce@empresa.com" required>
+            <input class="login-input" type="email" name="email" placeholder="voce@empresa.com" required>
           </div>
           <div class="field">
             <label>Senha</label>
-            <div class="login-pass">
-              <input type="password" name="senha" placeholder="••••••••" required>
+            <div class="login-inp">
+              <input class="login-input" type="password" name="senha" placeholder="••••••••" required>
               <button type="button" class="login-eye" onclick="toggleSenha(this)"><i class="fa-solid fa-eye"></i></button>
             </div>
           </div>
@@ -53,14 +46,12 @@
             </label>
             <a href="#" onclick="esqueciSenha(event)">Esqueci a senha</a>
           </div>
-          <button type="submit" class="btn btn--primary btn--block" id="btn-entrar">
+          <button type="submit" class="login-btn" id="btn-entrar">
             <i class="fa-solid fa-right-to-bracket"></i> Entrar
           </button>
         </form>
 
-        <div class="login-hint">
-          Acesso de teste: <b>admin@oficina.com</b> / <b>admin123</b>
-        </div>
+        <div class="login-hint">Acesso de teste: <b>admin@oficina.com</b> / <b>admin123</b></div>
       </div>
     </div>
   </div>
