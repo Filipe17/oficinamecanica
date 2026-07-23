@@ -6,14 +6,11 @@
    Também controla o botão de mostrar/ocultar senha e o link "esqueci senha".
    ======================================================================= */
 
-// Destino após o login: o operador de caixa vai direto para a tela de Caixa.
-const destino = (perfil) => (perfil === "caixa" ? "/caixa" : "/dashboard");
-
-// Se já houver sessão ativa, pula direto para a tela certa.
+// Se já houver sessão ativa, pula direto para o dashboard.
 (async () => {
   try {
-    const me = await API.get("/api/me");
-    location.href = destino(me.usuario?.perfil);
+    await API.get("/api/me");
+    location.href = "/dashboard";
   } catch (_) {
     /* sem sessão: permanece no login */
   }
@@ -47,8 +44,7 @@ document.getElementById("form-login").addEventListener("submit", async (e) => {
   btn.innerHTML = '<i class="fa-solid fa-spinner spin"></i> Entrando…';
   try {
     await API.post("/api/login", dados);
-    const me = await API.get("/api/me");
-    location.href = destino(me.usuario?.perfil);
+    location.href = "/dashboard";
   } catch (err) {
     toast(err.message || "Falha no login", "error");
     btn.disabled = false;

@@ -1,37 +1,60 @@
 /* =======================================================================
-   caixa.js — Tela dedicada do Caixa (login próprio do operador).
-   Sistema à parte na experiência (sem a barra do ERP), mas conectado ao
-   mesmo banco: recebe as cobranças dos orçamentos/OS e devolve as baixas.
+   caixa.js — Tela do Caixa com LOGIN PRÓPRIO (token), independente do ERP.
+   O token fica em sessionStorage (isolado por aba), então o login do caixa
+   não se mistura com o do admin: sair de um não desloga o outro. As chamadas
+   vão para /api/caixa/* com o cabeçalho X-Caixa-Token.
    ======================================================================= */
 (async () => {
   const app = document.getElementById("app");
+  const TOKEN_KEY = "caixa_token";
   const money = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  let me = null, cfg = {};
   const FORMAS = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito"];
 
-  // Ponto de entrada: se não houver sessão, mostra o login aqui mesmo (na aba do caixa).
-  async function boot() {
-    try { me = (await API.get("/api/me")).usuario; }
-    catch (_) { return telaLogin(); }
-    try { cfg = await API.get("/api/configuracoes"); } catch (_) {}
-    render();
+  let cfg = {}, operador = "";
+
+  const getToken = () => sessionStorage.getItem(TOKEN_KEY) || "";
+  const setToken = (t) => sessionStorage.setItem(TOKEN_KEY, t);
+  const limparToken = () => sessionStorage.removeItem(TOKEN_KEY);
+
+  // fetch dedicado do caixa (token no cabeçalho, não depende do cookie do ERP)
+  async function cx(method, path, body) {
+    const resp = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json", "X-Caixa-Token": getToken() },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { const e = new Error(data.erro || "Erro"); e.status = resp.status; throw e; }
+    return data;
   }
 
-  // Login próprio da tela de Caixa (usuário e senha)
+  /* --------------------------------------------------------------- boot */
+  async function boot() {
+    if (!getToken()) return telaLogin();
+    try {
+      const st = await cx("GET", "/api/caixa/status");
+      cfg = st.config || {}; operador = st.operador || "";
+      if (!st.aberto) renderFechado(); else renderAberto(st);
+    } catch (e) {
+      limparToken();
+      telaLogin(e.status === 401 ? null : e.message);
+    }
+  }
+
+  /* ---------------------------------------------------- login do caixa */
   function telaLogin(aviso) {
     app.innerHTML = `
       <div class="cx-login-wrap">
         <div class="cx-card cx-login">
           <i class="fa-solid fa-cash-register cx-icone"></i>
           <h2>Caixa</h2>
-          <p class="text-muted">Entre com seu usuário e senha</p>
+          <p class="text-muted">Entre com um usuário de caixa</p>
           ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
           <label class="cx-campo"><span>E-mail</span>
             <input id="lg-email" type="email" autocomplete="username"></label>
           <label class="cx-campo"><span>Senha</span>
             <input id="lg-senha" type="password" autocomplete="current-password"></label>
-          <button class="btn btn--primary btn--lg" id="lg-ok"><i class="fa-solid fa-right-to-bracket"></i> Entrar</button>
+          <button class="btn btn--primary btn--lg" id="lg-ok"><i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa</button>
         </div>
       </div>`;
     const entrar = async () => {
@@ -39,10 +62,9 @@
       const senha = document.getElementById("lg-senha").value;
       if (!email || !senha) { toast("Informe e-mail e senha", "warning"); return; }
       try {
-        await API.post("/api/login", { email, senha });
-        me = (await API.get("/api/me")).usuario;
-        try { cfg = await API.get("/api/configuracoes"); } catch (_) {}
-        render();
+        const r = await cx("POST", "/api/caixa/login", { email, senha });
+        setToken(r.token);
+        boot();
       } catch (e) { toast(e.message || "Falha no login", "error"); }
     };
     document.getElementById("lg-ok").onclick = entrar;
@@ -50,6 +72,7 @@
     const em = document.getElementById("lg-email"); if (em) em.focus();
   }
 
+  /* --------------------------------------------------------- cabeçalho */
   function cabecalho() {
     return `
       <header class="cx-top">
@@ -58,26 +81,13 @@
           <div><b>${cfg.empresa_nome || "Caixa"}</b><span>Caixa</span></div>
         </div>
         <div class="cx-op">
-          <span><i class="fa-solid fa-user"></i> ${me.nome}</span>
+          <span><i class="fa-solid fa-user"></i> ${operador}</span>
           <button class="btn btn--ghost btn--sm" id="cx-sair"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
         </div>
       </header>`;
   }
   function ligarComuns() {
-    document.getElementById("cx-sair").onclick = async () => {
-      try { await API.post("/api/logout", {}); } catch (_) {}
-      me = null; telaLogin();   // volta para o login do próprio caixa
-    };
-  }
-
-  async function render() {
-    let st;
-    try { st = await API.get("/api/caixa/status"); }
-    catch (_) {
-      // Logado, mas sem acesso ao caixa: pede login de um usuário de caixa.
-      return telaLogin("Este usuário não tem acesso ao caixa. Entre com um usuário de caixa.");
-    }
-    if (!st.aberto) renderFechado(); else renderAberto(st);
+    document.getElementById("cx-sair").onclick = () => { limparToken(); telaLogin(); };
   }
 
   /* ------------------------------------------------------------ FECHADO */
@@ -96,7 +106,7 @@
     ligarComuns();
     document.getElementById("cx-btn-abrir").onclick = async () => {
       const v = parseFloat(document.getElementById("cx-abertura").value) || 0;
-      try { await API.post("/api/caixa/abrir", { valor_abertura: v }); toast("Caixa aberto"); render(); }
+      try { await cx("POST", "/api/caixa/abrir", { valor_abertura: v }); toast("Caixa aberto"); boot(); }
       catch (e) { toast(e.message, "error"); }
     };
   }
@@ -105,7 +115,7 @@
   async function renderAberto(st) {
     const t = st.totais || {};
     let cobrancas = [];
-    try { cobrancas = (await API.get("/api/caixa/receber")).dados || []; } catch (_) {}
+    try { cobrancas = (await cx("GET", "/api/caixa/receber")).dados || []; } catch (_) {}
 
     app.innerHTML = cabecalho() + `
       <div class="cx-painel">
@@ -166,8 +176,8 @@
     document.getElementById("rc-ok").onclick = async () => {
       const valor_pago = parseFloat(document.getElementById("rc-valor").value) || 0;
       try {
-        await API.post(`/api/caixa/receber/${fid}`, { forma_pagamento: forma, valor_pago });
-        Modal.fechar(); toast("Recebimento registrado"); render();
+        await cx("POST", `/api/caixa/receber/${fid}`, { forma_pagamento: forma, valor_pago });
+        Modal.fechar(); toast("Recebimento registrado"); boot();
       } catch (e) { toast(e.message, "error"); }
     };
   }
@@ -186,8 +196,8 @@
       const valor = parseFloat(document.getElementById("mv-valor").value) || 0;
       const motivo = document.getElementById("mv-motivo").value.trim();
       try {
-        await API.post("/api/caixa/movimento", { tipo, valor, motivo });
-        Modal.fechar(); toast(titulo + " registrada"); render();
+        await cx("POST", "/api/caixa/movimento", { tipo, valor, motivo });
+        Modal.fechar(); toast(titulo + " registrada"); boot();
       } catch (e) { toast(e.message, "error"); }
     };
   }
@@ -203,7 +213,7 @@
     document.getElementById("fc-ok").onclick = async () => {
       const valor_informado = parseFloat(document.getElementById("fc-valor").value) || 0;
       try {
-        const r = await API.post("/api/caixa/fechar", { valor_informado });
+        const r = await cx("POST", "/api/caixa/fechar", { valor_informado });
         Modal.fechar(); relatorioFechamento(r.relatorio);
       } catch (e) { toast(e.message, "error"); }
     };
@@ -235,7 +245,7 @@
         .l{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee}
         .esp{font-weight:bold}.dif{font-weight:bold;color:${dif < 0 ? "#c0392b" : "#0d9488"}}</style></head>
         <body><h3>${cfg.empresa_nome || "Caixa"} — Fechamento</h3>
-        <div class="l"><span>Operador</span><b>${me.nome}</b></div>
+        <div class="l"><span>Operador</span><b>${operador}</b></div>
         ${document.getElementById("cx-rel").innerHTML.replace(/cx-rel__l/g, "l").replace(/cx-rel__esp/g, "esp").replace(/cx-rel__dif [a-z-]*/g, "dif").replace("<h3>Relatório do caixa</h3>", "")}
         </body></html>`);
       w.document.close();
@@ -243,6 +253,6 @@
     };
   }
 
-  const api = { receber, recarregar: render };
+  const api = { receber, recarregar: boot };
   await boot();
 })();

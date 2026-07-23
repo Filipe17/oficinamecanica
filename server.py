@@ -124,6 +124,9 @@ def _modulo_os(path, metodo):
 def _controle_acesso():
     if request.path.startswith("/static/"):
         return
+    # O Caixa tem login próprio (token no cabeçalho) e não usa a sessão do ERP.
+    if request.path == "/caixa" or request.path.startswith("/api/caixa"):
+        return
     perfil = session.get("perfil")
     if not perfil or perfil == "administrador":
         return                       # não logado (rotas tratam) ou admin (tudo)
@@ -186,7 +189,7 @@ def pagina(pagina):
     caminho = os.path.join(PAGES_DIR, arquivo)
     if not os.path.exists(caminho):
         return "Página não encontrada", 404
-    if pagina != "login" and not session.get("user_id"):
+    if pagina not in ("login", "caixa") and not session.get("user_id"):
         return redirect("/login")
     return send_from_directory(PAGES_DIR, arquivo)
 
