@@ -222,7 +222,7 @@ const Layout = {
             <div class="sidebar__logo">${this.config.empresa_logo
               ? `<img src="${this.config.empresa_logo}" alt="logo">`
               : `<i class="fa-solid fa-gear"></i>`}</div>
-            <div class="sidebar__title">${this.config.empresa_nome || "Oficina ERP"}<small>${this.config.empresa_nome ? "Gestão da oficina" : "Gestão completa"}</small></div>
+            <div class="sidebar__title">${this.config.empresa_nome || "DevSystem"}<small>${this.config.empresa_nome ? "Gestão do negócio" : "Seu negócio, nosso sistema"}</small></div>
           </div>
           <nav class="sidebar__nav">${nav}</nav>
         </aside>

@@ -21,11 +21,19 @@
   width: 320px; height: 320px; border-radius: 50%;
   border: 46px solid rgba(255,255,255,.06);
 }
-.login-side__brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 800; margin-bottom: 40px; }
+.login-side__brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 800; margin-bottom: 10px; }
 .login-side__logo {
-  width: 44px; height: 44px; border-radius: 11px;
-  background: rgba(255,255,255,.18); display: grid; place-items: center; font-size: 20px;
+  width: 52px; height: 52px; border-radius: 13px; overflow: hidden;
+  background: #fff; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.18);
 }
+.login-side__logo img { width: 100%; height: 100%; object-fit: cover; }
+.login-side__nome { display: inline-flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+.login-side__nome b { font-weight: 800; color: var(--accent); }
+.login-side__prime {
+  font-style: normal; font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  background: rgba(255,255,255,.2); padding: 3px 9px; border-radius: 20px;
+}
+.login-side__tag { margin: 0 0 34px !important; color: rgba(255,255,255,.8); font-size: 14px; }
 .login-side h2 { font-size: 30px; font-weight: 800; line-height: 1.2; max-width: 420px; letter-spacing: -.02em; }
 .login-side p { margin-top: 14px; max-width: 400px; color: rgba(255,255,255,.86); font-size: 15px; }
 .login-side__feats { list-style: none; margin-top: 30px; display: grid; gap: 12px; }
