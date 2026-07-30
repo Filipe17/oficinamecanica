@@ -11,8 +11,20 @@
   const FORMAS = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito"];
 
   let cfg = {}, operador = "";
+  let marca = null;                  // {empresa_nome, empresa_logo} vindo de /api/marca
   let autoTimer = null;              // timer do auto-refresh (caixa aberto)
   const AUTO_INTERVALO = 12000;      // 12s: pega cobranças novas sem pesar
+
+  // Busca a marca pública (logo + razão social) para exibir na tela de login,
+  // igual ao login do admin. É endpoint público: funciona sem estar logado.
+  async function carregarMarca() {
+    if (marca) return marca;
+    try {
+      const resp = await fetch("/api/marca");
+      marca = resp.ok ? await resp.json() : {};
+    } catch (_) { marca = {}; }
+    return marca;
+  }
 
   const getToken = () => sessionStorage.getItem(TOKEN_KEY) || "";
   const setToken = (t) => sessionStorage.setItem(TOKEN_KEY, t);
@@ -33,19 +45,31 @@
   /* --------------------------------------------------------------- boot */
   async function boot() {
     pararAuto();   // evita timers duplicados a cada re-render
-    if (!getToken()) return telaLogin();
+    if (!getToken()) return await telaLogin();
     try {
       const st = await cx("GET", "/api/caixa/status");
       cfg = st.config || {}; operador = st.operador || "";
       if (!st.aberto) renderFechado(); else renderAberto(st);
     } catch (e) {
       limparToken();
-      telaLogin(e.status === 401 ? null : e.message);
+      await telaLogin(e.status === 401 ? null : e.message);
     }
   }
 
   /* ---------------------------------------------------- login do caixa */
-  function telaLogin(aviso) {
+  async function telaLogin(aviso) {
+    await carregarMarca();
+    const temLogo = marca && marca.empresa_logo;
+    const nomeEmpresa = (marca && marca.empresa_nome) ? marca.empresa_nome : "";
+
+    // Bloco de marca da empresa (logo + razão social) exibido no topo do card,
+    // igual ao login do admin. Sem empresa cadastrada, mostra só a marca padrão.
+    const marcaCard = (temLogo || nomeEmpresa) ? `
+            <div class="login-empresa">
+              ${temLogo ? `<img class="login-empresa__logo" src="${marca.empresa_logo}" alt="logo">` : ""}
+              ${nomeEmpresa ? `<div class="login-empresa__nome">${nomeEmpresa}</div>` : ""}
+            </div>` : "";
+
     app.innerHTML = `
       <div class="login-wrap">
         <div class="login-side">
@@ -60,6 +84,7 @@
         </div>
         <div class="login-form-side">
           <div class="login-card">
+            ${marcaCard}
             <h1>Acesse o caixa</h1>
             <p class="login-sub">Entre com seu usuário de caixa</p>
             ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
