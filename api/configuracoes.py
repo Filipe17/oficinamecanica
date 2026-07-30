@@ -30,6 +30,17 @@ def obter_config():
     return {l["chave"]: l["valor"] for l in linhas}
 
 
+@configuracoes_bp.route("/api/marca", methods=["GET"])
+def marca():
+    """
+    Marca da empresa (nome + logo) para exibir na tela de login — leitura
+    PÚBLICA (sem login), pois aparece antes de o usuário entrar. Só expõe
+    nome e logo; dados sensíveis (CNPJ, endereço) continuam protegidos.
+    """
+    c = obter_config()
+    return jsonify({"empresa_nome": c.get("empresa_nome"), "empresa_logo": c.get("empresa_logo")})
+
+
 @configuracoes_bp.route("/api/configuracoes", methods=["GET"])
 @login_obrigatorio
 def obter():
