@@ -40,6 +40,7 @@
       { nome: "localizacao", label: "Localização" },
       { nome: "preco_compra", label: "Preço de compra", tipo: "number" },
       { nome: "preco_venda", label: "Preço de venda", tipo: "number" },
+      { nome: "comissao_percentual", label: "Comissão (%)", tipo: "number" },
       { nome: "estoque_atual", label: "Estoque atual", tipo: "number" },
       { nome: "estoque_minimo", label: "Estoque mínimo", tipo: "number" },
       { nome: "estoque_maximo", label: "Estoque máximo", tipo: "number" },
