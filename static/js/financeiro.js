@@ -1,5 +1,6 @@
 /* =======================================================================
    financeiro.js — Contas a receber / a pagar + fluxo de caixa
+   Baixa parcial + juros/multa + edição de lançamento.
    ======================================================================= */
 (async () => {
   await Layout.iniciar("financeiro", "Financeiro");
@@ -15,6 +16,13 @@
     clientes = rc.dados || [];
     fornecedores = rf.dados || rf || [];
   } catch (_) {}
+
+  // Guarda os lançamentos carregados para o form de baixa/edição consultar.
+  let cache = [];
+
+  const num = (v) => (parseFloat(v) || 0);
+  const totalDevido = (f) => num(f.valor) + num(f.juros) + num(f.multa);
+  const restante = (f) => Math.max(totalDevido(f) - num(f.valor_pago), 0);
 
   Layout.set(`
     <div class="page-head">
@@ -44,6 +52,7 @@
     try {
       const r = await API.get(`/api/financeiro?tipo=${tipo}`);
       const lista = r.dados || [], t = r.totais || {};
+      cache = lista;
       document.getElementById("fin-totais").innerHTML = `
         <div class="stat stat--info"><div class="stat__icon"><i class="fa-solid fa-clock"></i></div>
           <div class="stat__body"><div class="stat__value">${fmt.moeda(t.aberto)}</div><div class="stat__label">Em aberto</div></div></div>
@@ -53,40 +62,52 @@
           <div class="stat__body"><div class="stat__value">${fmt.moeda(t.atrasado)}</div><div class="stat__label">Atrasado</div></div></div>`;
 
       if (!lista.length) { alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-inbox"></i>Nenhum lançamento</div>`; return; }
-      const tom = { aberto: "info", pago: "success", atrasado: "danger" };
+      const tom = { aberto: "info", parcial: "warning", pago: "success", atrasado: "danger" };
+      const rotulo = { aberto: "aberto", parcial: "parcial", pago: "pago", atrasado: "atrasado" };
       alvo.innerHTML = `<div class="table-wrap"><table class="data">
         <thead><tr><th>Descrição</th><th>${tipo === "receber" ? "Cliente" : "Fornecedor"}</th>
-          <th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-        <tbody>${lista.map((f) => `<tr>
+          <th>Vencimento</th><th>Valor</th><th>Pago</th><th>Status</th><th></th></tr></thead>
+        <tbody>${lista.map((f) => {
+          const temEncargo = num(f.juros) + num(f.multa) > 0;
+          const rest = restante(f);
+          return `<tr>
           <td>${f.descricao || "-"}</td>
           <td>${(tipo === "receber" ? f.cliente_nome : f.fornecedor_nome) || "-"}</td>
           <td>${fmt.data(f.vencimento)}</td>
-          <td>${fmt.moeda(f.valor)}</td>
-          <td><span class="badge badge--${tom[f.status] || ""}">${f.status}</span></td>
+          <td>${fmt.moeda(f.valor)}${temEncargo ? ` <i class="fa-solid fa-plus-circle" title="+ ${fmt.moeda(num(f.juros)+num(f.multa))} juros/multa"></i>` : ""}</td>
+          <td>${num(f.valor_pago) ? fmt.moeda(f.valor_pago) : "-"}${f.status === "parcial" ? ` <small class="muted">(falta ${fmt.moeda(rest)})</small>` : ""}</td>
+          <td><span class="badge badge--${tom[f.status] || ""}">${rotulo[f.status] || f.status}</span></td>
           <td class="text-right">
-            ${f.status !== "pago" ? `<button class="icon-btn btn--sm" title="Baixar" onclick="window.__fin.baixar(${f.id}, ${f.valor})"><i class="fa-solid fa-check-double"></i></button>` : ""}
+            ${f.status !== "pago" ? `<button class="icon-btn btn--sm" title="Baixar" onclick="window.__fin.baixar(${f.id})"><i class="fa-solid fa-check-double"></i></button>` : ""}
+            ${f.status !== "pago" ? `<button class="icon-btn btn--sm" title="Editar" onclick="window.__fin.editar(${f.id})"><i class="fa-solid fa-pen"></i></button>` : ""}
             <button class="icon-btn btn--sm" title="Excluir" onclick="window.__fin.excluir(${f.id})"><i class="fa-solid fa-trash"></i></button>
-          </td></tr>`).join("")}
+          </td></tr>`;
+        }).join("")}
         </tbody></table></div>`;
     } catch (e) {
       alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>${e.message}</div>`;
     }
   }
 
-  function abrirForm() {
+  // Form de criar/editar. Se "reg" vier preenchido, é edição.
+  function abrirForm(reg) {
+    const ed = !!reg;
+    const val = (k, d = "") => (ed && reg[k] != null ? reg[k] : d);
     const parceiro = tipo === "receber"
       ? `<div class="field col-2"><label>Cliente</label><select name="cliente_id"><option value="">— nenhum —</option>
-          ${clientes.map((c) => `<option value="${c.id}">${c.nome}</option>`).join("")}</select></div>`
+          ${clientes.map((c) => `<option value="${c.id}" ${String(val("cliente_id")) === String(c.id) ? "selected" : ""}>${c.nome}</option>`).join("")}</select></div>`
       : `<div class="field col-2"><label>Fornecedor</label><select name="fornecedor_id"><option value="">— nenhum —</option>
-          ${fornecedores.map((f) => `<option value="${f.id}">${f.nome}</option>`).join("")}</select></div>`;
-    Modal.abrir(`Novo lançamento — ${tipo === "receber" ? "a receber" : "a pagar"}`, `
+          ${fornecedores.map((f) => `<option value="${f.id}" ${String(val("fornecedor_id")) === String(f.id) ? "selected" : ""}>${f.nome}</option>`).join("")}</select></div>`;
+    Modal.abrir(`${ed ? "Editar" : "Novo"} lançamento — ${tipo === "receber" ? "a receber" : "a pagar"}`, `
       <div class="form-grid" id="fin-form">
-        <div class="field col-2"><label>Descrição *</label><input name="descricao"></div>
+        <div class="field col-2"><label>Descrição *</label><input name="descricao" value="${val("descricao")}"></div>
         ${parceiro}
-        <div class="field"><label>Valor *</label><input type="number" step="0.01" name="valor"></div>
-        <div class="field"><label>Vencimento</label><input type="date" name="vencimento"></div>
+        <div class="field"><label>Valor *</label><input type="number" step="0.01" name="valor" value="${val("valor")}"></div>
+        <div class="field"><label>Vencimento</label><input type="date" name="vencimento" value="${val("vencimento") ? String(val("vencimento")).slice(0,10) : ""}"></div>
+        <div class="field"><label>Juros (R$)</label><input type="number" step="0.01" name="juros" value="${val("juros", 0)}"></div>
+        <div class="field"><label>Multa (R$)</label><input type="number" step="0.01" name="multa" value="${val("multa", 0)}"></div>
         <div class="field"><label>Forma de pagamento</label><select name="forma_pagamento">
-          ${FORMAS.map((f) => `<option value="${f}">${f}</option>`).join("")}</select></div>
+          ${FORMAS.map((f) => `<option value="${f}" ${val("forma_pagamento") === f ? "selected" : ""}>${f}</option>`).join("")}</select></div>
       </div>`,
       `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
        <button class="btn btn--primary" id="fin-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`);
@@ -97,35 +118,63 @@
         valor: parseFloat(f.valor.value) || 0,
         vencimento: f.vencimento.value || null,
         forma_pagamento: f.forma_pagamento.value,
+        juros: parseFloat(f.juros.value) || 0,
+        multa: parseFloat(f.multa.value) || 0,
         cliente_id: f.cliente_id ? (f.cliente_id.value || null) : null,
         fornecedor_id: f.fornecedor_id ? (f.fornecedor_id.value || null) : null,
       };
       if (!dados.descricao || !dados.valor) { toast("Informe descrição e valor", "warning"); return; }
-      try { await API.post("/api/financeiro", dados); toast("Lançamento criado"); Modal.fechar(); carregar(); }
-      catch (e) { toast(e.message, "error"); }
+      try {
+        if (ed) { await API.put(`/api/financeiro/${reg.id}`, dados); toast("Lançamento atualizado"); }
+        else { await API.post("/api/financeiro", dados); toast("Lançamento criado"); }
+        Modal.fechar(); carregar();
+      } catch (e) { toast(e.message, "error"); }
     };
   }
 
   window.__fin = {
-    async baixar(id, valor) {
+    async baixar(id) {
+      const f = cache.find((x) => x.id === id);
+      if (!f) return;
+      const devido = totalDevido(f);
+      const rest = restante(f);
+      const encargo = num(f.juros) + num(f.multa);
       Modal.abrir("Baixar lançamento", `
         <div class="form-grid" id="baixa-form">
-          <div class="field"><label>Valor pago</label><input type="number" step="0.01" name="valor_pago" value="${valor}"></div>
+          <div class="field col-2">
+            <div class="baixa-resumo">
+              <div>Valor: <strong>${fmt.moeda(f.valor)}</strong></div>
+              ${encargo > 0 ? `<div>Juros + multa: <strong>${fmt.moeda(encargo)}</strong></div>` : ""}
+              <div>Total devido: <strong>${fmt.moeda(devido)}</strong></div>
+              ${num(f.valor_pago) ? `<div>Já pago: <strong>${fmt.moeda(f.valor_pago)}</strong></div>` : ""}
+              <div>Restante: <strong>${fmt.moeda(rest)}</strong></div>
+            </div>
+          </div>
+          <div class="field"><label>Valor a pagar agora</label><input type="number" step="0.01" name="valor_pago" value="${rest.toFixed(2)}"></div>
           <div class="field"><label>Forma</label><select name="forma_pagamento">
-            ${FORMAS.map((f) => `<option value="${f}">${f}</option>`).join("")}</select></div>
+            ${FORMAS.map((x) => `<option value="${x}" ${f.forma_pagamento === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
+          <div class="field col-2"><small class="muted">Pagar menos que o restante registra baixa parcial; o saldo continua em aberto.</small></div>
         </div>`,
         `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
          <button class="btn btn--success" id="baixa-ok"><i class="fa-solid fa-check-double"></i> Confirmar baixa</button>`);
       document.getElementById("baixa-ok").onclick = async () => {
-        const f = document.getElementById("baixa-form");
+        const form = document.getElementById("baixa-form");
+        const vp = parseFloat(form.valor_pago.value) || rest;
         try {
-          await API.post(`/api/financeiro/${id}/baixar`, {
-            valor_pago: parseFloat(f.valor_pago.value) || valor,
-            forma_pagamento: f.forma_pagamento.value,
+          const r = await API.post(`/api/financeiro/${id}/baixar`, {
+            valor_pago: vp,
+            forma_pagamento: form.forma_pagamento.value,
           });
-          toast("Baixa registrada"); Modal.fechar(); carregar();
+          toast(r.status === "parcial"
+            ? `Baixa parcial — restam ${fmt.moeda(r.restante)}`
+            : "Lançamento quitado");
+          Modal.fechar(); carregar();
         } catch (e) { toast(e.message, "error"); }
       };
+    },
+    editar(id) {
+      const f = cache.find((x) => x.id === id);
+      if (f) abrirForm(f);
     },
     async excluir(id) {
       if (!confirm("Excluir este lançamento?")) return;
