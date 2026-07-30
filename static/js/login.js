@@ -6,6 +6,23 @@
    Também controla o botão de mostrar/ocultar senha e o link "esqueci senha".
    ======================================================================= */
 
+// Mostra a logo e o nome da empresa (das Configurações) na tela inicial.
+// Se ainda não houver empresa cadastrada, mantém a marca DevSystem PRIME.
+(async () => {
+  try {
+    const m = await API.get("/api/marca");
+    if (!m || (!m.empresa_nome && !m.empresa_logo)) return;
+    const brand = document.querySelector(".login-side__brand");
+    if (!brand) return;
+    brand.innerHTML = `
+      ${m.empresa_logo ? `<img class="login-empresa-logo" src="${m.empresa_logo}" alt="${m.empresa_nome || "Empresa"}">` : ""}
+      ${m.empresa_nome ? `<div class="login-empresa-nome">${m.empresa_nome}</div>` : ""}
+      <div class="login-brand__bar"></div>
+      <p class="login-brand__desc">Gestão completa da sua oficina — ordens de serviço, orçamentos, estoque, financeiro e caixa num só lugar.</p>
+      <p class="login-por">Sistema por <b>DevSystem</b></p>`;
+  } catch (_) { /* sem config ou offline: mantém a marca padrão */ }
+})();
+
 // Se já houver sessão ativa, pula direto para o dashboard.
 (async () => {
   try {
