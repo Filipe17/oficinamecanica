@@ -78,8 +78,7 @@
   .login-side { display: none; }
 }
 
-/* Marca da empresa (das Configurações) na tela de login */
-.login-empresa-logo { display: block; max-width: 260px; max-height: 130px; object-fit: contain; margin-bottom: 18px; }
-.login-empresa-nome { font-size: clamp(30px, 3.4vw, 44px); font-weight: 800; color: #1c2033; letter-spacing: -.02em; line-height: 1.1; }
-.login-por { margin-top: 26px; font-size: 13px; color: #9aa0b4; }
-.login-por b { color: #6b72e6; font-weight: 700; }
+/* Marca da empresa (das Configurações) no topo do card de login */
+.login-card__marca { text-align: center; margin-bottom: 22px; }
+.login-card__logo { display: block; max-width: 200px; max-height: 96px; object-fit: contain; margin: 0 auto 10px; }
+.login-card__nome { font-size: 20px; font-weight: 800; color: #1c2033; line-height: 1.25; }
