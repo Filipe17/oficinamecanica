@@ -221,10 +221,11 @@ def finalizar(oid):
 
     query("UPDATE ordens_servico SET status='finalizada' WHERE id=?", (oid,), commit=True)
 
-    # Gera conta a receber se solicitado (forma de pagamento fica em aberto:
-    # é o caixa que define ao dar baixa).
+    # Gera conta a receber APENAS para orçamentos (eh_orcamento=1).
+    # OS real nunca lança no financeiro/caixa, mesmo que o front peça.
+    # (forma de pagamento fica em aberto: é o caixa que define ao dar baixa)
     d = request.get_json(silent=True) or {}
-    if d.get("gerar_financeiro"):
+    if o.get("eh_orcamento") == 1 and d.get("gerar_financeiro"):
         query(
             "INSERT INTO financeiro (tipo, descricao, cliente_id, os_id, valor, "
             "vencimento, forma_pagamento, status, criado_em) "
