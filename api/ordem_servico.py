@@ -176,6 +176,16 @@ def editar(oid):
     return jsonify({"ok": True})
 
 
+def _comissao_do_cadastro(tipo, referencia_id):
+    """Lê a % de comissão cadastrada no produto/serviço de origem (ou 0)."""
+    if not referencia_id:
+        return 0
+    tabela = "servicos" if tipo == "servico" else "produtos"
+    row = query(f"SELECT comissao_percentual FROM {tabela} WHERE id=?",
+                (referencia_id,), fetchone=True)
+    return (row.get("comissao_percentual") or 0) if row else 0
+
+
 def _salvar_itens(oid, itens):
     """Grava a lista de itens (produtos/serviços) de uma OS/orçamento."""
     for it in itens:
@@ -183,12 +193,56 @@ def _salvar_itens(oid, itens):
         vu = float(it.get("valor_unitario", 0) or 0)
         desc = float(it.get("desconto", 0) or 0)
         subtotal = qtd * vu - desc
+        # Congela a % de comissão do item no momento da venda: usa o que o front
+        # enviar; se não vier, copia do cadastro (produto/serviço). Assim, mudar
+        # a % do cadastro depois não altera comissões de OS já lançadas.
+        comissao_pct = it.get("comissao_percentual")
+        if comissao_pct is None:
+            comissao_pct = _comissao_do_cadastro(it.get("tipo"), it.get("referencia_id"))
         query(
             "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, codigo, "
-            "unidade, quantidade, valor_unitario, desconto, subtotal) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "unidade, quantidade, valor_unitario, desconto, subtotal, comissao_percentual) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (oid, it.get("tipo"), it.get("referencia_id"), it.get("descricao"),
-             it.get("codigo"), it.get("unidade"), qtd, vu, desc, subtotal),
+             it.get("codigo"), it.get("unidade"), qtd, vu, desc, subtotal,
+             float(comissao_pct or 0)),
+            commit=True,
+        )
+
+
+def _gerar_comissoes_os(o, oid):
+    """
+    Gera as comissões do mecânico responsável pela OS.
+    Regras (definidas com o cliente):
+      - Só gera se houver mecânico definido; sem mecânico, não gera nada.
+      - Base de cálculo: valor cheio do item (quantidade × valor_unitário),
+        ANTES do desconto.
+      - Usa a % congelada em os_itens.comissao_percentual; itens com % 0 são
+        ignorados.
+      - Uma pessoa por OS (o mecanico_id).
+    """
+    mecanico_id = o.get("mecanico_id")
+    if not mecanico_id:
+        return  # sem mecânico -> sem comissão
+
+    # Idempotência: limpa comissões anteriores desta OS antes de regravar.
+    query("DELETE FROM comissoes WHERE origem='os' AND origem_id=?", (oid,), commit=True)
+
+    itens = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
+    for it in itens:
+        pct = float(it.get("comissao_percentual") or 0)
+        if pct <= 0:
+            continue
+        qtd = float(it.get("quantidade") or 0)
+        vu = float(it.get("valor_unitario") or 0)
+        base = qtd * vu  # valor cheio, antes do desconto
+        valor = round(base * pct / 100, 2)
+        if valor <= 0:
+            continue
+        query(
+            "INSERT INTO comissoes (usuario_id, origem, origem_id, os_item_id, "
+            "base_calculo, percentual, valor, criado_em) VALUES (?,?,?,?,?,?,?,?)",
+            (mecanico_id, "os", oid, it["id"], round(base, 2), pct, valor, now()),
             commit=True,
         )
 
@@ -220,6 +274,10 @@ def finalizar(oid):
                 pass  # produto pode ter sido removido; ignora silenciosamente
 
     query("UPDATE ordens_servico SET status='finalizada' WHERE id=?", (oid,), commit=True)
+
+    # Gera as comissões do mecânico responsável (não gera para orçamento).
+    if o.get("eh_orcamento") != 1:
+        _gerar_comissoes_os(o, oid)
 
     # Gera conta a receber APENAS para orçamentos (eh_orcamento=1).
     # OS real nunca lança no financeiro/caixa, mesmo que o front peça.
