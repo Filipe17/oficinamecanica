@@ -11,6 +11,8 @@
   const FORMAS = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito"];
 
   let cfg = {}, operador = "";
+  let autoTimer = null;              // timer do auto-refresh (caixa aberto)
+  const AUTO_INTERVALO = 12000;      // 12s: pega cobranças novas sem pesar
 
   const getToken = () => sessionStorage.getItem(TOKEN_KEY) || "";
   const setToken = (t) => sessionStorage.setItem(TOKEN_KEY, t);
@@ -30,6 +32,7 @@
 
   /* --------------------------------------------------------------- boot */
   async function boot() {
+    pararAuto();   // evita timers duplicados a cada re-render
     if (!getToken()) return telaLogin();
     try {
       const st = await cx("GET", "/api/caixa/status");
@@ -111,7 +114,7 @@
       </header>`;
   }
   function ligarComuns() {
-    document.getElementById("cx-sair").onclick = () => { limparToken(); telaLogin(); };
+    document.getElementById("cx-sair").onclick = () => { pararAuto(); limparToken(); telaLogin(); };
   }
 
   /* ------------------------------------------------------------ FECHADO */
@@ -135,6 +138,57 @@
     };
   }
 
+  /* ------------------------------------------------ auto-refresh (aberto) */
+  function pararAuto() {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  }
+
+  function iniciarAuto() {
+    pararAuto();
+    autoTimer = setInterval(atualizarSilencioso, AUTO_INTERVALO);
+  }
+
+  // Atualiza totais e a lista de cobranças SEM reconstruir a tela inteira.
+  // Pula o ciclo se houver um modal aberto (para não atrapalhar um recebimento
+  // em andamento) ou se a aba estiver em segundo plano.
+  async function atualizarSilencioso() {
+    if (document.hidden) return;
+    if (document.querySelector(".modal, .modal-backdrop, #modal")) return;
+    try {
+      const st = await cx("GET", "/api/caixa/status");
+      if (!st.aberto) { boot(); return; }   // caixa foi fechado em outro lugar
+      pintarTotais(st.totais || {});
+      const cob = (await cx("GET", "/api/caixa/receber")).dados || [];
+      pintarCobrancas(cob);
+    } catch (_) { /* silencioso: erro de rede não interrompe o operador */ }
+  }
+
+  function pintarTotais(t) {
+    const map = {
+      abertura: t.abertura, recebimentos: t.recebimentos,
+      suprimentos: t.suprimentos, sangrias: t.sangrias, saldo: t.saldo,
+    };
+    document.querySelectorAll("[data-tot]").forEach((el) => {
+      const k = el.getAttribute("data-tot");
+      if (k in map) el.textContent = money(map[k]);
+    });
+  }
+
+  function pintarCobrancas(cobrancas) {
+    const lista = document.getElementById("cx-lista");
+    if (!lista) return;
+    lista.innerHTML = cobrancas.length ? cobrancas.map((c) => `
+      <div class="cx-cob">
+        <div class="cx-cob__info">
+          <b>${c.cliente_nome || "Cliente"}</b>
+          <span>${c.descricao || "Cobrança"}${c.status === "atrasado" ? ` · <em class="cx-atraso">atrasado</em>` : ""}</span>
+        </div>
+        <div class="cx-cob__valor">${money(c.valor)}</div>
+        <button class="btn btn--success btn--sm" onclick="window.__cx.receber(${c.id}, ${c.valor})">
+          <i class="fa-solid fa-hand-holding-dollar"></i> Receber</button>
+      </div>`).join("") : `<div class="cx-vazio-min">Nenhuma cobrança em aberto. 🎉</div>`;
+  }
+
   /* ------------------------------------------------------------- ABERTO */
   async function renderAberto(st) {
     const t = st.totais || {};
@@ -144,11 +198,11 @@
     app.innerHTML = cabecalho() + `
       <div class="cx-painel">
         <div class="cx-totais">
-          <div class="cx-tot"><span>Abertura</span><b>${money(t.abertura)}</b></div>
-          <div class="cx-tot cx-tot--in"><span>Recebido</span><b>${money(t.recebimentos)}</b></div>
-          <div class="cx-tot cx-tot--in"><span>Suprimentos</span><b>${money(t.suprimentos)}</b></div>
-          <div class="cx-tot cx-tot--out"><span>Sangrias</span><b>${money(t.sangrias)}</b></div>
-          <div class="cx-tot cx-tot--saldo"><span>Saldo em caixa</span><b>${money(t.saldo)}</b></div>
+          <div class="cx-tot"><span>Abertura</span><b data-tot="abertura">${money(t.abertura)}</b></div>
+          <div class="cx-tot cx-tot--in"><span>Recebido</span><b data-tot="recebimentos">${money(t.recebimentos)}</b></div>
+          <div class="cx-tot cx-tot--in"><span>Suprimentos</span><b data-tot="suprimentos">${money(t.suprimentos)}</b></div>
+          <div class="cx-tot cx-tot--out"><span>Sangrias</span><b data-tot="sangrias">${money(t.sangrias)}</b></div>
+          <div class="cx-tot cx-tot--saldo"><span>Saldo em caixa</span><b data-tot="saldo">${money(t.saldo)}</b></div>
         </div>
         <div class="cx-acoes">
           <button class="btn btn--ghost" id="cx-suprimento"><i class="fa-solid fa-arrow-down"></i> Suprimento</button>
@@ -157,7 +211,7 @@
         </div>
 
         <div class="cx-secao-tit"><i class="fa-solid fa-file-invoice-dollar"></i> Cobranças a receber</div>
-        <div class="cx-lista">
+        <div class="cx-lista" id="cx-lista">
           ${cobrancas.length ? cobrancas.map((c) => `
             <div class="cx-cob">
               <div class="cx-cob__info">
@@ -175,6 +229,7 @@
     document.getElementById("cx-sangria").onclick = () => movimento("sangria");
     document.getElementById("cx-fechar").onclick = () => fecharCaixa(t);
     window.__cx = api;
+    iniciarAuto();   // liga o auto-refresh enquanto o caixa está aberto
   }
 
   /* ----------------------------------------------------------- receber */
