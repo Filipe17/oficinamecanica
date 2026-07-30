@@ -75,13 +75,13 @@ def criar_produto():
     res = query(
         "INSERT INTO produtos (codigo, codigo_barras, nome, categoria, marca, "
         "fornecedor_id, localizacao, preco_compra, preco_venda, estoque_atual, "
-        "estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, comissao_percentual, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get("codigo"), d.get("codigo_barras"), d.get("nome"), d.get("categoria"),
          d.get("marca"), d.get("fornecedor_id"), d.get("localizacao"),
          d.get("preco_compra", 0), d.get("preco_venda", 0), d.get("estoque_atual", 0),
          d.get("estoque_minimo", 0), d.get("estoque_maximo", 0), d.get("ncm"),
-         d.get("cfop"), d.get("cest"), d.get("ean"), now()),
+         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), now()),
         commit=True,
     )
     registrar_log(session["user_id"], "criar_produto", d.get("nome"))
@@ -95,12 +95,13 @@ def editar_produto(pid):
     query(
         "UPDATE produtos SET codigo=?, codigo_barras=?, nome=?, categoria=?, marca=?, "
         "fornecedor_id=?, localizacao=?, preco_compra=?, preco_venda=?, "
-        "estoque_minimo=?, estoque_maximo=?, ncm=?, cfop=?, cest=?, ean=? WHERE id=?",
+        "estoque_minimo=?, estoque_maximo=?, ncm=?, cfop=?, cest=?, ean=?, "
+        "comissao_percentual=? WHERE id=?",
         (d.get("codigo"), d.get("codigo_barras"), d.get("nome"), d.get("categoria"),
          d.get("marca"), d.get("fornecedor_id"), d.get("localizacao"),
          d.get("preco_compra", 0), d.get("preco_venda", 0),
          d.get("estoque_minimo", 0), d.get("estoque_maximo", 0), d.get("ncm"),
-         d.get("cfop"), d.get("cest"), d.get("ean"), pid),
+         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), pid),
         commit=True,
     )
     registrar_log(session["user_id"], "editar_produto", str(pid))
@@ -135,10 +136,10 @@ def listar_servicos():
 def criar_servico():
     d = request.get_json(force=True)
     res = query(
-        "INSERT INTO servicos (descricao, tempo_medio, valor, garantia, categoria, criado_em) "
-        "VALUES (?,?,?,?,?,?)",
+        "INSERT INTO servicos (descricao, tempo_medio, valor, garantia, categoria, comissao_percentual, criado_em) "
+        "VALUES (?,?,?,?,?,?,?)",
         (d.get("descricao"), d.get("tempo_medio"), d.get("valor", 0),
-         d.get("garantia"), d.get("categoria"), now()),
+         d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0), now()),
         commit=True,
     )
     return jsonify({"ok": True, "id": res["_lastid"]}), 201
@@ -148,9 +149,9 @@ def criar_servico():
 @login_obrigatorio
 def editar_servico(sid):
     d = request.get_json(force=True)
-    query("UPDATE servicos SET descricao=?, tempo_medio=?, valor=?, garantia=?, categoria=? WHERE id=?",
+    query("UPDATE servicos SET descricao=?, tempo_medio=?, valor=?, garantia=?, categoria=?, comissao_percentual=? WHERE id=?",
           (d.get("descricao"), d.get("tempo_medio"), d.get("valor", 0),
-           d.get("garantia"), d.get("categoria"), sid), commit=True)
+           d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0), sid), commit=True)
     return jsonify({"ok": True})
 
 

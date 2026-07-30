@@ -141,6 +141,56 @@ def relatorio_csv(nome):
                     headers={"Content-Disposition": f"attachment; filename={nome}.csv"})
 
 
+@relatorios_bp.route("/api/relatorios/comissoes", methods=["GET"])
+@login_obrigatorio
+def relatorio_comissoes():
+    """
+    Comissões por profissional em um período (relatório de leitura).
+    Parâmetros de data (opcionais): inicio e fim no formato YYYY-MM-DD.
+    Retorna o total por profissional e o detalhamento dos lançamentos.
+    """
+    inicio = request.args.get("inicio", "").strip()
+    fim = request.args.get("fim", "").strip()
+
+    where = ["1=1"]
+    params = []
+    if inicio:
+        where.append("substr(co.criado_em,1,10) >= ?")
+        params.append(inicio)
+    if fim:
+        where.append("substr(co.criado_em,1,10) <= ?")
+        params.append(fim)
+    clausula = " AND ".join(where)
+
+    # Total por profissional
+    resumo = query(
+        f"SELECT co.usuario_id, u.nome AS profissional, "
+        f"COUNT(*) AS qtd, COALESCE(SUM(co.valor),0) AS total "
+        f"FROM comissoes co "
+        f"LEFT JOIN usuarios u ON u.id=co.usuario_id "
+        f"WHERE {clausula} "
+        f"GROUP BY co.usuario_id, u.nome ORDER BY total DESC", params)
+
+    # Detalhamento (cada comissão gerada, com a OS de origem)
+    detalhe = query(
+        f"SELECT co.id, u.nome AS profissional, co.origem, co.origem_id, "
+        f"os.numero AS os_numero, oi.descricao AS item, "
+        f"co.base_calculo, co.percentual, co.valor, co.criado_em "
+        f"FROM comissoes co "
+        f"LEFT JOIN usuarios u ON u.id=co.usuario_id "
+        f"LEFT JOIN ordens_servico os ON os.id=co.origem_id AND co.origem='os' "
+        f"LEFT JOIN os_itens oi ON oi.id=co.os_item_id "
+        f"WHERE {clausula} ORDER BY co.id DESC", params)
+
+    total_geral = sum(r["total"] for r in resumo)
+    return jsonify({
+        "resumo": resumo,
+        "detalhe": detalhe,
+        "total_geral": total_geral,
+        "periodo": {"inicio": inicio or None, "fim": fim or None},
+    })
+
+
 @relatorios_bp.route("/api/logs", methods=["GET"])
 @login_obrigatorio
 def logs():
