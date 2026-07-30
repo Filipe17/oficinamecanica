@@ -379,6 +379,18 @@ def init_db():
             chave TEXT UNIQUE,
             valor TEXT
         )""",
+        # ---------------- Comissões ----------------
+        f"""CREATE TABLE IF NOT EXISTS comissoes (
+            id {pk},
+            usuario_id INTEGER,               -- profissional que recebe (mecânico da OS)
+            origem TEXT,                      -- 'os' ou 'venda'
+            origem_id INTEGER,                -- id da OS ou da venda
+            os_item_id INTEGER,               -- item que gerou (quando origem='os')
+            base_calculo REAL DEFAULT 0,      -- valor sobre o qual incidiu
+            percentual REAL DEFAULT 0,        -- % aplicada
+            valor REAL DEFAULT 0,             -- comissão calculada
+            criado_em TEXT
+        )""",
     ]
 
     conn = get_connection()
@@ -427,6 +439,10 @@ def _migrar_colunas():
     _garantir_coluna("os_itens", "codigo", "TEXT")
     _garantir_coluna("os_itens", "unidade", "TEXT")
     _garantir_coluna("os_itens", "desconto", "REAL DEFAULT 0")
+    # Comissões: percentual por item vendido (0 = não comissiona)
+    _garantir_coluna("servicos", "comissao_percentual", "REAL DEFAULT 0")
+    _garantir_coluna("produtos", "comissao_percentual", "REAL DEFAULT 0")
+    _garantir_coluna("os_itens", "comissao_percentual", "REAL DEFAULT 0")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
