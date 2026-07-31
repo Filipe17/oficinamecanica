@@ -158,7 +158,7 @@
           </div>
           <div class="table-wrap"><table class="orc-itens">
             <thead><tr>
-              <th>Item</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>Un</th>
+              <th>ID</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>Un</th>
               <th>Valor Unit.</th><th>Desc.</th><th>Total</th><th></th>
             </tr></thead>
             <tbody id="orc-tbody"></tbody>
@@ -303,10 +303,10 @@
       </tr>`;
     }).join("");
 
-    // Linha em branco sempre presente (grade estilo PDV). Preenche via F2 no
-    // código ou digitando; ao sair da linha com conteúdo, ela vira um item.
+    // Linha em branco sempre presente (grade estilo PDV). Sem número na coluna
+    // ID: ele só aparece quando a linha é preenchida (vira item).
     const linhaNova = soLeitura ? "" : `<tr class="orc-linha-nova">
-      <td class="orc-item-num">${String(itens.length + 1).padStart(3, "0")}</td>
+      <td class="orc-item-num"></td>
       <td><input class="orc-cel orc-cel--cod orc-novo" data-f="codigo" value="" title="F2 para buscar produto"></td>
       <td><input class="orc-cel orc-cel--desc orc-novo" data-f="descricao" value=""></td>
       <td><input class="orc-cel orc-cel--num orc-novo" data-f="quantidade" type="number" step="0.01" value=""></td>
@@ -317,15 +317,17 @@
       <td></td>
     </tr>`;
 
-    // Linhas em branco extras (só visual, para a grade parecer uma planilha).
-    const MIN_LINHAS = 6;
+    // Linhas em branco extras (só visuais). Começa com no mínimo 3 linhas no
+    // total (itens + a linha de digitação + visuais); ao preencher, sempre
+    // sobra uma linha vazia, então a grade cresce de uma em uma.
+    const MIN_LINHAS = 3;
     const vazias = Math.max(0, MIN_LINHAS - itens.length - 1);
-    const linhaVaziaVisual = (n) => `<tr class="orc-linha-vazia">
-      <td class="orc-item-num">${String(n).padStart(3, "0")}</td>
+    const linhaVaziaVisual = () => `<tr class="orc-linha-vazia">
+      <td class="orc-item-num"></td>
       <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
     </tr>`;
     let visuais = "";
-    for (let k = 0; k < vazias; k++) visuais += linhaVaziaVisual(itens.length + 2 + k);
+    for (let k = 0; k < vazias; k++) visuais += linhaVaziaVisual();
 
     tb.innerHTML = linhasItens + linhaNova + visuais;
 
