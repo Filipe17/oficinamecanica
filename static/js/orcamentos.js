@@ -76,6 +76,9 @@
     let orc = null;
     if (id) { try { orc = await API.get(`/api/os/${id}`); } catch (_) {} }
     editando = orc;
+    // Orçamento já finalizado não pode ser finalizado de novo: a tela abre
+    // apenas para visualização (sem botões de ação).
+    const jaFinalizado = orc?.status === "finalizada";
     itens = (orc?.itens || []).map((it) => ({
       tipo: it.tipo || "produto", referencia_id: it.referencia_id || null,
       codigo: it.codigo || "", descricao: it.descricao || "",
@@ -91,7 +94,7 @@
           <button class="orc-voltar" id="orc-voltar"><i class="fa-solid fa-arrow-left"></i></button>
           <h1>Orçamento</h1>
           <div class="orc-topbar__acoes">
-            ${editando ? `<button class="btn btn--ghost" id="orc-imprimir"><i class="fa-solid fa-print"></i> Imprimir</button>
+            ${editando && !jaFinalizado ? `<button class="btn btn--ghost" id="orc-imprimir"><i class="fa-solid fa-print"></i> Imprimir</button>
             <button class="btn btn--ghost" id="orc-pdf"><i class="fa-solid fa-file-pdf"></i> Gerar PDF</button>
             <button class="btn btn--zap" id="orc-whats"><i class="fa-brands fa-whatsapp"></i> Enviar WhatsApp</button>` : ""}
           </div>
@@ -176,11 +179,13 @@
         </div>
 
         <div class="orc-rodape-acoes">
-          ${soLeitura ? "" : (editando
-            ? `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>
-               <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
-            : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>`)}
-          <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${soLeitura ? "Voltar" : "Cancelar"}</button>
+          ${jaFinalizado
+            ? `<span class="orc-finalizado-tag"><i class="fa-solid fa-circle-check"></i> Orçamento finalizado</span>`
+            : (soLeitura ? "" : (editando
+              ? `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>
+                 <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
+              : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>`))}
+          <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${(jaFinalizado || soLeitura) ? "Voltar" : "Cancelar"}</button>
         </div>
       </div>
     `);
@@ -191,7 +196,7 @@
     preencherCliente();
     renderItens();
     recalc();
-    if (soLeitura) document.querySelectorAll(".orc input, .orc select, .orc textarea").forEach((el) => el.disabled = true);
+    if (soLeitura || jaFinalizado) document.querySelectorAll(".orc input, .orc select, .orc textarea").forEach((el) => el.disabled = true);
   }
 
   function wireEditor() {
