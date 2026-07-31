@@ -134,9 +134,6 @@
             <div class="orc-doc-info"><i class="fa-solid fa-calendar"></i> Data: ${fmt.data(orc?.data || new Date().toISOString())}</div>
             <div class="orc-doc-info"><i class="fa-solid fa-clock"></i> Validade:
               <input id="orc-validade" class="orc-mini" value="${esc(orc?.validade || "10 dias")}"></div>
-            <div class="orc-doc-info"><i class="fa-solid fa-screwdriver-wrench"></i> OS relacionadas:
-              ${soLeitura ? "" : `<button type="button" class="btn btn--ghost btn--sm" id="orc-os-add"><i class="fa-solid fa-plus"></i> Adicionar OS</button>`}</div>
-            <div id="orc-os-lista" class="orc-os-lista"></div>
           </div>
         </div>
 
@@ -188,6 +185,15 @@
               <div id="orc-cond-wrap"></div></label>
             <div class="orc-secao__titulo" style="margin-top:14px"><i class="fa-solid fa-note-sticky"></i> Observações finais</div>
             <textarea id="orc-obsf" class="orc-obs" placeholder="Ex: Este orçamento tem validade de 10 dias.">${esc(orc?.obs_finais || "")}</textarea>
+          </div>
+          <div class="orc-os-grade">
+            <div class="orc-secao__titulo"><i class="fa-solid fa-screwdriver-wrench"></i> OS relacionadas
+              <span class="orc-dica-f2" style="font-weight:400">— pressione <kbd>F2</kbd> para buscar a OS</span>
+            </div>
+            <div class="table-wrap"><table class="data orc-os-tabela">
+              <thead><tr><th>OS</th><th>Cliente</th><th></th></tr></thead>
+              <tbody id="orc-os-body"></tbody>
+            </table></div>
           </div>
           <div class="orc-totais">
             <div class="orc-totais__linha"><span>Subtotal</span><b id="t-sub">R$ 0,00</b></div>
@@ -245,24 +251,62 @@
   }
 
   /* ------------------------------------------------- OS relacionadas (A5) */
-  // Desenha as OS escolhidas como "chips" removíveis abaixo do botão.
+  // Grade de OS relacionadas (igual à dos produtos): linhas preenchidas +
+  // uma linha em branco onde F2 abre a busca. Ao escolher, vira uma linha e
+  // surge outra linha em branco. Só aparece na nota A5 (não é gravado).
   function renderOSRefs() {
-    const wrap = document.getElementById("orc-os-lista");
-    if (!wrap) return;
-    if (!osRefs.length) {
-      wrap.innerHTML = `<span class="orc-os-vazio">Nenhuma OS relacionada.</span>`;
-      return;
+    const body = document.getElementById("orc-os-body");
+    if (!body) return;
+    const editavel = !(soLeitura || editando?.status === "finalizada");
+
+    const linhas = osRefs.map((o, i) => `<tr>
+      <td><b>${esc(o.numero)}</b></td>
+      <td>${esc(o.cliente || "—")}</td>
+      <td class="text-right">${editavel ? `<button class="icon-btn btn--sm" title="Remover" onclick="window.__orc.remOS(${i})"><i class="fa-solid fa-trash"></i></button>` : ""}</td>
+    </tr>`).join("");
+
+    const linhaNova = editavel ? `<tr class="orc-os-nova">
+      <td><input class="orc-cel orc-os-novo" title="F2 para buscar a OS" placeholder=""></td>
+      <td></td><td></td>
+    </tr>` : "";
+
+    body.innerHTML = linhas + linhaNova;
+
+    const inp = body.querySelector(".orc-os-novo");
+    if (inp) {
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "F2") { e.preventDefault(); buscarOS(inp.value); }
+        else if (e.key === "Enter") {
+          e.preventDefault();
+          const l = acharOSporNumero(inp.value);
+          if (l) adicionarOS(l);
+          else buscarOS(inp.value);
+        }
+      });
     }
-    const podeRemover = !(soLeitura || editando?.status === "finalizada");
-    wrap.innerHTML = osRefs.map((o, i) => `<span class="orc-os-chip">
-      <b>${esc(o.numero)}</b>${o.cliente ? " · " + esc(o.cliente) : ""}
-      ${podeRemover ? `<button type="button" class="orc-os-x" title="Remover" onclick="window.__orc.remOS(${i})">&times;</button>` : ""}
-    </span>`).join("");
   }
 
-  // Abre a busca de OS existentes e adiciona a escolhida à lista (sem duplicar).
-  function buscarOS() {
-    if (!ordens.length) { Toast?.("Nenhuma OS cadastrada para referenciar."); return; }
+  function focarNovoOS() { document.querySelector(".orc-os-novo")?.focus(); }
+
+  function acharOSporNumero(txt) {
+    const t = (txt || "").trim().toLowerCase();
+    if (!t) return null;
+    const o = ordens.find((o) => String(o.numero || "").toLowerCase() === t
+      || String(o.numero || "").toLowerCase().replace(/^\D+-?/, "") === t);
+    return o ? { id: o.id, numero: o.numero, cliente: o.cliente_nome || "" } : null;
+  }
+
+  function adicionarOS(l) {
+    if (!osRefs.some((o) => o.id === l.id || o.numero === l.numero)) {
+      osRefs.push({ id: l.id, numero: l.numero, cliente: l.cliente });
+    }
+    renderOSRefs();
+    focarNovoOS();
+  }
+
+  // Abre a busca de OS existentes e adiciona a escolhida à grade (sem duplicar).
+  function buscarOS(queryInicial = "") {
+    if (!ordens.length) { if (typeof Toast === "function") Toast("Nenhuma OS cadastrada para referenciar."); return; }
     const linhas = ordens.map((o) => ({
       id: o.id, numero: o.numero || "",
       cliente: o.cliente_nome || "", placa: o.veiculo_placa || "",
@@ -299,6 +343,7 @@
       else if (e.key === "Enter") { e.preventDefault(); if (vis[sel]) escolherOS([...lista.querySelectorAll("tr")].indexOf(vis[sel])); }
       else if (e.key === "Escape") { Modal.fechar(); }
     };
+    if (queryInicial) { q.value = queryInicial; filtrar(); }
     marcar(); q.focus();
   }
   function linhaOS(l, i) {
@@ -309,11 +354,8 @@
   function escolherOS(i) {
     const l = window.__osBuscaLinhas?.[i];
     if (!l) return;
-    if (!osRefs.some((o) => o.id === l.id || o.numero === l.numero)) {
-      osRefs.push({ id: l.id, numero: l.numero, cliente: l.cliente });
-    }
     Modal.fechar();
-    renderOSRefs();
+    adicionarOS({ id: l.id, numero: l.numero, cliente: l.cliente });
   }
 
   function wireEditor() {
@@ -328,7 +370,6 @@
       // ao padrão "À vista", em vez de manter "2x" no campo de texto.
       renderCondicoes(e.target.value);
     });
-    on("orc-os-add", "click", buscarOS);
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
     on("orc-limpar", "click", () => abrirEditor(null));
