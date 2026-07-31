@@ -268,9 +268,17 @@
     const cid = Number(document.getElementById("orc-cliente")?.value);
     const sel = document.getElementById("orc-veiculo");
     if (!sel) return;
-    const doCliente = veiculos.filter((v) => v.cliente_id === cid);
+    const doCliente = veiculos.filter((v) => Number(v.cliente_id) === cid);
+    // Qual veículo deixar selecionado:
+    //  - se veio um informado (edição), usa ele (comparando por número, para
+    //    não falhar quando o id vem como texto);
+    //  - se não veio (orçamento novo) e o cliente só tem um veículo, seleciona
+    //    esse único, para os dados já virem preenchidos.
+    let alvo = (selecionado !== undefined && selecionado !== null && selecionado !== "")
+      ? Number(selecionado) : null;
+    if (alvo === null && doCliente.length === 1) alvo = Number(doCliente[0].id);
     sel.innerHTML = `<option value="">— selecione —</option>` +
-      doCliente.map((v) => `<option value="${v.id}" ${selecionado === v.id ? "selected" : ""}>${[v.marca, v.modelo, v.placa].filter(Boolean).join(" ")}</option>`).join("");
+      doCliente.map((v) => `<option value="${v.id}" ${Number(v.id) === alvo ? "selected" : ""}>${[v.marca, v.modelo, v.placa].filter(Boolean).join(" ")}</option>`).join("");
     preencherVeiculoDados();
   }
 
