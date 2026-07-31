@@ -226,7 +226,10 @@
       wrap.innerHTML = `<select id="orc-cond" ${disabled}>${PARCELAS_CARTAO
         .map((p) => `<option ${p === val ? "selected" : ""}>${p}</option>`).join("")}</select>`;
     } else {
-      wrap.innerHTML = `<input id="orc-cond" value="${esc(valorAtual || "À vista")}" ${disabled}>`;
+      // Campo de texto livre (Pix, Dinheiro, etc.). Se por acaso chegar um valor
+      // de parcela do cartão (ex.: "2x"), não faz sentido aqui: usa "À vista".
+      const val = (!valorAtual || PARCELAS_CARTAO.includes(valorAtual)) ? "À vista" : valorAtual;
+      wrap.innerHTML = `<input id="orc-cond" value="${esc(val)}" ${disabled}>`;
     }
   }
 
@@ -237,10 +240,10 @@
     on("orc-cliente", "change", () => { preencherVeiculos(); preencherCliente(); });
     on("orc-veiculo", "change", preencherVeiculoDados);
     on("orc-forma", "change", (e) => {
-      // Ao mudar a forma, redesenha Condições. Preserva o texto atual só quando
-      // continua sendo campo livre; ao entrar/sair do cartão, usa o padrão.
-      const atual = document.getElementById("orc-cond")?.value;
-      renderCondicoes(e.target.value, atual);
+      // Ao trocar a forma, redesenha Condições do zero. Não reaproveita o valor
+      // anterior: assim, sair do cartão (ex.: "2x") para Pix/Dinheiro/etc. volta
+      // ao padrão "À vista", em vez de manter "2x" no campo de texto.
+      renderCondicoes(e.target.value);
     });
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
