@@ -206,6 +206,7 @@
     renderItens();
     recalc();
     if (soLeitura || jaFinalizado) document.querySelectorAll(".orc input, .orc select, .orc textarea").forEach((el) => el.disabled = true);
+    else focarNovoCodigo();
   }
 
   // Opções de parcelamento no cartão de crédito.
@@ -320,7 +321,7 @@
     // Linhas em branco extras (só visuais). Começa com no mínimo 3 linhas no
     // total (itens + a linha de digitação + visuais); ao preencher, sempre
     // sobra uma linha vazia, então a grade cresce de uma em uma.
-    const MIN_LINHAS = 3;
+    const MIN_LINHAS = 1;
     const vazias = Math.max(0, MIN_LINHAS - itens.length - 1);
     const linhaVaziaVisual = () => `<tr class="orc-linha-vazia">
       <td class="orc-item-num"></td>
