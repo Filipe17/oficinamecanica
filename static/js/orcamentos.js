@@ -38,6 +38,13 @@
   }
 
   /* ------------------------------------------------------------------ LISTA */
+  // Agrupa o status da OS/orçamento em 3 grupos com badge colorido.
+  function badgeStatus(status) {
+    if (status === "finalizada") return `<span class="badge badge--success">Finalizado</span>`;
+    if (status === "cancelada") return `<span class="badge badge--danger">Cancelado</span>`;
+    return `<span class="badge badge--warning">Em andamento</span>`;
+  }
+
   async function renderLista() {
     editando = null;
     let lista = [];
@@ -50,7 +57,7 @@
       </div>
       <div class="card"><div class="card__body">
         <div class="table-wrap"><table class="data">
-          <thead><tr><th>Número</th><th>Cliente</th><th>Veículo</th><th>Data</th><th>Total</th><th></th></tr></thead>
+          <thead><tr><th>Número</th><th>Cliente</th><th>Veículo</th><th>Data</th><th>Total</th><th>Status</th><th></th></tr></thead>
           <tbody>
             ${lista.length ? lista.map((o) => `<tr>
               <td><b>${o.numero || "-"}</b></td>
@@ -58,10 +65,11 @@
               <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
               <td>${fmt.data(o.data || o.criado_em)}</td>
               <td>${money(o.total)}</td>
+              <td>${badgeStatus(o.status)}</td>
               <td class="text-right">
                 <button class="icon-btn btn--sm" title="Abrir" onclick="window.__orc.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
                 ${soLeitura ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__orc.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
-              </td></tr>`).join("") : `<tr><td colspan="6" class="text-center text-muted" style="padding:30px">Nenhum orçamento ainda.</td></tr>`}
+              </td></tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted" style="padding:30px">Nenhum orçamento ainda.</td></tr>`}
           </tbody>
         </table></div>
       </div></div>
