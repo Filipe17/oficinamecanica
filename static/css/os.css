@@ -12,3 +12,33 @@
 }
 .os-total__valor { font-size: 15px; color: var(--muted); }
 .os-total__valor b { font-size: 22px; color: var(--text); margin-left: 6px; }
+
+/* Peças trocadas (modo OS) + janela de busca de produtos (F1) */
+.os-pecas__hint { font-size: 12px; color: var(--muted); }
+.os-pecas__hint kbd {
+  display: inline-block; padding: 1px 6px; margin: 0 1px;
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px;
+  background: var(--surface); font: inherit; font-size: 11px; line-height: 1.4;
+}
+
+.peca-search {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(15, 15, 30, .45);
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 10vh;
+}
+.peca-search__box {
+  width: min(560px, 92vw); max-height: 70vh; display: flex; flex-direction: column;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+}
+.peca-search__head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.peca-search__head i { color: var(--muted); }
+.peca-search__head input { flex: 1; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; outline: none; }
+.peca-search__list { overflow-y: auto; }
+.peca-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.peca-item:hover, .peca-item.ativo { background: color-mix(in srgb, var(--primary, #7c6cf0) 12%, transparent); }
+.peca-item__nome { font-size: 14px; font-weight: 600; }
+.peca-item__meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.peca-search__vazio { padding: 24px; text-align: center; color: var(--muted); }
+.peca-search__foot { padding: 8px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); text-align: center; }

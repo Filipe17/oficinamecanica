@@ -49,6 +49,7 @@
 
   let filtroStatus = "", busca = "";
   let itensAtuais = [];   // itens do editor aberto
+  let pecasPreservadas = []; // itens não-produto (ex.: serviços) da OS aberta, mantidos ao salvar
 
   Layout.set(`
     <div class="page-head">
@@ -122,6 +123,91 @@
     </tr>`;
   }
 
+  // Linha da tabela de "Peças trocadas" (modo OS). Sempre do tipo produto.
+  function linhaPecaHtml(it = {}) {
+    const idx = Math.random().toString(36).slice(2, 8);
+    const nome = (it.descricao || it.nome || "").replace(/"/g, "&quot;");
+    const qtd = it.quantidade ?? 1;
+    const val = it.valor_unitario ?? it.preco_venda ?? 0;
+    return `<tr data-peca="${idx}">
+      <td>${nome}<input type="hidden" class="pc-desc" value="${nome}"></td>
+      <td style="width:90px"><input class="pc-qtd" type="number" step="1" min="0" value="${qtd}"></td>
+      <td style="width:120px"><input class="pc-val" type="number" step="0.01" min="0" value="${val}"></td>
+      <td style="width:44px"><button class="icon-btn btn--sm" onclick="window.__os.remPeca('${idx}')"><i class="fa-solid fa-xmark"></i></button></td>
+    </tr>`;
+  }
+
+  // Janela de consulta de produtos, aberta com F1 no campo de peças.
+  // Navegação por teclado: ↑ ↓ move · Enter seleciona · Esc fecha.
+  function abrirBuscaProdutos(onPick) {
+    document.getElementById("os-busca-prod")?.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "os-busca-prod";
+    wrap.className = "peca-search";
+    wrap.innerHTML = `
+      <div class="peca-search__box">
+        <div class="peca-search__head">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="peca-search-input" placeholder="Buscar peça no cadastro de produtos…" autocomplete="off">
+          <button class="icon-btn" id="peca-search-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="peca-search__list" id="peca-search-list"></div>
+        <div class="peca-search__foot">↑ ↓ navegar · Enter selecionar · Esc fechar</div>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    const input = wrap.querySelector("#peca-search-input");
+    const lista = wrap.querySelector("#peca-search-list");
+    let filtrados = produtos.slice();
+    let sel = 0;
+
+    const cardHtml = (p, i) => {
+      const cod = p.codigo || p.sku || p.referencia || "";
+      const est = p.estoque ?? p.estoque_atual ?? p.quantidade;
+      return `<div class="peca-item" data-i="${i}">
+        <div class="peca-item__nome">${p.nome || "-"}</div>
+        <div class="peca-item__meta">
+          ${cod ? `<span>Cód: ${cod}</span>` : ""}
+          ${est != null ? `<span>Estoque: ${est}</span>` : ""}
+          <span>${fmt.moeda(p.preco_venda ?? 0)}</span>
+        </div></div>`;
+    };
+    function marcar() {
+      lista.querySelectorAll(".peca-item").forEach((el, i) => el.classList.toggle("ativo", i === sel));
+      lista.querySelector(".peca-item.ativo")?.scrollIntoView({ block: "nearest" });
+    }
+    function render() {
+      lista.innerHTML = filtrados.length
+        ? filtrados.map((p, i) => cardHtml(p, i)).join("")
+        : `<div class="peca-search__vazio">Nenhum produto encontrado</div>`;
+      lista.querySelectorAll(".peca-item").forEach((el) =>
+        el.onclick = () => escolher(parseInt(el.dataset.i, 10)));
+      marcar();
+    }
+    function filtrar() {
+      const q = input.value.trim().toLowerCase();
+      filtrados = !q ? produtos.slice() : produtos.filter((p) => {
+        const cod = String(p.codigo || p.sku || p.referencia || "").toLowerCase();
+        return (p.nome || "").toLowerCase().includes(q) || cod.includes(q);
+      });
+      sel = 0; render();
+    }
+    function escolher(i) { const p = filtrados[i]; if (p) { onPick(p); fechar(); } }
+    function fechar() { wrap.remove(); document.removeEventListener("keydown", teclado, true); }
+    function teclado(e) {
+      if (e.key === "Escape") { e.preventDefault(); fechar(); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, filtrados.length - 1); marcar(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); marcar(); }
+      else if (e.key === "Enter") { e.preventDefault(); escolher(sel); }
+    }
+    input.oninput = filtrar;
+    wrap.querySelector("#peca-search-close").onclick = fechar;
+    wrap.onclick = (e) => { if (e.target === wrap) fechar(); };
+    document.addEventListener("keydown", teclado, true);
+    render();
+    setTimeout(() => input.focus(), 30);
+  }
+
   async function abrirEditor(registro = null) {
     itensAtuais = [];
     let o = registro;
@@ -130,6 +216,12 @@
     }
     const ed = o && o.id;
     const itensHtml = (ed && o.itens || []).map(linhaItemHtml).join("");
+
+    // Modo OS: "Peças trocadas" reaproveita os itens do tipo produto já gravados.
+    // Itens de serviço (ex.: OS convertida de orçamento) são preservados intactos.
+    const itensExist = (ed && o.itens) || [];
+    pecasPreservadas = EH_ORC ? [] : itensExist.filter((i) => i.tipo !== "produto");
+    const pecasHtml = EH_ORC ? "" : itensExist.filter((i) => i.tipo === "produto").map(linhaPecaHtml).join("");
 
     Modal.abrir(`${ed ? (o.numero || "OS") : (EH_ORC ? "Novo orçamento" : "Nova OS")}`, `
       <div class="form-grid" id="os-form">
@@ -144,6 +236,23 @@
         <div class="field"><label>Horas trabalhadas</label><input type="number" step="0.5" name="horas_trabalhadas" value="${ed ? (o.horas_trabalhadas || 0) : 0}"></div>
         ${EH_ORC ? `<div class="field"><label>Garantia</label><input name="garantia" value="${ed ? (o.garantia || "") : ""}"></div>` : ""}
       </div>
+
+      ${!EH_ORC ? `
+      <div class="os-itens os-pecas">
+        <div class="os-itens__head">
+          <h3>Peças trocadas</h3>
+          <span class="os-pecas__hint">Digite ou pressione <kbd>F1</kbd> para buscar no cadastro de produtos</span>
+        </div>
+        <div class="field">
+          <label>Adicionar peça</label>
+          <input id="os-peca-busca" placeholder="Nome da peça… (F1 abre a busca)" autocomplete="off" list="dl-pecas">
+          <datalist id="dl-pecas">${produtos.map((p) => `<option value="${(p.nome || "").replace(/"/g, "&quot;")}">`).join("")}</datalist>
+        </div>
+        <div class="table-wrap"><table class="data os-itens__table">
+          <thead><tr><th>Peça</th><th>Qtd</th><th>Vlr unit.</th><th></th></tr></thead>
+          <tbody id="os-pecas-body">${pecasHtml}</tbody>
+        </table></div>
+      </div>` : ""}
 
       ${EH_ORC ? `
       <div class="os-itens">
@@ -180,6 +289,27 @@
     }
     document.getElementById("os-salvar").onclick = () => salvar(ed ? o.id : null, ed ? o : null);
     api.calc();
+
+    // Campo "Peças trocadas": F1 abre a consulta de produtos; Enter/seleção adiciona.
+    const pecaBusca = document.getElementById("os-peca-busca");
+    if (pecaBusca) {
+      const norm = (s) => (s || "").trim().toLowerCase();
+      const tentarAdicionar = () => {
+        const p = produtos.find((x) => norm(x.nome) === norm(pecaBusca.value));
+        if (p) { api.addPeca(p); pecaBusca.value = ""; return true; }
+        return false;
+      };
+      pecaBusca.addEventListener("keydown", (e) => {
+        if (e.key === "F1") {
+          e.preventDefault();
+          abrirBuscaProdutos((p) => api.addPeca(p));
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          if (!tentarAdicionar()) abrirBuscaProdutos((p) => api.addPeca(p));
+        }
+      });
+      pecaBusca.addEventListener("change", tentarAdicionar);
+    }
   }
 
   const api = {
@@ -197,6 +327,33 @@
     remItem(idx) {
       document.querySelector(`[data-item="${idx}"]`)?.remove();
       this.calc();
+    },
+    addPeca(prod) {
+      const body = document.getElementById("os-pecas-body");
+      if (!body) return;
+      body.insertAdjacentHTML("beforeend", linhaPecaHtml({
+        descricao: prod.nome, quantidade: 1, valor_unitario: prod.preco_venda ?? 0,
+      }));
+    },
+    remPeca(idx) {
+      document.querySelector(`[data-peca="${idx}"]`)?.remove();
+    },
+    _coletarPecas() {
+      const itens = [];
+      const norm = (s) => (s || "").trim().toLowerCase();
+      document.querySelectorAll("#os-pecas-body tr").forEach((tr) => {
+        const desc = tr.querySelector(".pc-desc").value.trim();
+        if (!desc) return;
+        const p = produtos.find((x) => norm(x.nome) === norm(desc));
+        itens.push({
+          tipo: "produto",
+          referencia_id: p ? p.id : null,   // vincula ao cadastro p/ baixa de estoque na finalização
+          descricao: desc,
+          quantidade: parseFloat(tr.querySelector(".pc-qtd").value) || 0,
+          valor_unitario: parseFloat(tr.querySelector(".pc-val").value) || 0,
+        });
+      });
+      return itens;
     },
     tipoItem(idx, tipo) {
       const linha = document.querySelector(`[data-item="${idx}"]`);
@@ -296,9 +453,19 @@
       // Modo orçamento: envia desconto e itens editados.
       dados.desconto = parseFloat(descEl.value) || 0;
       dados.itens = api._coletarItens();
-    } else if (original) {
-      // Modo OS: mantém o desconto atual e NÃO envia "itens" (backend preserva).
-      dados.desconto = original.desconto || 0;
+    } else {
+      // Modo OS: mantém o desconto atual e envia as PEÇAS TROCADAS como itens
+      // (tipo produto), preservando itens não-produto já gravados (ex.: serviços
+      // de uma OS convertida de orçamento).
+      if (original) dados.desconto = original.desconto || 0;
+      const preservados = pecasPreservadas.map((p) => ({
+        tipo: p.tipo,
+        referencia_id: p.referencia_id ?? null,
+        descricao: p.descricao,
+        quantidade: p.quantidade,
+        valor_unitario: p.valor_unitario,
+      }));
+      dados.itens = [...api._coletarPecas(), ...preservados];
     }
 
     try {
