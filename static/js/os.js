@@ -129,12 +129,8 @@
   function linhaPecaHtml(it = {}) {
     const idx = Math.random().toString(36).slice(2, 8);
     const nome = (it.descricao || it.nome || "").replace(/"/g, "&quot;");
-    const qtd = it.quantidade ?? 1;
-    const val = it.valor_unitario ?? it.preco_venda ?? 0;
     return `<tr data-peca="${idx}">
       <td>${nome}<input type="hidden" class="pc-desc" value="${nome}"></td>
-      <td style="width:90px"><input class="pc-qtd" type="number" step="1" min="0" value="${qtd}"></td>
-      <td style="width:120px"><input class="pc-val" type="number" step="0.01" min="0" value="${val}"></td>
       <td style="width:44px"><button class="icon-btn btn--sm" onclick="window.__os.remPeca('${idx}')"><i class="fa-solid fa-xmark"></i></button></td>
     </tr>`;
   }
@@ -250,7 +246,7 @@
           <input id="os-peca-busca" placeholder="Nome da peça… (F1 abre a busca)" autocomplete="off">
         </div>
         <div class="table-wrap"><table class="data os-itens__table">
-          <thead><tr><th>Peça</th><th>Qtd</th><th>Vlr unit.</th><th></th></tr></thead>
+          <thead><tr><th>Peça</th><th></th></tr></thead>
           <tbody id="os-pecas-body">${pecasHtml}</tbody>
         </table></div>
       </div>` : ""}
@@ -349,8 +345,8 @@
           tipo: "produto",
           referencia_id: p ? p.id : null,   // vincula ao cadastro p/ baixa de estoque na finalização
           descricao: desc,
-          quantidade: parseFloat(tr.querySelector(".pc-qtd").value) || 0,
-          valor_unitario: parseFloat(tr.querySelector(".pc-val").value) || 0,
+          quantidade: 1,        // peça trocada é informativa: 1 unidade, sem valor
+          valor_unitario: 0,
         });
       });
       return itens;
