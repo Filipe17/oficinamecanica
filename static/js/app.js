@@ -92,7 +92,8 @@ const Modal = {
       </div>`;
     document.body.appendChild(bd);
     requestAnimationFrame(() => bd.classList.add("open"));
-    bd.addEventListener("click", (e) => { if (e.target === bd) Modal.fechar(); });
+    // Clicar fora (no fundo) NÃO fecha o modal — evita perder o que está sendo
+    // preenchido. O modal só fecha pelo X ou pelos botões do rodapé.
     return bd;
   },
   fechar() {
