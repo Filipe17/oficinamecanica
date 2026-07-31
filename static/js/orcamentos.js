@@ -307,17 +307,27 @@
     // código ou digitando; ao sair da linha com conteúdo, ela vira um item.
     const linhaNova = soLeitura ? "" : `<tr class="orc-linha-nova">
       <td class="orc-item-num">${String(itens.length + 1).padStart(3, "0")}</td>
-      <td><input class="orc-cel orc-cel--cod orc-novo" data-f="codigo" value="" placeholder="F2 busca" title="F2 para buscar produto"></td>
-      <td><input class="orc-cel orc-cel--desc orc-novo" data-f="descricao" value="" placeholder="descrição"></td>
-      <td><input class="orc-cel orc-cel--num orc-novo" data-f="quantidade" type="number" step="0.01" value="1"></td>
-      <td><input class="orc-cel orc-cel--un orc-novo" data-f="unidade" value="UN"></td>
-      <td><input class="orc-cel orc-cel--num orc-novo" data-f="valor_unitario" type="number" step="0.01" value="0"></td>
-      <td><input class="orc-cel orc-cel--num orc-novo" data-f="desconto" type="number" step="0.01" value="0"></td>
-      <td class="orc-item-total">${money(0)}</td>
+      <td><input class="orc-cel orc-cel--cod orc-novo" data-f="codigo" value="" title="F2 para buscar produto"></td>
+      <td><input class="orc-cel orc-cel--desc orc-novo" data-f="descricao" value=""></td>
+      <td><input class="orc-cel orc-cel--num orc-novo" data-f="quantidade" type="number" step="0.01" value=""></td>
+      <td><input class="orc-cel orc-cel--un orc-novo" data-f="unidade" value=""></td>
+      <td><input class="orc-cel orc-cel--num orc-novo" data-f="valor_unitario" type="number" step="0.01" value=""></td>
+      <td><input class="orc-cel orc-cel--num orc-novo" data-f="desconto" type="number" step="0.01" value=""></td>
+      <td class="orc-item-total"></td>
       <td></td>
     </tr>`;
 
-    tb.innerHTML = linhasItens + linhaNova;
+    // Linhas em branco extras (só visual, para a grade parecer uma planilha).
+    const MIN_LINHAS = 6;
+    const vazias = Math.max(0, MIN_LINHAS - itens.length - 1);
+    const linhaVaziaVisual = (n) => `<tr class="orc-linha-vazia">
+      <td class="orc-item-num">${String(n).padStart(3, "0")}</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+    </tr>`;
+    let visuais = "";
+    for (let k = 0; k < vazias; k++) visuais += linhaVaziaVisual(itens.length + 2 + k);
+
+    tb.innerHTML = linhasItens + linhaNova + visuais;
 
     // Edição das linhas já existentes (atualiza itens[i] sem re-renderizar).
     tb.querySelectorAll(".orc-cel:not(.orc-novo)").forEach((inp) => {
