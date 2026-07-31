@@ -166,7 +166,7 @@
               <select id="orc-forma">${FORMAS.map((f) => `<option ${orc?.forma_pagamento === f ? "selected" : ""}>${f}</option>`).join("")}</select>
             </label>
             <label class="orc-campo"><span>Condições</span>
-              <input id="orc-cond" value="${esc(orc?.condicoes || "À vista")}"></label>
+              <div id="orc-cond-wrap"></div></label>
             <div class="orc-secao__titulo" style="margin-top:14px"><i class="fa-solid fa-note-sticky"></i> Observações finais</div>
             <textarea id="orc-obsf" class="orc-obs" placeholder="Ex: Este orçamento tem validade de 10 dias.">${esc(orc?.obs_finais || "")}</textarea>
           </div>
@@ -193,11 +193,31 @@
 
     window.__orc = api;
     wireEditor();
+    renderCondicoes(orc?.forma_pagamento, orc?.condicoes);
     preencherVeiculos(orc?.veiculo_id);
     preencherCliente();
     renderItens();
     recalc();
     if (soLeitura || jaFinalizado) document.querySelectorAll(".orc input, .orc select, .orc textarea").forEach((el) => el.disabled = true);
+  }
+
+  // Opções de parcelamento no cartão de crédito.
+  const PARCELAS_CARTAO = ["À vista", "2x", "3x", "4x", "5x", "6x"];
+
+  // Desenha o campo "Condições": vira um seletor de parcelas quando a forma
+  // é "Cartão de Crédito"; nas demais formas, é um campo de texto livre.
+  // Mantém sempre o id="orc-cond" (o coletar() lê o .value desse id).
+  function renderCondicoes(forma, valorAtual) {
+    const wrap = document.getElementById("orc-cond-wrap");
+    if (!wrap) return;
+    const disabled = (soLeitura || (editando?.status === "finalizada")) ? "disabled" : "";
+    if (forma === "Cartão de Crédito") {
+      const val = PARCELAS_CARTAO.includes(valorAtual) ? valorAtual : "À vista";
+      wrap.innerHTML = `<select id="orc-cond" ${disabled}>${PARCELAS_CARTAO
+        .map((p) => `<option ${p === val ? "selected" : ""}>${p}</option>`).join("")}</select>`;
+    } else {
+      wrap.innerHTML = `<input id="orc-cond" value="${esc(valorAtual || "À vista")}" ${disabled}>`;
+    }
   }
 
   function wireEditor() {
@@ -206,6 +226,12 @@
     on("orc-cancelar", "click", renderLista);
     on("orc-cliente", "change", () => { preencherVeiculos(); preencherCliente(); });
     on("orc-veiculo", "change", preencherVeiculoDados);
+    on("orc-forma", "change", (e) => {
+      // Ao mudar a forma, redesenha Condições. Preserva o texto atual só quando
+      // continua sendo campo livre; ao entrar/sair do cartão, usa o padrão.
+      const atual = document.getElementById("orc-cond")?.value;
+      renderCondicoes(e.target.value, atual);
+    });
     on("orc-add", "click", () => { itens.push({ tipo: "produto", referencia_id: null, codigo: "", descricao: "", unidade: "UN", quantidade: 1, valor_unitario: 0, desconto: 0 }); renderItens(); recalc(); });
     on("orc-buscar", "click", abrirBusca);
     on("orc-desc", "input", recalc);
