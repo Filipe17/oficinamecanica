@@ -125,6 +125,8 @@
             <div class="orc-doc-info"><i class="fa-solid fa-calendar"></i> Data: ${fmt.data(orc?.data || new Date().toISOString())}</div>
             <div class="orc-doc-info"><i class="fa-solid fa-clock"></i> Validade:
               <input id="orc-validade" class="orc-mini" value="${esc(orc?.validade || "10 dias")}"></div>
+            <div class="orc-doc-info"><i class="fa-solid fa-screwdriver-wrench"></i> OS Ref.:
+              <input id="orc-os-ref" class="orc-mini" placeholder="nº da OS" value="${esc(orc?.os_referencia || "")}"></div>
           </div>
         </div>
 
@@ -521,6 +523,7 @@
       cliente_id: Number(document.getElementById("orc-cliente")?.value) || null,
       veiculo_id: Number(document.getElementById("orc-veiculo")?.value) || null,
       validade: document.getElementById("orc-validade")?.value.trim(),
+      os_referencia: document.getElementById("orc-os-ref")?.value.trim() || null,
       forma_pagamento: document.getElementById("orc-forma")?.value,
       condicoes: document.getElementById("orc-cond")?.value.trim(),
       observacoes: editando?.observacoes || "",   // campo removido da tela; preserva o que já existia
@@ -601,6 +604,7 @@
         <div class="a5-canhoto__tit">CANHOTO — via da oficina</div>
         <div class="a5-canhoto__linhas">
           <span><b>Orçamento:</b> ${o.numero || "—"}</span>
+          ${o.os_referencia ? `<span><b>OS Ref.:</b> ${o.os_referencia}</span>` : ""}
           <span><b>Data:</b> ${dataStr}</span>
           <span><b>Cliente:</b> ${cli.nome || "—"}</span>
           <span><b>Placa:</b> ${vei.placa || "—"}</span>
@@ -631,6 +635,7 @@
             <div class="a5-meta__num">Nº ${o.numero || "—"}</div>
             <div class="a5-emp__l">Data: ${dataStr}</div>
             <div class="a5-emp__l">Validade: ${o.validade || "—"}</div>
+            ${o.os_referencia ? `<div class="a5-emp__l">OS Ref.: ${o.os_referencia}</div>` : ""}
           </div>
         </div>
         <div class="a5-cv">
