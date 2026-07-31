@@ -245,8 +245,7 @@
         </div>
         <div class="field">
           <label>Adicionar peça</label>
-          <input id="os-peca-busca" placeholder="Nome da peça… (F1 abre a busca)" autocomplete="off" list="dl-pecas">
-          <datalist id="dl-pecas">${produtos.map((p) => `<option value="${(p.nome || "").replace(/"/g, "&quot;")}">`).join("")}</datalist>
+          <input id="os-peca-busca" placeholder="Nome da peça… (F1 abre a busca)" autocomplete="off">
         </div>
         <div class="table-wrap"><table class="data os-itens__table">
           <thead><tr><th>Peça</th><th>Qtd</th><th>Vlr unit.</th><th></th></tr></thead>
@@ -308,7 +307,6 @@
           if (!tentarAdicionar()) abrirBuscaProdutos((p) => api.addPeca(p));
         }
       });
-      pecaBusca.addEventListener("change", tentarAdicionar);
     }
   }
 
