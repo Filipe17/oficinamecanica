@@ -631,14 +631,16 @@
   function nomePDF() { return `orcamento-${(editando?.numero || "novo").replace(/\W/g, "")}.pdf`; }
 
   function gerarPDF() {
-    const blob = gerarPDFBlob();
+    // Orçamento enviado ao cliente (para aprovar) não mostra forma/condições
+    // de pagamento — isso é acertado depois, no pagamento.
+    const blob = gerarPDFBlob({ ocultarPagamento: true });
     if (!blob) { toast("PDF ainda carregando, tente novamente em 1s.", "warning"); return; }
     baixarBlob(blob, nomePDF());
   }
 
   // Impressão simples (abre o PDF gerado para imprimir/salvar)
   function imprimir() {
-    const blob = gerarPDFBlob();
+    const blob = gerarPDFBlob({ ocultarPagamento: true });
     if (!blob) { toast("PDF ainda carregando, tente novamente em 1s.", "warning"); return; }
     const url = URL.createObjectURL(blob);
     const w = window.open(url, "_blank");
