@@ -15,7 +15,7 @@
   let itens = [];         // itens do orçamento em edição
   let editando = null;    // registro em edição (null = novo)
 
-  const FORMAS = ["Dinheiro", "Pix", "Cartão de Crédito", "Cartão de Débito", "Boleto", "Transferência"];
+  const FORMAS = ["Dinheiro", "Pix", "Cartão de Crédito", "Cartão de Débito", "Boleto"];
 
   const money = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const esc = (s) => (s == null ? "" : String(s).replace(/"/g, "&quot;"));
