@@ -15,8 +15,8 @@
   let autoTimer = null;              // timer do auto-refresh (caixa aberto)
   const AUTO_INTERVALO = 12000;      // 12s: pega cobranças novas sem pesar
 
-  // Busca a marca pública (logo + razão social) para exibir na tela de login,
-  // igual ao login do admin. É endpoint público: funciona sem estar logado.
+  // Marca pública (logo + razão social), igual ao login do admin. Endpoint
+  // público: funciona antes de logar.
   async function carregarMarca() {
     if (marca) return marca;
     try {
@@ -59,15 +59,11 @@
   /* ---------------------------------------------------- login do caixa */
   async function telaLogin(aviso) {
     await carregarMarca();
-    const temLogo = marca && marca.empresa_logo;
-    const nomeEmpresa = (marca && marca.empresa_nome) ? marca.empresa_nome : "";
-
-    // Bloco de marca da empresa (logo + razão social) exibido no topo do card,
-    // igual ao login do admin. Sem empresa cadastrada, mostra só a marca padrão.
-    const marcaCard = (temLogo || nomeEmpresa) ? `
-            <div class="login-empresa">
-              ${temLogo ? `<img class="login-empresa__logo" src="${marca.empresa_logo}" alt="logo">` : ""}
-              ${nomeEmpresa ? `<div class="login-empresa__nome">${nomeEmpresa}</div>` : ""}
+    // Bloco de marca idêntico ao login do admin (mesmas classes do login.css).
+    const marcaCard = (marca && (marca.empresa_logo || marca.empresa_nome)) ? `
+            <div class="login-card__marca">
+              ${marca.empresa_logo ? `<img class="login-card__logo" src="${marca.empresa_logo}" alt="${marca.empresa_nome || "Empresa"}">` : ""}
+              ${marca.empresa_nome ? `<div class="login-card__nome">${marca.empresa_nome}</div>` : ""}
             </div>` : "";
 
     app.innerHTML = `
