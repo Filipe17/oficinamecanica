@@ -219,8 +219,8 @@
       // imprimir/entregar de novo caso o cliente tenha perdido a via.
       try {
         const o = editando?.id ? await API.get(`/api/os/${editando.id}`) : editando;
-        telaA5(o);
-      } catch (_) { if (editando) telaA5(editando); }
+        telaA5(o, true);
+      } catch (_) { if (editando) telaA5(editando, true); }
     });
   }
 
@@ -391,7 +391,7 @@
   }
 
   /* --------------------------------------------- TELA A5 (documento + canhoto) */
-  function a5Conteudo(o) {
+  function a5Conteudo(o, semCanhoto) {
     const cli = clientes.find((c) => c.id === o.cliente_id) || {};
     const vei = veiculos.find((v) => v.id === o.veiculo_id) || {};
     const its = o.itens || [];
@@ -405,7 +405,8 @@
       <td class="r">${money(it.valor_unitario)}</td>
       <td class="r">${money(it.subtotal)}</td></tr>`).join("");
 
-    return `
+    // Na reimpressão (2ª via) o canhoto da oficina não é necessário.
+    const canhoto = semCanhoto ? "" : `
       <!-- CANHOTO (fica na oficina) -->
       <div class="a5-canhoto">
         <div class="a5-canhoto__tit">CANHOTO — via da oficina</div>
@@ -422,9 +423,9 @@
           <span>Cliente: __________________</span>
         </div>
       </div>
-      <div class="a5-corte"><span>✂</span></div>
+      <div class="a5-corte"><span>✂</span></div>`;
 
-      <!-- ORÇAMENTO (via do cliente) -->
+    return `${canhoto}
       <div class="a5-doc">
         <div class="a5-topo">
           <div class="a5-emp">
@@ -463,8 +464,8 @@
       </div>`;
   }
 
-  function telaA5(o) {
-    const conteudo = a5Conteudo(o);
+  function telaA5(o, semCanhoto) {
+    const conteudo = a5Conteudo(o, semCanhoto);
     Layout.set(`
       <div class="a5-tela">
         <div class="a5-barra">
