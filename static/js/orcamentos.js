@@ -153,8 +153,7 @@
           <div class="orc-secao__head">
             <div class="orc-secao__titulo"><i class="fa-solid fa-cart-shopping"></i> Produtos / Serviços</div>
             ${soLeitura ? "" : `<div class="orc-secao__acoes">
-              <button class="btn btn--primary btn--sm" id="orc-add"><i class="fa-solid fa-plus"></i> Adicionar</button>
-              <button class="btn btn--ghost btn--sm" id="orc-buscar"><i class="fa-solid fa-magnifying-glass"></i> Buscar produto</button>
+              <span class="orc-dica-f2">Na coluna <b>Código</b>, pressione <kbd>F2</kbd> para buscar o produto (nome, código ou código de barras)</span>
             </div>`}
           </div>
           <div class="table-wrap"><table class="orc-itens">
@@ -240,8 +239,6 @@
       const atual = document.getElementById("orc-cond")?.value;
       renderCondicoes(e.target.value, atual);
     });
-    on("orc-add", "click", () => { itens.push({ tipo: "produto", referencia_id: null, codigo: "", descricao: "", unidade: "UN", quantidade: 1, valor_unitario: 0, desconto: 0 }); renderItens(); recalc(); });
-    on("orc-buscar", "click", abrirBusca);
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
     on("orc-limpar", "click", () => abrirEditor(null));
@@ -289,16 +286,13 @@
   function renderItens() {
     const tb = document.getElementById("orc-tbody");
     if (!tb) return;
-    if (!itens.length) {
-      tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted" style="padding:22px">Nenhum item. Clique em “Adicionar” ou “Buscar produto”.</td></tr>`;
-      return;
-    }
-    tb.innerHTML = itens.map((it, i) => {
+    const dis = soLeitura ? "disabled" : "";
+
+    const linhasItens = itens.map((it, i) => {
       const total = (it.quantidade * it.valor_unitario) - it.desconto;
-      const dis = soLeitura ? "disabled" : "";
       return `<tr>
         <td class="orc-item-num">${String(i + 1).padStart(3, "0")}</td>
-        <td><input class="orc-cel orc-cel--cod" data-i="${i}" data-f="codigo" value="${esc(it.codigo)}" ${dis}></td>
+        <td><input class="orc-cel orc-cel--cod" data-i="${i}" data-f="codigo" value="${esc(it.codigo)}" title="F2 para buscar" ${dis}></td>
         <td><input class="orc-cel orc-cel--desc" data-i="${i}" data-f="descricao" value="${esc(it.descricao)}" ${dis}></td>
         <td><input class="orc-cel orc-cel--num" data-i="${i}" data-f="quantidade" type="number" step="0.01" value="${it.quantidade}" ${dis}></td>
         <td><input class="orc-cel orc-cel--un" data-i="${i}" data-f="unidade" value="${esc(it.unidade)}" ${dis}></td>
@@ -309,17 +303,116 @@
       </tr>`;
     }).join("");
 
-    tb.querySelectorAll(".orc-cel").forEach((inp) => {
+    // Linha em branco sempre presente (grade estilo PDV). Preenche via F2 no
+    // código ou digitando; ao sair da linha com conteúdo, ela vira um item.
+    const linhaNova = soLeitura ? "" : `<tr class="orc-linha-nova">
+      <td class="orc-item-num">${String(itens.length + 1).padStart(3, "0")}</td>
+      <td><input class="orc-cel orc-cel--cod orc-novo" data-f="codigo" value="" placeholder="F2 busca" title="F2 para buscar produto"></td>
+      <td><input class="orc-cel orc-cel--desc orc-novo" data-f="descricao" value="" placeholder="descrição"></td>
+      <td><input class="orc-cel orc-cel--num orc-novo" data-f="quantidade" type="number" step="0.01" value="1"></td>
+      <td><input class="orc-cel orc-cel--un orc-novo" data-f="unidade" value="UN"></td>
+      <td><input class="orc-cel orc-cel--num orc-novo" data-f="valor_unitario" type="number" step="0.01" value="0"></td>
+      <td><input class="orc-cel orc-cel--num orc-novo" data-f="desconto" type="number" step="0.01" value="0"></td>
+      <td class="orc-item-total">${money(0)}</td>
+      <td></td>
+    </tr>`;
+
+    tb.innerHTML = linhasItens + linhaNova;
+
+    // Edição das linhas já existentes (atualiza itens[i] sem re-renderizar).
+    tb.querySelectorAll(".orc-cel:not(.orc-novo)").forEach((inp) => {
       inp.addEventListener("input", () => {
         const i = +inp.dataset.i, f = inp.dataset.f;
         itens[i][f] = (inp.type === "number") ? (parseFloat(inp.value) || 0) : inp.value;
-        // atualiza só o total da linha e os totais gerais
         const linha = inp.closest("tr");
         const it = itens[i];
         linha.querySelector(".orc-item-total").textContent = money((it.quantidade * it.valor_unitario) - it.desconto);
         recalc();
       });
     });
+
+    // F2 nas células de código das linhas existentes: busca e substitui o produto.
+    tb.querySelectorAll(".orc-cel--cod:not(.orc-novo)").forEach((inp) => {
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "F2") { e.preventDefault(); abrirBusca((l) => aplicarProdutoNaLinha(+inp.dataset.i, l), inp.value); }
+      });
+    });
+
+    // Linha nova: F2 abre busca; Enter tenta casar código/código de barras exato.
+    const novoCod = tb.querySelector(".orc-linha-nova .orc-cel--cod");
+    if (novoCod) {
+      novoCod.addEventListener("keydown", (e) => {
+        if (e.key === "F2") {
+          e.preventDefault();
+          abrirBusca((l) => aplicarProdutoNaLinha(itens.length, l), novoCod.value);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          const l = acharPorCodigo(novoCod.value);
+          if (l) aplicarProdutoNaLinha(itens.length, l);
+          else materializarNovo(novoCod.closest("tr"));
+        }
+      });
+    }
+    // Ao sair da linha nova (clicar/tabular pra fora) com conteúdo, materializa.
+    const trNova = tb.querySelector(".orc-linha-nova");
+    if (trNova) {
+      trNova.addEventListener("focusout", () => {
+        setTimeout(() => {
+          if (trNova.contains(document.activeElement)) return;   // ainda editando a linha
+          if (document.getElementById("busca-q")) return;        // busca (F2) aberta
+          materializarNovo(trNova);
+        }, 0);
+      });
+    }
+  }
+
+  function focarNovoCodigo() {
+    document.querySelector(".orc-linha-nova .orc-cel--cod")?.focus();
+  }
+
+  // Preenche uma linha (índice em itens; se >= tamanho, adiciona nova) a partir
+  // de um resultado da busca, e deixa o cursor pronto na próxima linha em branco.
+  function aplicarProdutoNaLinha(i, l) {
+    const item = {
+      tipo: l.tipo, referencia_id: l.id,
+      codigo: l.codigo || l.barras || "", descricao: l.nome,
+      unidade: l.un, quantidade: 1, valor_unitario: l.valor, desconto: 0,
+    };
+    if (i >= itens.length) itens.push(item);
+    else itens[i] = { ...itens[i], ...item };
+    renderItens(); recalc(); focarNovoCodigo();
+  }
+
+  // Transforma a linha em branco num item usando o que foi digitado à mão.
+  function materializarNovo(tr) {
+    if (!tr) return false;
+    const get = (f) => tr.querySelector(`[data-f="${f}"]`)?.value ?? "";
+    const codigo = get("codigo").trim();
+    const descricao = get("descricao").trim();
+    if (!codigo && !descricao) return false;   // nada digitado: ignora
+    itens.push({
+      tipo: "produto", referencia_id: null, codigo,
+      descricao: descricao || codigo, unidade: get("unidade").trim() || "UN",
+      quantidade: parseFloat(get("quantidade")) || 1,
+      valor_unitario: parseFloat(get("valor_unitario")) || 0,
+      desconto: parseFloat(get("desconto")) || 0,
+    });
+    renderItens(); recalc();
+    return true;
+  }
+
+  // Casa um código digitado com o código OU código de barras de um produto.
+  function acharPorCodigo(cod) {
+    const c = (cod || "").trim().toLowerCase();
+    if (!c) return null;
+    const campos = (p) => [p.codigo, p.codigo_barras, p.ean, p.cod_barras, p.barcode, p.gtin];
+    const p = produtos.find((p) => campos(p).some((x) => x && String(x).toLowerCase() === c));
+    if (!p) return null;
+    return {
+      tipo: "produto", id: p.id, codigo: p.codigo || "",
+      barras: p.codigo_barras || p.ean || p.cod_barras || p.barcode || p.gtin || "",
+      nome: p.nome, valor: p.preco_venda || 0, un: "UN",
+    };
   }
 
   function recalc() {
@@ -331,32 +424,73 @@
   }
 
   /* ------------------------------------------------------- buscar produto */
-  function abrirBusca() {
+  let buscaPick = null;   // callback ativo do resultado da busca (F2)
+
+  function abrirBusca(onPick = null, queryInicial = "") {
     const linhas = [
-      ...produtos.map((p) => ({ tipo: "produto", id: p.id, codigo: p.codigo || "", nome: p.nome, valor: p.preco_venda || 0, un: "UN" })),
-      ...servicos.map((s) => ({ tipo: "servico", id: s.id, codigo: "", nome: s.descricao, valor: s.valor || 0, un: "SV" })),
+      ...produtos.map((p) => ({
+        tipo: "produto", id: p.id, codigo: p.codigo || "",
+        barras: p.codigo_barras || p.ean || p.cod_barras || p.barcode || p.gtin || "",
+        nome: p.nome, valor: p.preco_venda || 0, un: "UN",
+      })),
+      ...servicos.map((s) => ({ tipo: "servico", id: s.id, codigo: "", barras: "", nome: s.descricao, valor: s.valor || 0, un: "SV" })),
     ];
+    window.__buscaLinhas = linhas;
+    buscaPick = onPick;
     Modal.abrir("Buscar produto ou serviço", `
-      <input id="busca-q" class="input" placeholder="Digite para filtrar..." style="width:100%;margin-bottom:10px">
+      <input id="busca-q" class="input" placeholder="Nome, código ou código de barras…" style="width:100%;margin-bottom:10px">
       <div class="table-wrap" style="max-height:50vh;overflow:auto"><table class="data"><tbody id="busca-lista">
         ${linhas.map((l, i) => linhaBusca(l, i)).join("")}
       </tbody></table></div>`,
       `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`);
     const q = document.getElementById("busca-q");
-    q.oninput = () => {
-      const t = q.value.toLowerCase();
-      document.querySelectorAll("#busca-lista tr").forEach((tr) => {
-        tr.style.display = tr.textContent.toLowerCase().includes(t) ? "" : "none";
-      });
+    const lista = document.getElementById("busca-lista");
+    let sel = 0;
+    const visiveis = () => [...lista.querySelectorAll("tr")].filter((tr) => tr.style.display !== "none");
+    const marcar = () => {
+      const vis = visiveis();
+      lista.querySelectorAll("tr").forEach((tr) => tr.style.background = "");
+      if (vis[sel]) { vis[sel].style.background = "rgba(13,148,136,.12)"; vis[sel].scrollIntoView({ block: "nearest" }); }
     };
-    window.__buscaLinhas = linhas;
+    const filtrar = () => {
+      const t = q.value.toLowerCase().trim();
+      lista.querySelectorAll("tr").forEach((tr, i) => {
+        const l = linhas[i];
+        const alvo = `${l.nome} ${l.codigo} ${l.barras}`.toLowerCase();
+        tr.style.display = alvo.includes(t) ? "" : "none";
+      });
+      sel = 0; marcar();
+    };
+    q.oninput = filtrar;
+    q.onkeydown = (e) => {
+      const vis = visiveis();
+      if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, vis.length - 1); marcar(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); marcar(); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        if (vis[sel]) escolherBusca([...lista.querySelectorAll("tr")].indexOf(vis[sel]));
+      } else if (e.key === "Escape") { Modal.fechar(); }
+    };
+    if (queryInicial) { q.value = queryInicial; filtrar(); }
     q.focus();
   }
   function linhaBusca(l, i) {
-    return `<tr style="cursor:pointer" onclick="window.__orc.pick(${i})">
+    const cod = l.codigo || l.barras || "";
+    return `<tr style="cursor:pointer" onclick="window.__orc.pickBusca(${i})">
       <td><span class="pill ${l.tipo === "servico" ? "pill--accent" : ""}">${l.un}</span></td>
-      <td>${l.codigo ? "<b>" + l.codigo + "</b> · " : ""}${l.nome}</td>
+      <td>${cod ? "<b>" + cod + "</b> · " : ""}${l.nome}</td>
       <td class="text-right">${money(l.valor)}</td></tr>`;
+  }
+  // Resultado escolhido: usa o callback (F2 na linha) ou, sem callback, adiciona um item novo.
+  function escolherBusca(i) {
+    const l = window.__buscaLinhas?.[i];
+    if (!l) return;
+    Modal.fechar();
+    if (buscaPick) { const cb = buscaPick; buscaPick = null; cb(l); }
+    else {
+      itens.push({ tipo: l.tipo, referencia_id: l.id, codigo: l.codigo || l.barras || "", descricao: l.nome, unidade: l.un, quantidade: 1, valor_unitario: l.valor, desconto: 0 });
+      renderItens(); recalc(); focarNovoCodigo();
+    }
   }
 
   /* --------------------------------------------------------------- salvar */
@@ -684,10 +818,6 @@
     abrir: (id) => abrirEditor(id),
     excluir,
     remItem: (i) => { itens.splice(i, 1); renderItens(); recalc(); },
-    pick: (i) => {
-      const l = window.__buscaLinhas[i];
-      itens.push({ tipo: l.tipo, referencia_id: l.id, codigo: l.codigo, descricao: l.nome, unidade: l.un, quantidade: 1, valor_unitario: l.valor, desconto: 0 });
-      Modal.fechar(); renderItens(); recalc();
-    },
+    pickBusca: (i) => escolherBusca(i),
   };
 })();
