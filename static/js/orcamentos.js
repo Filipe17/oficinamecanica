@@ -57,10 +57,10 @@
       </div>
       <div class="card"><div class="card__body">
         <div class="table-wrap"><table class="data">
-          <thead><tr><th>Número</th><th>Cliente</th><th>Veículo</th><th>Data</th><th>Total</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Cliente</th><th>Veículo</th><th>Data</th><th>Total</th><th>Status</th><th></th></tr></thead>
           <tbody>
             ${lista.length ? lista.map((o) => `<tr>
-              <td><b>${o.numero || "-"}</b></td>
+              <td><b>${(o.numero && o.numero.includes("-")) ? o.numero.slice(o.numero.indexOf("-") + 1) : (o.numero || "-")}</b></td>
               <td>${o.cliente_nome || "-"}</td>
               <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
               <td>${fmt.data(o.data || o.criado_em)}</td>
