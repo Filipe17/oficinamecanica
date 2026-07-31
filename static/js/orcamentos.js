@@ -180,7 +180,8 @@
 
         <div class="orc-rodape-acoes">
           ${jaFinalizado
-            ? `<span class="orc-finalizado-tag"><i class="fa-solid fa-circle-check"></i> Orçamento finalizado</span>`
+            ? `<span class="orc-finalizado-tag"><i class="fa-solid fa-circle-check"></i> Orçamento finalizado</span>
+               <button class="btn btn--primary" id="orc-ver-nota"><i class="fa-solid fa-file-invoice"></i> Ver / Imprimir nota</button>`
             : (soLeitura ? "" : (editando
               ? `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>
                  <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
@@ -213,6 +214,14 @@
     on("orc-imprimir", "click", imprimir);
     on("orc-pdf", "click", gerarPDF);
     on("orc-whats", "click", enviarWhats);
+    on("orc-ver-nota", "click", async () => {
+      // Reabre a folha A5 (nota) de um orçamento já finalizado, para
+      // imprimir/entregar de novo caso o cliente tenha perdido a via.
+      try {
+        const o = editando?.id ? await API.get(`/api/os/${editando.id}`) : editando;
+        telaA5(o);
+      } catch (_) { if (editando) telaA5(editando); }
+    });
   }
 
   function preencherCliente() {
