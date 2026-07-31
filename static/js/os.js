@@ -86,10 +86,12 @@
       const r = await API.get(`/api/os?${p}`);
       const lista = r.dados || [];
       if (!lista.length) { alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-inbox"></i>Nenhum registro</div>`; return; }
+      // No orçamento o cabeçalho é "ID" e mostra só o número (sem o prefixo "OS-"/"ORC-").
+      const semPrefixo = (n) => (n && n.includes("-")) ? n.slice(n.indexOf("-") + 1) : (n || "-");
       alvo.innerHTML = `<div class="table-wrap"><table class="data">
-        <thead><tr><th>Número</th><th>Cliente</th><th>Veículo</th><th>Status</th><th>Mecânico</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Cliente</th><th>Veículo</th><th>Status</th><th>Mecânico</th><th></th></tr></thead>
         <tbody>${lista.map((o) => `<tr>
-          <td><b>${o.numero || "-"}</b></td>
+          <td><b>${EH_ORC ? semPrefixo(o.numero) : (o.numero || "-")}</b></td>
           <td>${o.cliente_nome || "-"}</td>
           <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
           <td><span class="badge badge--${STATUS_TOM[o.status] || ""}">${STATUS_LABEL[o.status] || o.status}</span></td>
