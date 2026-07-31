@@ -186,20 +186,22 @@
             <div class="orc-secao__titulo" style="margin-top:14px"><i class="fa-solid fa-note-sticky"></i> Observações finais</div>
             <textarea id="orc-obsf" class="orc-obs" placeholder="Ex: Este orçamento tem validade de 10 dias.">${esc(orc?.obs_finais || "")}</textarea>
           </div>
-          <div class="orc-os-grade">
-            <div class="orc-secao__titulo"><i class="fa-solid fa-screwdriver-wrench"></i> OS relacionadas
-              <span class="orc-dica-f2" style="font-weight:400">— pressione <kbd>F2</kbd> para buscar a OS</span>
+          <div class="orc-col-dir">
+            <div class="orc-os-grade">
+              <div class="orc-secao__titulo"><i class="fa-solid fa-screwdriver-wrench"></i> OS relacionadas
+                <span class="orc-dica-f2" style="font-weight:400">— pressione <kbd>F2</kbd> para buscar a OS</span>
+              </div>
+              <div class="table-wrap"><table class="data orc-os-tabela">
+                <thead><tr><th>OS</th><th>Cliente</th><th></th></tr></thead>
+                <tbody id="orc-os-body"></tbody>
+              </table></div>
             </div>
-            <div class="table-wrap"><table class="data orc-os-tabela">
-              <thead><tr><th>OS</th><th>Cliente</th><th></th></tr></thead>
-              <tbody id="orc-os-body"></tbody>
-            </table></div>
-          </div>
-          <div class="orc-totais">
-            <div class="orc-totais__linha"><span>Subtotal</span><b id="t-sub">R$ 0,00</b></div>
-            <div class="orc-totais__linha"><span>Desconto</span>
-              <input id="orc-desc" class="orc-mini" type="number" step="0.01" value="${Number(orc?.desconto) || 0}"></div>
-            <div class="orc-totais__total"><span>Total do Orçamento</span><b id="t-total">R$ 0,00</b></div>
+            <div class="orc-totais">
+              <div class="orc-totais__linha"><span>Subtotal</span><b id="t-sub">R$ 0,00</b></div>
+              <div class="orc-totais__linha"><span>Desconto</span>
+                <input id="orc-desc" class="orc-mini" type="number" step="0.01" value="${Number(orc?.desconto) || 0}"></div>
+              <div class="orc-totais__total"><span>Total do Orçamento</span><b id="t-total">R$ 0,00</b></div>
+            </div>
           </div>
         </div>
 
