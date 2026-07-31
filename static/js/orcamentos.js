@@ -11,8 +11,9 @@
                  && (Layout.permissoes?.orcamentos ?? 2) < 2;
   const cfg = Layout.config || {};
 
-  let clientes = [], veiculos = [], produtos = [], servicos = [];
+  let clientes = [], veiculos = [], produtos = [], servicos = [], ordens = [];
   let itens = [];         // itens do orçamento em edição
+  let osRefs = [];        // OS relacionadas escolhidas para a nota A5 (não persistidas)
   let editando = null;    // registro em edição (null = novo)
 
   const FORMAS = ["Dinheiro", "Pix", "Cartão de Crédito", "Cartão de Débito", "Boleto"];
@@ -24,17 +25,19 @@
   renderLista();
 
   async function carregarRefs() {
-    const [rc, rv, rp, rs] = await Promise.allSettled([
+    const [rc, rv, rp, rs, ro] = await Promise.allSettled([
       API.get("/api/clientes?por_pagina=1000&ordem=nome"),
       API.get("/api/veiculos?por_pagina=1000"),
       API.get("/api/produtos?por_pagina=1000&ordem=nome"),
       API.get("/api/servicos"),
+      API.get("/api/os"),   // Ordens de Serviço (eh_orcamento=0) para referenciar
     ]);
     const ok = (r) => (r.status === "fulfilled" ? r.value : {});
     clientes = ok(rc).dados || [];
     veiculos = ok(rv).dados || [];
     produtos = ok(rp).dados || [];
     servicos = ok(rs).dados || [];
+    ordens = ok(ro).dados || [];
   }
 
   /* ------------------------------------------------------------------ LISTA */
@@ -96,6 +99,12 @@
 
     const cli = orc ? clientes.find((c) => c.id === orc.cliente_id) : null;
 
+    // OS relacionadas (só para a nota A5; não são gravadas). Começa vazio; se
+    // houver uma referência antiga salva em texto, semeia a lista com ela.
+    osRefs = orc?.os_referencia
+      ? String(orc.os_referencia).split(/[,;]+/).map((s) => ({ numero: s.trim() })).filter((x) => x.numero)
+      : [];
+
     Layout.set(`
       <div class="orc">
         <div class="orc-topbar">
@@ -125,8 +134,9 @@
             <div class="orc-doc-info"><i class="fa-solid fa-calendar"></i> Data: ${fmt.data(orc?.data || new Date().toISOString())}</div>
             <div class="orc-doc-info"><i class="fa-solid fa-clock"></i> Validade:
               <input id="orc-validade" class="orc-mini" value="${esc(orc?.validade || "10 dias")}"></div>
-            <div class="orc-doc-info"><i class="fa-solid fa-screwdriver-wrench"></i> OS Ref.:
-              <input id="orc-os-ref" class="orc-mini" placeholder="nº da OS" value="${esc(orc?.os_referencia || "")}"></div>
+            <div class="orc-doc-info"><i class="fa-solid fa-screwdriver-wrench"></i> OS relacionadas:
+              ${soLeitura ? "" : `<button type="button" class="btn btn--ghost btn--sm" id="orc-os-add"><i class="fa-solid fa-plus"></i> Adicionar OS</button>`}</div>
+            <div id="orc-os-lista" class="orc-os-lista"></div>
           </div>
         </div>
 
@@ -207,6 +217,7 @@
     preencherCliente();
     renderItens();
     recalc();
+    renderOSRefs();
     if (soLeitura || jaFinalizado) document.querySelectorAll(".orc input, .orc select, .orc textarea").forEach((el) => el.disabled = true);
     else focarNovoCodigo();
   }
@@ -233,6 +244,78 @@
     }
   }
 
+  /* ------------------------------------------------- OS relacionadas (A5) */
+  // Desenha as OS escolhidas como "chips" removíveis abaixo do botão.
+  function renderOSRefs() {
+    const wrap = document.getElementById("orc-os-lista");
+    if (!wrap) return;
+    if (!osRefs.length) {
+      wrap.innerHTML = `<span class="orc-os-vazio">Nenhuma OS relacionada.</span>`;
+      return;
+    }
+    const podeRemover = !(soLeitura || editando?.status === "finalizada");
+    wrap.innerHTML = osRefs.map((o, i) => `<span class="orc-os-chip">
+      <b>${esc(o.numero)}</b>${o.cliente ? " · " + esc(o.cliente) : ""}
+      ${podeRemover ? `<button type="button" class="orc-os-x" title="Remover" onclick="window.__orc.remOS(${i})">&times;</button>` : ""}
+    </span>`).join("");
+  }
+
+  // Abre a busca de OS existentes e adiciona a escolhida à lista (sem duplicar).
+  function buscarOS() {
+    if (!ordens.length) { Toast?.("Nenhuma OS cadastrada para referenciar."); return; }
+    const linhas = ordens.map((o) => ({
+      id: o.id, numero: o.numero || "",
+      cliente: o.cliente_nome || "", placa: o.veiculo_placa || "",
+    }));
+    Modal.abrir("Adicionar OS ao orçamento", `
+      <input id="os-q" class="input" placeholder="Nº da OS, cliente ou placa…" style="width:100%;margin-bottom:10px">
+      <div class="table-wrap" style="max-height:50vh;overflow:auto"><table class="data"><tbody id="os-lista">
+        ${linhas.map((l, i) => linhaOS(l, i)).join("")}
+      </tbody></table></div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`);
+    window.__osBuscaLinhas = linhas;
+    const q = document.getElementById("os-q");
+    const lista = document.getElementById("os-lista");
+    let sel = 0;
+    const visiveis = () => [...lista.querySelectorAll("tr")].filter((tr) => tr.style.display !== "none");
+    const marcar = () => {
+      const vis = visiveis();
+      lista.querySelectorAll("tr").forEach((tr) => tr.style.background = "");
+      if (vis[sel]) { vis[sel].style.background = "rgba(13,148,136,.12)"; vis[sel].scrollIntoView({ block: "nearest" }); }
+    };
+    const filtrar = () => {
+      const t = q.value.toLowerCase().trim();
+      lista.querySelectorAll("tr").forEach((tr, i) => {
+        const l = linhas[i];
+        tr.style.display = `${l.numero} ${l.cliente} ${l.placa}`.toLowerCase().includes(t) ? "" : "none";
+      });
+      sel = 0; marcar();
+    };
+    q.oninput = filtrar;
+    q.onkeydown = (e) => {
+      const vis = visiveis();
+      if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, vis.length - 1); marcar(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); marcar(); }
+      else if (e.key === "Enter") { e.preventDefault(); if (vis[sel]) escolherOS([...lista.querySelectorAll("tr")].indexOf(vis[sel])); }
+      else if (e.key === "Escape") { Modal.fechar(); }
+    };
+    marcar(); q.focus();
+  }
+  function linhaOS(l, i) {
+    return `<tr style="cursor:pointer" onclick="window.__orc.pickOS(${i})">
+      <td><b>${l.numero}</b></td>
+      <td>${l.cliente || "—"}${l.placa ? " · " + l.placa : ""}</td></tr>`;
+  }
+  function escolherOS(i) {
+    const l = window.__osBuscaLinhas?.[i];
+    if (!l) return;
+    if (!osRefs.some((o) => o.id === l.id || o.numero === l.numero)) {
+      osRefs.push({ id: l.id, numero: l.numero, cliente: l.cliente });
+    }
+    Modal.fechar();
+    renderOSRefs();
+  }
+
   function wireEditor() {
     const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
     on("orc-voltar", "click", renderLista);
@@ -245,6 +328,7 @@
       // ao padrão "À vista", em vez de manter "2x" no campo de texto.
       renderCondicoes(e.target.value);
     });
+    on("orc-os-add", "click", buscarOS);
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
     on("orc-limpar", "click", () => abrirEditor(null));
@@ -526,7 +610,6 @@
       cliente_id: Number(document.getElementById("orc-cliente")?.value) || null,
       veiculo_id: Number(document.getElementById("orc-veiculo")?.value) || null,
       validade: document.getElementById("orc-validade")?.value.trim(),
-      os_referencia: document.getElementById("orc-os-ref")?.value.trim() || null,
       forma_pagamento: document.getElementById("orc-forma")?.value,
       condicoes: document.getElementById("orc-cond")?.value.trim(),
       observacoes: editando?.observacoes || "",   // campo removido da tela; preserva o que já existia
@@ -607,7 +690,7 @@
         <div class="a5-canhoto__tit">CANHOTO — via da oficina</div>
         <div class="a5-canhoto__linhas">
           <span><b>Orçamento:</b> ${o.numero || "—"}</span>
-          ${o.os_referencia ? `<span><b>OS Ref.:</b> ${o.os_referencia}</span>` : ""}
+          ${osRefs.length ? `<span><b>OS Ref.:</b> ${osRefs.map((r) => r.numero).join(", ")}</span>` : ""}
           <span><b>Data:</b> ${dataStr}</span>
           <span><b>Cliente:</b> ${cli.nome || "—"}</span>
           <span><b>Placa:</b> ${vei.placa || "—"}</span>
@@ -638,7 +721,7 @@
             <div class="a5-meta__num">Nº ${o.numero || "—"}</div>
             <div class="a5-emp__l">Data: ${dataStr}</div>
             <div class="a5-emp__l">Validade: ${o.validade || "—"}</div>
-            ${o.os_referencia ? `<div class="a5-emp__l">OS Ref.: ${o.os_referencia}</div>` : ""}
+            ${osRefs.length ? `<div class="a5-emp__l">OS Ref.: ${osRefs.map((r) => r.numero).join(", ")}</div>` : ""}
           </div>
         </div>
         <div class="a5-cv">
@@ -745,6 +828,7 @@
     doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(90);
     doc.text("Data: " + fmt.data(new Date().toISOString()), 210 - M, y + 17, { align: "right" });
     doc.text("Validade: " + (d.validade || ""), 210 - M, y + 22, { align: "right" });
+    if (osRefs.length) doc.text("OS Ref.: " + osRefs.map((r) => r.numero).join(", "), 210 - M, y + 27, { align: "right" });
 
     y = Math.max(ly, y + 26) + 3;
     doc.setDrawColor(teal[0], teal[1], teal[2]).setLineWidth(0.6).line(M, y, 210 - M, y);
@@ -848,5 +932,7 @@
     excluir,
     remItem: (i) => { itens.splice(i, 1); renderItens(); recalc(); },
     pickBusca: (i) => escolherBusca(i),
+    pickOS: (i) => escolherOS(i),
+    remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); },
   };
 })();
