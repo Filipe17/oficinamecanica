@@ -72,11 +72,11 @@ def criar():
     d = request.get_json(force=True)
     res = query(
         "INSERT INTO financeiro (tipo, descricao, cliente_id, fornecedor_id, os_id, "
-        "valor, vencimento, forma_pagamento, status, juros, multa, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "valor, vencimento, forma_pagamento, categoria, status, juros, multa, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get("tipo", "receber"), d.get("descricao"), d.get("cliente_id"),
          d.get("fornecedor_id"), d.get("os_id"), d.get("valor", 0),
-         d.get("vencimento"), d.get("forma_pagamento"), "aberto",
+         d.get("vencimento"), d.get("forma_pagamento"), d.get("categoria"), "aberto",
          d.get("juros", 0), d.get("multa", 0), now()),
         commit=True,
     )
@@ -97,13 +97,14 @@ def editar(fid):
     d = request.get_json(force=True)
     query(
         "UPDATE financeiro SET descricao=?, cliente_id=?, fornecedor_id=?, "
-        "valor=?, vencimento=?, forma_pagamento=?, juros=?, multa=? WHERE id=?",
+        "valor=?, vencimento=?, forma_pagamento=?, categoria=?, juros=?, multa=? WHERE id=?",
         (d.get("descricao", reg["descricao"]),
          d.get("cliente_id", reg["cliente_id"]),
          d.get("fornecedor_id", reg["fornecedor_id"]),
          d.get("valor", reg["valor"]),
          d.get("vencimento", reg["vencimento"]),
          d.get("forma_pagamento", reg["forma_pagamento"]),
+         d.get("categoria", reg["categoria"]),
          d.get("juros", reg["juros"]),
          d.get("multa", reg["multa"]),
          fid),
