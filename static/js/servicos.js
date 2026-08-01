@@ -20,6 +20,8 @@
       { nome: "descricao", label: "Descrição", obrigatorio: true, larguraTotal: true },
       { nome: "valor", label: "Valor", tipo: "number" },
       { nome: "garantia", label: "Garantia (ex: 90 dias)" },
+      { nome: "codigo_servico", label: "Código do serviço (NFS-e / lista municipal)" },
+      { nome: "iss_percentual", label: "ISS (%)", tipo: "number" },
     ],
   });
   crud.montar();
