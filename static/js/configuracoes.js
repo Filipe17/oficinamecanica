@@ -58,6 +58,14 @@
           <input name="empresa_cidade" value="${c.empresa_cidade || ""}" placeholder="Preenchido pelo CEP"></div>
         <div class="field"><label>Estado (UF)</label>
           <input name="empresa_estado" value="${c.empresa_estado || ""}" maxlength="2" placeholder="UF" style="text-transform:uppercase"></div>
+
+        <div class="field"><label>Regime tributário</label>
+          <select name="empresa_regime_tributario">
+            ${["", "Simples Nacional", "Lucro Presumido", "Lucro Real"].map((r) =>
+              `<option value="${r}" ${(c.empresa_regime_tributario || "") === r ? "selected" : ""}>${r || "— selecione —"}</option>`).join("")}
+          </select></div>
+        <div class="field"><label>Inscrição Estadual</label>
+          <input name="empresa_inscricao_estadual" value="${c.empresa_inscricao_estadual || ""}" placeholder="ISENTO ou número"></div>
       </div>
 
       <div class="cfg-logo">
@@ -146,6 +154,8 @@
       empresa_bairro: val("empresa_bairro"),
       empresa_cidade: val("empresa_cidade"),
       empresa_estado: val("empresa_estado").toUpperCase(),
+      empresa_regime_tributario: val("empresa_regime_tributario"),
+      empresa_inscricao_estadual: val("empresa_inscricao_estadual"),
       empresa_logo: logoAtual,
     };
     try {
