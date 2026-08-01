@@ -127,6 +127,7 @@ const MENU = [
     { id: "veiculos", nome: "Veículos", icone: "fa-car" },
     { id: "ordem_servico", nome: "Ordem de Serviço", icone: "fa-screwdriver-wrench" },
     { id: "orcamentos", nome: "Orçamentos", icone: "fa-file-invoice-dollar" },
+    { id: "agendamentos", nome: "Agendamentos", icone: "fa-calendar-days" },
   ]},
   { grupo: "Cadastros", itens: [
     { id: "servicos", nome: "Serviços", icone: "fa-list-check" },
@@ -153,7 +154,7 @@ const MENU = [
    (ex.: orcamentos→ordem_servico, cobrancas→financeiro) seguem o mesmo nível. */
 const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
-  ordem_servico: "ordem_servico", orcamentos: "orcamentos",
+  ordem_servico: "ordem_servico", orcamentos: "orcamentos", agendamentos: "agendamentos",
   servicos: "servicos", produtos: "produtos", estoque: "estoque", xml: "xml",
   financeiro: "financeiro", cobrancas: "financeiro", caixa: "caixa",
   relatorios: "relatorios", notas_fiscais: "notas_fiscais", usuarios: "usuarios", logs: "logs",

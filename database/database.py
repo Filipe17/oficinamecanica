@@ -412,6 +412,20 @@ def init_db():
             criado_em TEXT,
             atualizado_em TEXT
         )""",
+        # ---------------- Agendamentos ----------------
+        f"""CREATE TABLE IF NOT EXISTS agendamentos (
+            id {pk},
+            cliente_id INTEGER REFERENCES clientes(id),
+            veiculo_id INTEGER REFERENCES veiculos(id),
+            mecanico_id INTEGER REFERENCES usuarios(id),
+            servico_id INTEGER,               -- serviço previsto (opcional)
+            data TEXT,                        -- data do agendamento (YYYY-MM-DD)
+            hora TEXT,                        -- hora (HH:MM)
+            descricao TEXT,                   -- serviço/observação em texto
+            status TEXT DEFAULT 'agendado',   -- agendado, confirmado, compareceu, faltou, cancelado
+            os_id INTEGER,                    -- OS gerada a partir do agendamento (quando houver)
+            criado_em TEXT
+        )""",
     ]
 
     conn = get_connection()
@@ -475,15 +489,15 @@ def _migrar_colunas():
 MODULOS_PERMISSAO = [
     "dashboard", "clientes", "veiculos", "ordem_servico", "orcamentos",
     "servicos", "produtos", "estoque", "xml", "financeiro", "pdv", "caixa",
-    "relatorios", "notas_fiscais", "usuarios", "logs",
+    "relatorios", "notas_fiscais", "agendamentos", "usuarios", "logs",
 ]
 
 _PERMISSOES_PADRAO = {
-    "gerente":    {"dashboard":2,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":2,"produtos":2,"estoque":2,"xml":2,"financeiro":2,"pdv":2,"caixa":2,"relatorios":2,"notas_fiscais":2,"usuarios":1,"logs":1},
-    "atendente":  {"dashboard":1,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":1,"produtos":1,"estoque":1,"xml":0,"financeiro":1,"pdv":2,"caixa":0,"relatorios":1,"notas_fiscais":0,"usuarios":0,"logs":0},
-    "mecanico":   {"dashboard":1,"clientes":1,"veiculos":1,"ordem_servico":2,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":0,"pdv":0,"caixa":0,"relatorios":0,"notas_fiscais":0,"usuarios":0,"logs":0},
-    "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":2,"pdv":2,"caixa":2,"relatorios":1,"notas_fiscais":2,"usuarios":0,"logs":0},
-    "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":1,"pdv":2,"caixa":2,"relatorios":0,"notas_fiscais":0,"usuarios":0,"logs":0},
+    "gerente":    {"dashboard":2,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":2,"produtos":2,"estoque":2,"xml":2,"financeiro":2,"pdv":2,"caixa":2,"relatorios":2,"notas_fiscais":2,"agendamentos":2,"usuarios":1,"logs":1},
+    "atendente":  {"dashboard":1,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":1,"produtos":1,"estoque":1,"xml":0,"financeiro":1,"pdv":2,"caixa":0,"relatorios":1,"notas_fiscais":0,"agendamentos":2,"usuarios":0,"logs":0},
+    "mecanico":   {"dashboard":1,"clientes":1,"veiculos":1,"ordem_servico":2,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":0,"pdv":0,"caixa":0,"relatorios":0,"notas_fiscais":0,"agendamentos":1,"usuarios":0,"logs":0},
+    "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":2,"pdv":2,"caixa":2,"relatorios":1,"notas_fiscais":2,"agendamentos":1,"usuarios":0,"logs":0},
+    "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":1,"pdv":2,"caixa":2,"relatorios":0,"notas_fiscais":0,"agendamentos":1,"usuarios":0,"logs":0},
 }
 
 

@@ -37,6 +37,7 @@ from api.xml import xml_bp
 from api.relatorios import relatorios_bp
 from api.dre import dre_bp
 from api.nfe import nfe_bp
+from api.agendamentos import agendamentos_bp
 from api.permissoes import permissoes_bp, nivel_de
 from api.configuracoes import configuracoes_bp
 from api.caixa import caixa_bp
@@ -58,7 +59,7 @@ app.permanent_session_lifetime = timedelta(days=30)   # "lembrar acesso"
 
 # Registro dos Blueprints (cada módulo cuida de um domínio)
 for bp in (usuarios_bp, clientes_bp, veiculos_bp, produtos_bp, estoque_bp,
-           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, dre_bp, nfe_bp, permissoes_bp,
+           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, dre_bp, nfe_bp, agendamentos_bp, permissoes_bp,
            configuracoes_bp, caixa_bp):
     app.register_blueprint(bp)
 
@@ -85,6 +86,7 @@ _MODULO_API = [
     ("/api/caixa", "caixa"),
     ("/api/relatorios", "relatorios"),
     ("/api/notas", "notas_fiscais"),
+    ("/api/agendamentos", "agendamentos"),
     ("/api/usuarios", "usuarios"),
     ("/api/logs", "logs"),
 ]
@@ -94,7 +96,7 @@ _MODULO_PAGINA = {
     "ordem_servico": "ordem_servico", "orcamentos": "orcamentos",
     "servicos": "servicos", "produtos": "produtos", "estoque": "estoque",
     "xml": "xml", "financeiro": "financeiro", "cobrancas": "financeiro",
-    "pdv": "pdv", "caixa": "caixa", "relatorios": "relatorios", "notas_fiscais": "notas_fiscais", "usuarios": "usuarios", "logs": "logs",
+    "pdv": "pdv", "caixa": "caixa", "relatorios": "relatorios", "notas_fiscais": "notas_fiscais", "agendamentos": "agendamentos", "usuarios": "usuarios", "logs": "logs",
 }
 _SEMPRE_LIBERADO = ("/api/me", "/api/logout", "/api/login", "/api/health", "/", "/login")
 
