@@ -1,0 +1,54 @@
+/* =======================================================================
+   dre.css — Estilo da tabela do DRE (Demonstrativo de Resultado)
+   Adicione este arquivo ao <head> da página de relatórios, ou cole o
+   conteúdo no CSS global do sistema.
+   ======================================================================= */
+
+/* A tabela do DRE não é uma grade comum: são linhas de demonstrativo. */
+.dre-tabela { width: 100%; border-collapse: collapse; }
+.dre-tabela td { padding: 9px 12px; border: 0; vertical-align: middle; }
+.dre-tabela td:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Linhas de detalhe (sub-itens: Vendas PDV, OS, categorias de despesa) */
+.dre-tabela .dre-item td {
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+  border-bottom: 1px solid var(--border, #eef0f2);
+}
+
+/* Linhas fortes: Receita Bruta, Receita Líquida, Lucro Bruto, Despesas */
+.dre-tabela .dre-forte td {
+  font-weight: 700;
+  color: var(--text, #111827);
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+/* Subtotais (Receita Líquida, Lucro Bruto): leve realce de fundo */
+.dre-tabela .dre-sub td {
+  background: color-mix(in srgb, var(--primary, #0d9488) 6%, transparent);
+}
+
+/* Linha de resultado final: destaque forte */
+.dre-tabela .dre-total td {
+  font-size: 17px;
+  font-weight: 800;
+  padding: 14px 12px;
+  border-top: 2px solid var(--border, #d1d5db);
+}
+.dre-tabela .dre-total.dre-lucro td { color: #15803d; }      /* verde  */
+.dre-tabela .dre-total.dre-prejuizo td { color: #b91c1c; }   /* vermelho */
+.dre-tabela .dre-total.dre-lucro { background: rgba(21, 128, 61, .08); }
+.dre-tabela .dre-total.dre-prejuizo { background: rgba(185, 28, 28, .08); }
+
+/* Valores negativos em qualquer linha */
+.dre-tabela .dre-neg { color: #b91c1c; }
+
+/* Cartão de resultado no topo com borda esquerda de acento */
+.stat.stat--success { border-left: 4px solid #15803d; }
+.stat.stat--danger { border-left: 4px solid #b91c1c; }
+
+/* Impressão direta da tela (Ctrl+P) fica limpa também */
+@media print {
+  .toolbar, .rel-cards, .sidebar, .topbar { display: none !important; }
+  .dre-tabela .dre-total td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
