@@ -391,6 +391,27 @@ def init_db():
             valor REAL DEFAULT 0,             -- comissão calculada
             criado_em TEXT
         )""",
+        # ---------------- Notas Fiscais (NF-e / NFS-e) ----------------
+        # Cada OS pode gerar até duas notas: NF-e (itens produto) e NFS-e
+        # (itens serviço). O XML/PDF e o protocolo vêm do gateway externo.
+        f"""CREATE TABLE IF NOT EXISTS notas_fiscais (
+            id {pk},
+            os_id INTEGER REFERENCES ordens_servico(id),
+            tipo TEXT NOT NULL,               -- 'nfe' (produtos) ou 'nfse' (serviços)
+            ambiente TEXT DEFAULT 'homologacao', -- homologacao ou producao
+            numero TEXT,                      -- número da nota (retornado pelo gateway)
+            serie TEXT,
+            chave TEXT,                       -- chave de acesso (NF-e) / código de verificação (NFS-e)
+            protocolo TEXT,                   -- protocolo de autorização
+            status TEXT DEFAULT 'pendente',   -- pendente, processando, autorizada, rejeitada, cancelada, erro
+            valor REAL DEFAULT 0,             -- valor total da nota
+            mensagem TEXT,                    -- mensagem de erro/rejeição do gateway (quando houver)
+            ref_externa TEXT,                 -- id da nota no gateway (para consultar status depois)
+            xml TEXT,                         -- XML autorizado (quando disponível)
+            pdf_url TEXT,                     -- link do DANFE/DANFSE em PDF
+            criado_em TEXT,
+            atualizado_em TEXT
+        )""",
     ]
 
     conn = get_connection()
@@ -443,6 +464,10 @@ def _migrar_colunas():
     _garantir_coluna("servicos", "comissao_percentual", "REAL DEFAULT 0")
     _garantir_coluna("produtos", "comissao_percentual", "REAL DEFAULT 0")
     _garantir_coluna("os_itens", "comissao_percentual", "REAL DEFAULT 0")
+    # Campos fiscais para NFS-e (serviços): código do serviço no município e
+    # alíquota de ISS. Os produtos já têm NCM/CFOP/CEST para a NF-e.
+    _garantir_coluna("servicos", "codigo_servico", "TEXT")     # item da lista municipal / LC 116
+    _garantir_coluna("servicos", "iss_percentual", "REAL DEFAULT 0")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
@@ -450,15 +475,15 @@ def _migrar_colunas():
 MODULOS_PERMISSAO = [
     "dashboard", "clientes", "veiculos", "ordem_servico", "orcamentos",
     "servicos", "produtos", "estoque", "xml", "financeiro", "pdv", "caixa",
-    "relatorios", "usuarios", "logs",
+    "relatorios", "notas_fiscais", "usuarios", "logs",
 ]
 
 _PERMISSOES_PADRAO = {
-    "gerente":    {"dashboard":2,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":2,"produtos":2,"estoque":2,"xml":2,"financeiro":2,"pdv":2,"caixa":2,"relatorios":2,"usuarios":1,"logs":1},
-    "atendente":  {"dashboard":1,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":1,"produtos":1,"estoque":1,"xml":0,"financeiro":1,"pdv":2,"caixa":0,"relatorios":1,"usuarios":0,"logs":0},
-    "mecanico":   {"dashboard":1,"clientes":1,"veiculos":1,"ordem_servico":2,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":0,"pdv":0,"caixa":0,"relatorios":0,"usuarios":0,"logs":0},
-    "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":2,"pdv":2,"caixa":2,"relatorios":1,"usuarios":0,"logs":0},
-    "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":1,"pdv":2,"caixa":2,"relatorios":0,"usuarios":0,"logs":0},
+    "gerente":    {"dashboard":2,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":2,"produtos":2,"estoque":2,"xml":2,"financeiro":2,"pdv":2,"caixa":2,"relatorios":2,"notas_fiscais":2,"usuarios":1,"logs":1},
+    "atendente":  {"dashboard":1,"clientes":2,"veiculos":2,"ordem_servico":2,"orcamentos":2,"servicos":1,"produtos":1,"estoque":1,"xml":0,"financeiro":1,"pdv":2,"caixa":0,"relatorios":1,"notas_fiscais":0,"usuarios":0,"logs":0},
+    "mecanico":   {"dashboard":1,"clientes":1,"veiculos":1,"ordem_servico":2,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":0,"pdv":0,"caixa":0,"relatorios":0,"notas_fiscais":0,"usuarios":0,"logs":0},
+    "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":1,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":2,"pdv":2,"caixa":2,"relatorios":1,"notas_fiscais":2,"usuarios":0,"logs":0},
+    "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":0,"servicos":0,"produtos":0,"estoque":0,"xml":0,"financeiro":1,"pdv":2,"caixa":2,"relatorios":0,"notas_fiscais":0,"usuarios":0,"logs":0},
 }
 
 
