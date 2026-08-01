@@ -18,7 +18,8 @@ configuracoes_bp = Blueprint("configuracoes", __name__)
 
 CHAVES = ["empresa_nome", "empresa_cnpj", "empresa_telefone", "empresa_cep",
           "empresa_endereco", "empresa_numero", "empresa_bairro", "empresa_cidade",
-          "empresa_estado", "empresa_logo"]
+          "empresa_estado", "empresa_logo",
+          "empresa_regime_tributario", "empresa_inscricao_estadual"]
 
 # Limite da logo em base64 (~400 KB de imagem) para não inchar o banco/respostas.
 LIMITE_LOGO = 600_000
