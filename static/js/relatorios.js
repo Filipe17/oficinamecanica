@@ -112,6 +112,8 @@
   }
 
   // ---- DRE — Demonstrativo de Resultado (competência), com filtro de período ----
+  let dreAtual = null;   // guarda o último DRE gerado (para exportar em PDF)
+
   async function abrirDRE() {
     const box = document.getElementById("rel-box");
     box.style.display = "";
@@ -123,9 +125,12 @@
         <label>De <input type="date" id="dre-inicio" value="${primeiroDiaMes()}"></label>
         <label>Até <input type="date" id="dre-fim" value="${hojeISO()}"></label>
         <button class="btn btn--primary btn--sm" id="dre-filtrar"><i class="fa-solid fa-magnifying-glass"></i> Gerar</button>
+        <div class="toolbar__spacer"></div>
+        <button class="btn btn--ghost btn--sm" id="dre-pdf"><i class="fa-solid fa-file-pdf"></i> Exportar PDF</button>
       </div>
       <div id="dre-resultado"><div class="loading"><i class="fa-solid fa-spinner spin"></i></div></div>`;
     document.getElementById("dre-filtrar").onclick = carregarDRE;
+    document.getElementById("dre-pdf").onclick = exportarDREpdf;
     carregarDRE();
   }
 
@@ -136,6 +141,7 @@
     res.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
     try {
       const r = await API.get(`/api/relatorios/dre?inicio=${inicio}&fim=${fim}`);
+      dreAtual = { ...r, inicio, fim };
       const neg = (v) => v < 0 ? "dre-neg" : "";
       const linha = (rot, val, opts = {}) => `
         <tr class="${opts.forte ? "dre-forte" : ""} ${opts.sub ? "dre-sub" : ""}">
@@ -175,8 +181,100 @@
           Receita por competência (vendas + OS finalizadas). CMV pelo preço de custo dos produtos vendidos.
           Despesas pelos lançamentos pagos no período, agrupados por categoria.</p>`;
     } catch (e) {
+      dreAtual = null;
       res.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>${e.message}</div>`;
     }
+  }
+
+  // ---- Exportar o DRE em PDF (carrega jsPDF do CDN se ainda não estiver na página) ----
+  async function carregarJsPDF() {
+    if (window.jspdf && window.jspdf.jsPDF) return true;
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    return !!(window.jspdf && window.jspdf.jsPDF);
+  }
+
+  async function exportarDREpdf() {
+    if (!dreAtual) { toast("Gere o DRE antes de exportar", "warning"); return; }
+    try {
+      const ok = await carregarJsPDF();
+      if (!ok) { toast("Não foi possível carregar o gerador de PDF", "error"); return; }
+    } catch (_) { toast("Não foi possível carregar o gerador de PDF", "error"); return; }
+
+    const d = dreAtual;
+    const cfg = Layout.config || {};
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const teal = [13, 148, 136];
+    const M = 16, LARG = 210 - M * 2;
+    let y = 16;
+
+    if (cfg.empresa_logo) {
+      try {
+        const f = cfg.empresa_logo.includes("image/png") ? "PNG" : "JPEG";
+        doc.addImage(cfg.empresa_logo, f, M, y, 22, 22);
+      } catch (_) {}
+    }
+    const xe = cfg.empresa_logo ? M + 27 : M;
+    doc.setFont("helvetica", "bold").setFontSize(14).setTextColor(20);
+    doc.text(cfg.empresa_nome || "Demonstrativo de Resultado", xe, y + 6);
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(90);
+    let ly = y + 11;
+    if (cfg.empresa_cnpj) { doc.text("CNPJ: " + cfg.empresa_cnpj, xe, ly); ly += 4; }
+    (Layout.enderecoLinhas ? Layout.enderecoLinhas() : []).forEach((l) => { doc.text(l, xe, ly); ly += 4; });
+
+    doc.setFont("helvetica", "bold").setFontSize(15).setTextColor(teal[0], teal[1], teal[2]);
+    doc.text("DRE — Demonstrativo de Resultado", 210 - M, y + 6, { align: "right" });
+    const per = `Período: ${fmt.data(d.inicio) || "—"} a ${fmt.data(d.fim) || "—"}`;
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(90);
+    doc.text(per, 210 - M, y + 12, { align: "right" });
+
+    y = Math.max(ly, y + 20) + 2;
+    doc.setDrawColor(teal[0], teal[1], teal[2]).setLineWidth(0.5).line(M, y, 210 - M, y);
+    y += 8;
+
+    const linha = (rot, val, opts = {}) => {
+      const bold = opts.forte || opts.total;
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(opts.total ? 11 : 10);
+      if (opts.total) {
+        const cor = val >= 0 ? [21, 128, 61] : [185, 28, 28];
+        doc.setFillColor(245, 245, 245);
+        doc.rect(M, y - 5, LARG, 8, "F");
+        doc.setTextColor(cor[0], cor[1], cor[2]);
+      } else {
+        doc.setTextColor(bold ? 20 : (opts.sub2 ? 120 : 60));
+      }
+      const rotulo = (opts.deducao ? "(-) " : "") + rot;
+      doc.text((opts.indent ? "    " : "") + rotulo, M + (opts.indent ? 4 : 0), y);
+      doc.text(fmt.moeda(val), 210 - M, y, { align: "right" });
+      y += opts.total ? 9 : 6.5;
+    };
+    const sep = () => { doc.setDrawColor(225).setLineWidth(0.2).line(M, y - 3, 210 - M, y - 3); };
+
+    linha("Receita Bruta de Vendas", d.receita_bruta, { forte: true });
+    linha("Vendas (PDV)", d.receita_pdv, { indent: true, sub2: true });
+    linha("Ordens de Serviço", d.receita_os, { indent: true, sub2: true });
+    linha("Deduções (impostos sobre venda)", d.deducoes, { deducao: true });
+    sep(); linha("Receita Líquida", d.receita_liquida, { forte: true });
+    linha("Custo das Peças/Serviços (CMV)", d.cmv, { deducao: true });
+    sep(); linha("Lucro Bruto", d.lucro_bruto, { forte: true });
+    linha("Despesas Operacionais", d.total_despesas, { forte: true });
+    (d.despesas || []).forEach((x) => linha(x.categoria, x.total, { indent: true, sub2: true }));
+    y += 2;
+    linha(`Resultado Líquido do Período  (margem ${d.margem}%)`, d.resultado, { total: true });
+
+    doc.setFont("helvetica", "italic").setFontSize(7.5).setTextColor(130);
+    doc.text("Receita por competência (vendas + OS finalizadas). CMV pelo preço de compra dos produtos vendidos. "
+      + "Despesas pelos lançamentos pagos no período. Documento gerencial, não contábil.",
+      M, 285, { maxWidth: LARG });
+
+    const nome = `DRE_${(d.inicio || "").replace(/-/g, "")}_${(d.fim || "").replace(/-/g, "")}.pdf`;
+    doc.save(nome);
   }
 
   async function abrir(id, nome) {
