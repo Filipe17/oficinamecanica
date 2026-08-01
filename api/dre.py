@@ -70,7 +70,7 @@ def dre():
     # Itens sem produto vinculado ou sem custo cadastrado entram como 0.
     cv, co = [], []
     cmv_pdv = query(
-        "SELECT COALESCE(SUM(vi.quantidade * COALESCE(p.preco_custo,0)),0) AS v "
+        "SELECT COALESCE(SUM(vi.quantidade * COALESCE(p.preco_compra,0)),0) AS v "
         "FROM venda_itens vi "
         "JOIN vendas v ON v.id=vi.venda_id "
         "LEFT JOIN produtos p ON p.id=vi.produto_id "
@@ -78,7 +78,7 @@ def dre():
         fetchone=True)["v"] or 0
 
     cmv_os = query(
-        "SELECT COALESCE(SUM(oi.quantidade * COALESCE(p.preco_custo,0)),0) AS v "
+        "SELECT COALESCE(SUM(oi.quantidade * COALESCE(p.preco_compra,0)),0) AS v "
         "FROM os_itens oi "
         "JOIN ordens_servico o ON o.id=oi.os_id "
         "LEFT JOIN produtos p ON p.id=oi.referencia_id "
