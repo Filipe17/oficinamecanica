@@ -136,10 +136,12 @@ def listar_servicos():
 def criar_servico():
     d = request.get_json(force=True)
     res = query(
-        "INSERT INTO servicos (descricao, tempo_medio, valor, garantia, categoria, comissao_percentual, criado_em) "
-        "VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO servicos (descricao, tempo_medio, valor, garantia, categoria, "
+        "comissao_percentual, codigo_servico, iss_percentual, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
         (d.get("descricao"), d.get("tempo_medio"), d.get("valor", 0),
-         d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0), now()),
+         d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0),
+         d.get("codigo_servico"), d.get("iss_percentual", 0), now()),
         commit=True,
     )
     return jsonify({"ok": True, "id": res["_lastid"]}), 201
@@ -149,9 +151,11 @@ def criar_servico():
 @login_obrigatorio
 def editar_servico(sid):
     d = request.get_json(force=True)
-    query("UPDATE servicos SET descricao=?, tempo_medio=?, valor=?, garantia=?, categoria=?, comissao_percentual=? WHERE id=?",
+    query("UPDATE servicos SET descricao=?, tempo_medio=?, valor=?, garantia=?, categoria=?, "
+          "comissao_percentual=?, codigo_servico=?, iss_percentual=? WHERE id=?",
           (d.get("descricao"), d.get("tempo_medio"), d.get("valor", 0),
-           d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0), sid), commit=True)
+           d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0),
+           d.get("codigo_servico"), d.get("iss_percentual", 0), sid), commit=True)
     return jsonify({"ok": True})
 
 
