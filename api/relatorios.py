@@ -116,6 +116,11 @@ RELATORIOS = {
 @login_obrigatorio
 def relatorio(nome):
     """Retorna os dados de um relatório em JSON (o front exporta PDF/Excel/CSV)."""
+    # "dre" e "comissoes" têm rotas próprias (dre_bp / rota dedicada). Se caírem
+    # aqui por ordem de registro do blueprint, devolvemos 404 discreto para não
+    # sequestrar essas rotas específicas.
+    if nome in ("dre", "comissoes"):
+        return jsonify({"erro": "Rota específica"}), 404
     if nome not in RELATORIOS:
         return jsonify({"erro": "Relatório inexistente"}), 404
     dados = query(RELATORIOS[nome])
