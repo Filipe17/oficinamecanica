@@ -6,6 +6,20 @@
   await Layout.iniciar("financeiro", "Financeiro");
 
   const FORMAS = ["pix", "cartao", "dinheiro", "boleto", "cheque", "carne"];
+
+  // Categorias para a DRE. As de "pagar" separam custo x despesa operacional;
+  // as de "receber" são simples. O usuário pode deixar em "— sem categoria —".
+  const CATEGORIAS = {
+    pagar: [
+      "Custo - Peças/Mercadorias", "Custo - Serviços de terceiros",
+      "Despesa - Aluguel", "Despesa - Pessoal/Salários", "Despesa - Água/Luz/Telefone",
+      "Despesa - Impostos/Taxas", "Despesa - Manutenção", "Despesa - Marketing",
+      "Despesa - Financeira (juros/tarifas)", "Despesa - Outras",
+    ],
+    receber: [
+      "Receita - Serviços", "Receita - Peças/Mercadorias", "Receita - Outras",
+    ],
+  };
   let tipo = "receber";
   let clientes = [], fornecedores = [];
   try {
@@ -66,13 +80,14 @@
       const rotulo = { aberto: "aberto", parcial: "parcial", pago: "pago", atrasado: "atrasado" };
       alvo.innerHTML = `<div class="table-wrap"><table class="data">
         <thead><tr><th>Descrição</th><th>${tipo === "receber" ? "Cliente" : "Fornecedor"}</th>
-          <th>Vencimento</th><th>Valor</th><th>Pago</th><th>Status</th><th></th></tr></thead>
+          <th>Categoria</th><th>Vencimento</th><th>Valor</th><th>Pago</th><th>Status</th><th></th></tr></thead>
         <tbody>${lista.map((f) => {
           const temEncargo = num(f.juros) + num(f.multa) > 0;
           const rest = restante(f);
           return `<tr>
           <td>${f.descricao || "-"}</td>
           <td>${(tipo === "receber" ? f.cliente_nome : f.fornecedor_nome) || "-"}</td>
+          <td>${f.categoria ? `<span class="badge badge--info">${f.categoria}</span>` : `<small class="muted">—</small>`}</td>
           <td>${fmt.data(f.vencimento)}</td>
           <td>${fmt.moeda(f.valor)}${temEncargo ? ` <i class="fa-solid fa-plus-circle" title="+ ${fmt.moeda(num(f.juros)+num(f.multa))} juros/multa"></i>` : ""}</td>
           <td>${num(f.valor_pago) ? fmt.moeda(f.valor_pago) : "-"}${f.status === "parcial" ? ` <small class="muted">(falta ${fmt.moeda(rest)})</small>` : ""}</td>
@@ -108,6 +123,9 @@
         <div class="field"><label>Multa (R$)</label><input type="number" step="0.01" name="multa" value="${val("multa", 0)}"></div>
         <div class="field"><label>Forma de pagamento</label><select name="forma_pagamento">
           ${FORMAS.map((f) => `<option value="${f}" ${val("forma_pagamento") === f ? "selected" : ""}>${f}</option>`).join("")}</select></div>
+        <div class="field"><label>Categoria (DRE)</label><select name="categoria">
+          <option value="">— sem categoria —</option>
+          ${(CATEGORIAS[tipo] || []).map((c) => `<option value="${c}" ${val("categoria") === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
       </div>`,
       `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
        <button class="btn btn--primary" id="fin-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`);
@@ -118,6 +136,7 @@
         valor: parseFloat(f.valor.value) || 0,
         vencimento: f.vencimento.value || null,
         forma_pagamento: f.forma_pagamento.value,
+        categoria: f.categoria.value || null,
         juros: parseFloat(f.juros.value) || 0,
         multa: parseFloat(f.multa.value) || 0,
         cliente_id: f.cliente_id ? (f.cliente_id.value || null) : null,
