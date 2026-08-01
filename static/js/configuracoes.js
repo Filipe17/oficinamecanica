@@ -68,6 +68,27 @@
           <input name="empresa_inscricao_estadual" value="${c.empresa_inscricao_estadual || ""}" placeholder="ISENTO ou número"></div>
       </div>
 
+      <h3 style="margin:22px 0 4px;font-size:15px">Nota Fiscal (Gateway)</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">Credenciais do provedor de nota fiscal (NF-e/NFS-e). Preencha após contratar o gateway.</p>
+      <div class="form-grid" id="cfg-form-fiscal">
+        <div class="field"><label>Provedor</label>
+          <select name="nfe_provedor">
+            ${["", "focus", "plugnotas", "nfeio", "enotas", "webmania"].map((p) => {
+              const nomes = { "": "— nenhum —", focus: "Focus NFe", plugnotas: "PlugNotas", nfeio: "NFe.io", enotas: "eNotas", webmania: "WebmaniaBR" };
+              return `<option value="${p}" ${(c.nfe_provedor || "") === p ? "selected" : ""}>${nomes[p]}</option>`;
+            }).join("")}
+          </select></div>
+        <div class="field"><label>Ambiente</label>
+          <select name="nfe_ambiente">
+            ${["homologacao", "producao"].map((a) =>
+              `<option value="${a}" ${(c.nfe_ambiente || "homologacao") === a ? "selected" : ""}>${a === "homologacao" ? "Homologação (teste)" : "Produção (valendo)"}</option>`).join("")}
+          </select></div>
+        <div class="field col-2"><label>Token do gateway</label>
+          <input name="nfe_token" value="${c.nfe_token || ""}" placeholder="Cole aqui o token/chave da API do provedor" autocomplete="off"></div>
+        <div class="field col-2"><label>Inscrição Municipal (para NFS-e)</label>
+          <input name="empresa_inscricao_municipal" value="${c.empresa_inscricao_municipal || ""}" placeholder="Número da inscrição na prefeitura"></div>
+      </div>
+
       <div class="cfg-logo">
         <label>Logo da empresa</label>
         <div class="cfg-logo__box">
@@ -143,7 +164,7 @@
 
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
-    const val = (n) => (campo(n)?.value || "").trim();
+    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"]`)?.value || "").trim();
     const dados = {
       empresa_nome: val("empresa_nome"),
       empresa_cnpj: val("empresa_cnpj"),
@@ -156,6 +177,10 @@
       empresa_estado: val("empresa_estado").toUpperCase(),
       empresa_regime_tributario: val("empresa_regime_tributario"),
       empresa_inscricao_estadual: val("empresa_inscricao_estadual"),
+      empresa_inscricao_municipal: val("empresa_inscricao_municipal"),
+      nfe_provedor: val("nfe_provedor"),
+      nfe_ambiente: val("nfe_ambiente"),
+      nfe_token: val("nfe_token"),
       empresa_logo: logoAtual,
     };
     try {
