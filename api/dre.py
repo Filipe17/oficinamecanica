@@ -73,7 +73,7 @@ def dre():
         "SELECT COALESCE(SUM(vi.quantidade * COALESCE(p.preco_custo,0)),0) AS v "
         "FROM venda_itens vi "
         "JOIN vendas v ON v.id=vi.venda_id "
-        "LEFT JOIN produtos p ON p.id=vi.referencia_id "
+        "LEFT JOIN produtos p ON p.id=vi.produto_id "
         "WHERE 1=1" + _periodo("v.criado_em", cv, inicio, fim), cv,
         fetchone=True)["v"] or 0
 
