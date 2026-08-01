@@ -35,6 +35,7 @@ from api.financeiro import financeiro_bp
 from api.pdv import pdv_bp
 from api.xml import xml_bp
 from api.relatorios import relatorios_bp
+from api.dre import dre_bp
 from api.permissoes import permissoes_bp, nivel_de
 from api.configuracoes import configuracoes_bp
 from api.caixa import caixa_bp
@@ -56,7 +57,7 @@ app.permanent_session_lifetime = timedelta(days=30)   # "lembrar acesso"
 
 # Registro dos Blueprints (cada módulo cuida de um domínio)
 for bp in (usuarios_bp, clientes_bp, veiculos_bp, produtos_bp, estoque_bp,
-           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, permissoes_bp,
+           os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, dre_bp, permissoes_bp,
            configuracoes_bp, caixa_bp):
     app.register_blueprint(bp)
 
