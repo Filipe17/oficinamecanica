@@ -482,6 +482,13 @@ def _migrar_colunas():
     # alíquota de ISS. Os produtos já têm NCM/CFOP/CEST para a NF-e.
     _garantir_coluna("servicos", "codigo_servico", "TEXT")     # item da lista municipal / LC 116
     _garantir_coluna("servicos", "iss_percentual", "REAL DEFAULT 0")
+    # Boleto bancário (registrado via provedor): dados retornados pela API.
+    _garantir_coluna("financeiro", "boleto_id", "TEXT")            # id da cobrança no provedor
+    _garantir_coluna("financeiro", "boleto_status", "TEXT")        # pendente, registrado, pago, cancelado, erro
+    _garantir_coluna("financeiro", "boleto_linha", "TEXT")         # linha digitável
+    _garantir_coluna("financeiro", "boleto_codigo_barras", "TEXT")
+    _garantir_coluna("financeiro", "boleto_url", "TEXT")           # link do PDF/fatura
+    _garantir_coluna("financeiro", "boleto_nosso_numero", "TEXT")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.

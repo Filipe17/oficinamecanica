@@ -89,6 +89,25 @@
           <input name="empresa_inscricao_municipal" value="${c.empresa_inscricao_municipal || ""}" placeholder="Número da inscrição na prefeitura"></div>
       </div>
 
+      <h3 style="margin:22px 0 4px;font-size:15px">Boleto Bancário (Provedor)</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">Credenciais do provedor de pagamento para emitir boletos registrados. Preencha após contratar.</p>
+      <div class="form-grid" id="cfg-form-boleto">
+        <div class="field"><label>Provedor</label>
+          <select name="boleto_provedor">
+            ${["", "asaas", "efi", "cora", "cobrefacil"].map((p) => {
+              const nomes = { "": "— nenhum —", asaas: "Asaas", efi: "Efí (Gerencianet)", cora: "Cora", cobrefacil: "Cobre Fácil" };
+              return `<option value="${p}" ${(c.boleto_provedor || "") === p ? "selected" : ""}>${nomes[p]}</option>`;
+            }).join("")}
+          </select></div>
+        <div class="field"><label>Ambiente</label>
+          <select name="boleto_ambiente">
+            ${["homologacao", "producao"].map((a) =>
+              `<option value="${a}" ${(c.boleto_ambiente || "homologacao") === a ? "selected" : ""}>${a === "homologacao" ? "Homologação (teste)" : "Produção (valendo)"}</option>`).join("")}
+          </select></div>
+        <div class="field col-2"><label>Token / chave da API do provedor</label>
+          <input name="boleto_token" value="${c.boleto_token || ""}" placeholder="Cole aqui a chave de API do provedor de boleto" autocomplete="off"></div>
+      </div>
+
       <div class="cfg-logo">
         <label>Logo da empresa</label>
         <div class="cfg-logo__box">
@@ -164,7 +183,7 @@
 
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
-    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"]`)?.value || "").trim();
+    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-boleto [name="${n}"]`)?.value || "").trim();
     const dados = {
       empresa_nome: val("empresa_nome"),
       empresa_cnpj: val("empresa_cnpj"),
@@ -181,6 +200,9 @@
       nfe_provedor: val("nfe_provedor"),
       nfe_ambiente: val("nfe_ambiente"),
       nfe_token: val("nfe_token"),
+      boleto_provedor: val("boleto_provedor"),
+      boleto_ambiente: val("boleto_ambiente"),
+      boleto_token: val("boleto_token"),
       empresa_logo: logoAtual,
     };
     try {

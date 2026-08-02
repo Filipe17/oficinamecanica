@@ -94,6 +94,9 @@
           <td><span class="badge badge--${tom[f.status] || ""}">${rotulo[f.status] || f.status}</span></td>
           <td class="text-right">
             ${f.status !== "pago" ? `<button class="icon-btn btn--sm" title="Baixar" onclick="window.__fin.baixar(${f.id})"><i class="fa-solid fa-check-double"></i></button>` : ""}
+            ${tipo === "receber" && f.status !== "pago" ? (f.boleto_url
+              ? `<a class="icon-btn btn--sm" title="Ver boleto" href="${f.boleto_url}" target="_blank"><i class="fa-solid fa-barcode"></i></a>`
+              : `<button class="icon-btn btn--sm" title="Gerar boleto" onclick="window.__fin.boleto(${f.id})"><i class="fa-solid fa-barcode"></i></button>`) : ""}
             ${f.status !== "pago" ? `<button class="icon-btn btn--sm" title="Editar" onclick="window.__fin.editar(${f.id})"><i class="fa-solid fa-pen"></i></button>` : ""}
             <button class="icon-btn btn--sm" title="Excluir" onclick="window.__fin.excluir(${f.id})"><i class="fa-solid fa-trash"></i></button>
           </td></tr>`;
@@ -194,6 +197,20 @@
     editar(id) {
       const f = cache.find((x) => x.id === id);
       if (f) abrirForm(f);
+    },
+    async boleto(id) {
+      if (!confirm("Gerar boleto para esta conta a receber?")) return;
+      try {
+        const r = await API.post(`/api/boletos/gerar/${id}`, {});
+        if (r.status === "nao_configurado") { toast(r.mensagem || "Provedor de boleto não configurado", "warning"); return; }
+        if (r.ok) {
+          toast("Boleto gerado");
+          if (r.boleto_url) window.open(r.boleto_url, "_blank");
+          carregar();
+        } else {
+          toast(r.mensagem || "Não foi possível gerar o boleto", "error");
+        }
+      } catch (e) { toast(e.message, "error"); }
     },
     async excluir(id) {
       if (!confirm("Excluir este lançamento?")) return;

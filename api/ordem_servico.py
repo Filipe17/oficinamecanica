@@ -284,7 +284,7 @@ def finalizar(oid):
     # (forma de pagamento fica em aberto: é o caixa que define ao dar baixa)
     d = request.get_json(silent=True) or {}
     if o.get("eh_orcamento") == 1 and d.get("gerar_financeiro"):
-        query(
+        rfin = query(
             "INSERT INTO financeiro (tipo, descricao, cliente_id, os_id, valor, "
             "vencimento, forma_pagamento, status, criado_em) "
             "VALUES ('receber',?,?,?,?,?,?, 'aberto', ?)",
@@ -292,6 +292,17 @@ def finalizar(oid):
              d.get("vencimento", now()), d.get("forma_pagamento"), now()),
             commit=True,
         )
+        fin_id = rfin["_lastid"]
+        # Se a forma escolhida for boleto, tenta gerar o boleto automaticamente.
+        # Falha aqui (ex.: provedor não configurado) NÃO quebra a finalização —
+        # a conta a receber fica criada e o boleto pode ser gerado manualmente.
+        forma = (d.get("forma_pagamento") or "").lower()
+        if "boleto" in forma:
+            try:
+                from api.boletos import gerar_boleto_interno
+                gerar_boleto_interno(fin_id)
+            except Exception:
+                pass
     registrar_log(session["user_id"], "finalizar_os", str(oid))
     return jsonify({"ok": True})
 
