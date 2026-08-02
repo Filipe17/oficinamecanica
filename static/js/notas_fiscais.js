@@ -17,14 +17,55 @@
     erro: { tom: "danger", txt: "Erro" },
   };
 
+  const hojeISO = () => new Date().toISOString().slice(0, 10);
+  const primeiroDiaMes = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
+
   Layout.set(`
     <div class="page-head">
       <div><h1>Notas Fiscais</h1><p>Emita NF-e (peças) e NFS-e (serviços) a partir das OS finalizadas</p></div>
     </div>
+
+    <div class="card" style="margin-bottom:16px"><div class="card__body">
+      <div class="toolbar" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div><label style="display:block;font-size:12px;color:var(--muted)">Exportar XMLs — De</label>
+          <input type="date" id="nf-exp-inicio" value="${primeiroDiaMes()}"></div>
+        <div><label style="display:block;font-size:12px;color:var(--muted)">Até</label>
+          <input type="date" id="nf-exp-fim" value="${hojeISO()}"></div>
+        <div><label style="display:block;font-size:12px;color:var(--muted)">Tipo</label>
+          <select id="nf-exp-tipo"><option value="">Todas</option><option value="nfe">NF-e</option><option value="nfse">NFS-e</option></select></div>
+        <button class="btn btn--ghost btn--sm" id="nf-exp-baixar"><i class="fa-solid fa-file-zipper"></i> Baixar XMLs (zip)</button>
+        <span id="nf-exp-info" class="text-muted" style="font-size:12px"></span>
+      </div>
+      <p class="text-muted" style="margin:8px 0 0;font-size:12px">Baixa os XMLs das notas autorizadas do período, para enviar ao contador (SPED).</p>
+    </div></div>
+
     <div class="card"><div class="card__body" id="nf-tabela">
       <div class="loading"><i class="fa-solid fa-spinner spin"></i></div>
     </div></div>
   `);
+
+  // Exportação de XMLs
+  async function atualizarInfoExport() {
+    try {
+      const ini = document.getElementById("nf-exp-inicio").value;
+      const fim = document.getElementById("nf-exp-fim").value;
+      const tipo = document.getElementById("nf-exp-tipo").value;
+      const r = await API.get(`/api/notas/exportar?inicio=${ini}&fim=${fim}&tipo=${tipo}`);
+      const info = document.getElementById("nf-exp-info");
+      info.textContent = r.total
+        ? `${r.com_xml} de ${r.total} nota(s) com XML — total ${fmt.moeda(r.valor_total)}`
+        : "Nenhuma nota autorizada no período";
+    } catch (_) {}
+  }
+  ["nf-exp-inicio", "nf-exp-fim", "nf-exp-tipo"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", atualizarInfoExport));
+  document.getElementById("nf-exp-baixar").onclick = () => {
+    const ini = document.getElementById("nf-exp-inicio").value;
+    const fim = document.getElementById("nf-exp-fim").value;
+    const tipo = document.getElementById("nf-exp-tipo").value;
+    window.location.href = `/api/notas/exportar/zip?inicio=${ini}&fim=${fim}&tipo=${tipo}`;
+  };
+  atualizarInfoExport();
 
   function badge(nota) {
     const s = STATUS[nota.status] || { tom: "muted", txt: nota.status };
