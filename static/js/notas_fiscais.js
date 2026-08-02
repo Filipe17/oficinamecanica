@@ -76,6 +76,7 @@
       try {
         const r = await API.post("/api/notas/emitir", { os_id: oid, tipo });
         if (r.status === "autorizada") toast(`${nome} autorizada`);
+        else if (r.status === "nao_configurado") toast(r.mensagem || "Configure o gateway em Configurações", "warning");
         else if (r.status === "pendente") toast(r.mensagem || "Emissão pendente (gateway não configurado)", "warning");
         else toast(r.mensagem || `Status: ${r.status}`, r.ok ? "success" : "error");
         carregar();
