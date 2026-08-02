@@ -89,23 +89,49 @@
           <input name="empresa_inscricao_municipal" value="${c.empresa_inscricao_municipal || ""}" placeholder="Número da inscrição na prefeitura"></div>
       </div>
 
-      <h3 style="margin:22px 0 4px;font-size:15px">Boleto Bancário (Provedor)</h3>
-      <p class="text-muted" style="margin:0 0 12px;font-size:13px">Credenciais do provedor de pagamento para emitir boletos registrados. Preencha após contratar.</p>
+      <h3 style="margin:22px 0 4px;font-size:15px">Boleto Bancário</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">Escolha como os boletos serão emitidos. Preencha após contratar/habilitar.</p>
       <div class="form-grid" id="cfg-form-boleto">
-        <div class="field"><label>Provedor</label>
+        <div class="field col-2"><label>Método de emissão</label>
+          <select name="boleto_metodo" id="cfg-boleto-metodo">
+            ${[["", "— nenhum —"], ["provedor", "Via provedor (Asaas/Efí/Cora)"], ["banco", "Direto pelo banco"]].map(([v, t]) =>
+              `<option value="${v}" ${(c.boleto_metodo || "") === v ? "selected" : ""}>${t}</option>`).join("")}
+          </select></div>
+
+        <!-- Campos do PROVEDOR -->
+        <div class="field boleto-prov"><label>Provedor</label>
           <select name="boleto_provedor">
             ${["", "asaas", "efi", "cora", "cobrefacil"].map((p) => {
               const nomes = { "": "— nenhum —", asaas: "Asaas", efi: "Efí (Gerencianet)", cora: "Cora", cobrefacil: "Cobre Fácil" };
               return `<option value="${p}" ${(c.boleto_provedor || "") === p ? "selected" : ""}>${nomes[p]}</option>`;
             }).join("")}
           </select></div>
-        <div class="field"><label>Ambiente</label>
+        <div class="field boleto-prov"><label>Ambiente</label>
           <select name="boleto_ambiente">
             ${["homologacao", "producao"].map((a) =>
               `<option value="${a}" ${(c.boleto_ambiente || "homologacao") === a ? "selected" : ""}>${a === "homologacao" ? "Homologação (teste)" : "Produção (valendo)"}</option>`).join("")}
           </select></div>
-        <div class="field col-2"><label>Token / chave da API do provedor</label>
+        <div class="field col-2 boleto-prov"><label>Token / chave da API do provedor</label>
           <input name="boleto_token" value="${c.boleto_token || ""}" placeholder="Cole aqui a chave de API do provedor de boleto" autocomplete="off"></div>
+
+        <!-- Campos do BANCO (genéricos por enquanto; os específicos vêm ao implementar o banco) -->
+        <div class="field boleto-banco"><label>Banco</label>
+          <input name="boleto_banco" value="${c.boleto_banco || ""}" placeholder="Ex: Banco do Brasil, Sicoob…"></div>
+        <div class="field boleto-banco"><label>Agência</label>
+          <input name="boleto_agencia" value="${c.boleto_agencia || ""}" placeholder="0000"></div>
+        <div class="field boleto-banco"><label>Conta</label>
+          <input name="boleto_conta" value="${c.boleto_conta || ""}" placeholder="00000-0"></div>
+        <div class="field boleto-banco"><label>Convênio / Cedente</label>
+          <input name="boleto_convenio" value="${c.boleto_convenio || ""}" placeholder="Código do convênio/beneficiário"></div>
+        <div class="field boleto-banco"><label>Carteira</label>
+          <input name="boleto_carteira" value="${c.boleto_carteira || ""}" placeholder="Ex: 17, 09, 109…"></div>
+        <div class="field boleto-banco"><label>Ambiente</label>
+          <select name="boleto_banco_ambiente">
+            ${["homologacao", "producao"].map((a) =>
+              `<option value="${a}" ${(c.boleto_banco_ambiente || "homologacao") === a ? "selected" : ""}>${a === "homologacao" ? "Homologação (teste)" : "Produção (valendo)"}</option>`).join("")}
+          </select></div>
+        <div class="field col-2 boleto-banco"><label>Credenciais da API (Client ID / Secret)</label>
+          <input name="boleto_banco_credenciais" value="${c.boleto_banco_credenciais || ""}" placeholder="Definiremos os campos exatos ao integrar o banco escolhido" autocomplete="off"></div>
       </div>
 
       <div class="cfg-logo">
@@ -181,6 +207,15 @@
     btnRemover.style.display = "none";
   };
 
+  /* ---------------- alterna campos de boleto conforme o método ---------------- */
+  const metodoSel = document.getElementById("cfg-boleto-metodo");
+  function alternarBoleto() {
+    const m = metodoSel ? metodoSel.value : "";
+    document.querySelectorAll(".boleto-prov").forEach((el) => el.style.display = (m === "provedor") ? "" : "none");
+    document.querySelectorAll(".boleto-banco").forEach((el) => el.style.display = (m === "banco") ? "" : "none");
+  }
+  if (metodoSel) { metodoSel.addEventListener("change", alternarBoleto); alternarBoleto(); }
+
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
     const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-boleto [name="${n}"]`)?.value || "").trim();
@@ -200,9 +235,17 @@
       nfe_provedor: val("nfe_provedor"),
       nfe_ambiente: val("nfe_ambiente"),
       nfe_token: val("nfe_token"),
+      boleto_metodo: val("boleto_metodo"),
       boleto_provedor: val("boleto_provedor"),
       boleto_ambiente: val("boleto_ambiente"),
       boleto_token: val("boleto_token"),
+      boleto_banco: val("boleto_banco"),
+      boleto_agencia: val("boleto_agencia"),
+      boleto_conta: val("boleto_conta"),
+      boleto_convenio: val("boleto_convenio"),
+      boleto_carteira: val("boleto_carteira"),
+      boleto_banco_ambiente: val("boleto_banco_ambiente"),
+      boleto_banco_credenciais: val("boleto_banco_credenciais"),
       empresa_logo: logoAtual,
     };
     try {
