@@ -21,7 +21,9 @@ CHAVES = ["empresa_nome", "empresa_cnpj", "empresa_telefone", "empresa_cep",
           "empresa_estado", "empresa_logo",
           "empresa_regime_tributario", "empresa_inscricao_estadual",
           "empresa_inscricao_municipal", "nfe_provedor", "nfe_ambiente", "nfe_token",
-          "boleto_provedor", "boleto_ambiente", "boleto_token"]
+          "boleto_provedor", "boleto_ambiente", "boleto_token", "boleto_metodo",
+          "boleto_banco", "boleto_agencia", "boleto_conta", "boleto_convenio",
+          "boleto_carteira", "boleto_banco_ambiente", "boleto_banco_credenciais"]
 
 # Limite da logo em base64 (~400 KB de imagem) para não inchar o banco/respostas.
 LIMITE_LOGO = 600_000
