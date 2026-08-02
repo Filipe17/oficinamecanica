@@ -30,7 +30,7 @@
     cancelado: { tom: "muted", txt: "Cancelado" },
   };
 
-  let modo = "lista";              // 'lista' ou 'calendario'
+  let modo = "calendario";        // fixo: só calendário
   let mesRef = new Date();         // mês exibido no calendário
   let cache = [];                  // agendamentos carregados
 
@@ -41,21 +41,11 @@
   Layout.set(`
     <div class="page-head">
       <div><h1>Agendamentos</h1><p>Agenda de entrada dos veículos</p></div>
-      ${soLeitura ? "" : `<button class="btn btn--primary" id="ag-novo"><i class="fa-solid fa-plus"></i> Novo agendamento</button>`}
-    </div>
-    <div class="tabs" id="ag-tabs">
-      <button class="tab active" data-modo="lista"><i class="fa-solid fa-list"></i> Lista</button>
-      <button class="tab" data-modo="calendario"><i class="fa-solid fa-calendar-days"></i> Calendário</button>
     </div>
     <div id="ag-conteudo"><div class="loading"><i class="fa-solid fa-spinner spin"></i></div></div>
   `);
 
-  if (!soLeitura) document.getElementById("ag-novo").onclick = () => abrirForm();
-  document.getElementById("ag-tabs").addEventListener("click", (e) => {
-    const b = e.target.closest(".tab"); if (!b) return;
-    document.querySelectorAll("#ag-tabs .tab").forEach((t) => t.classList.remove("active"));
-    b.classList.add("active"); modo = b.dataset.modo; render();
-  });
+  // Sem botão/abas: a agenda é só o calendário. Criar = clicar num dia.
 
   async function carregar() {
     // Carrega um range amplo (mês anterior ao próximo) para cobrir lista e calendário.
