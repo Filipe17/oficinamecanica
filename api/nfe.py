@@ -292,3 +292,86 @@ def detalhe_nota(nid):
     if not n:
         return jsonify({"erro": "Nota não encontrada"}), 404
     return jsonify(n)
+
+
+# =========================================================================
+# Exportação de XMLs para o contador (SPED é gerado por ele a partir daqui)
+# =========================================================================
+@nfe_bp.route("/api/notas/exportar", methods=["GET"])
+@login_obrigatorio
+@perfil_permitido("administrador", "gerente", "financeiro")
+def exportar_lista():
+    """
+    Lista as notas autorizadas do período (para a tela de exportação).
+    Parâmetros: inicio, fim (YYYY-MM-DD), tipo (nfe|nfse|'' para ambos).
+    """
+    inicio = request.args.get("inicio", "").strip()
+    fim = request.args.get("fim", "").strip()
+    tipo = request.args.get("tipo", "").strip()
+
+    where = ["status='autorizada'"]
+    params = []
+    if inicio:
+        where.append("substr(criado_em,1,10) >= ?"); params.append(inicio)
+    if fim:
+        where.append("substr(criado_em,1,10) <= ?"); params.append(fim)
+    if tipo in ("nfe", "nfse"):
+        where.append("tipo = ?"); params.append(tipo)
+
+    notas = query(
+        f"SELECT n.id, n.os_id, n.tipo, n.numero, n.chave, n.valor, n.criado_em, "
+        f"CASE WHEN n.xml IS NULL OR n.xml='' THEN 0 ELSE 1 END AS tem_xml, "
+        f"o.numero AS os_numero FROM notas_fiscais n "
+        f"LEFT JOIN ordens_servico o ON o.id=n.os_id "
+        f"WHERE {' AND '.join(where)} ORDER BY n.criado_em, n.id", params)
+    com_xml = sum(1 for n in notas if n["tem_xml"])
+    total_valor = sum(n["valor"] or 0 for n in notas)
+    return jsonify({"dados": notas, "total": len(notas),
+                    "com_xml": com_xml, "valor_total": round(total_valor, 2)})
+
+
+@nfe_bp.route("/api/notas/exportar/zip", methods=["GET"])
+@login_obrigatorio
+@perfil_permitido("administrador", "gerente", "financeiro")
+def exportar_zip():
+    """
+    Gera um .zip com os XMLs das notas autorizadas do período (download).
+    Só inclui notas que tenham XML gravado.
+    """
+    import io
+    import zipfile
+    from flask import Response
+
+    inicio = request.args.get("inicio", "").strip()
+    fim = request.args.get("fim", "").strip()
+    tipo = request.args.get("tipo", "").strip()
+
+    where = ["status='autorizada'", "xml IS NOT NULL", "xml <> ''"]
+    params = []
+    if inicio:
+        where.append("substr(criado_em,1,10) >= ?"); params.append(inicio)
+    if fim:
+        where.append("substr(criado_em,1,10) <= ?"); params.append(fim)
+    if tipo in ("nfe", "nfse"):
+        where.append("tipo = ?"); params.append(tipo)
+
+    notas = query(
+        f"SELECT id, tipo, numero, chave, xml FROM notas_fiscais "
+        f"WHERE {' AND '.join(where)} ORDER BY criado_em, id", params)
+
+    if not notas:
+        return jsonify({"erro": "Nenhuma nota com XML no período selecionado"}), 404
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for n in notas:
+            base = n.get("chave") or n.get("numero") or f"id{n['id']}"
+            nome = f"{n['tipo']}_{base}.xml"
+            zf.writestr(nome, n["xml"] or "")
+    buf.seek(0)
+
+    periodo = f"{inicio or 'inicio'}_a_{fim or 'fim'}"
+    registrar_log(session["user_id"], "exportar_xml_notas", f"{len(notas)} notas ({periodo})")
+    return Response(
+        buf.getvalue(), mimetype="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=notas_{periodo}.zip"})
