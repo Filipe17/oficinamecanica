@@ -265,6 +265,16 @@ def emitir():
         payload = _montar_nfse(o, servicos)
 
     ambiente = _gateway_cfg()["ambiente"]
+
+    # Sem gateway configurado, não registra nada (evita notas "pendentes" fantasma).
+    gw = _gateway_cfg()
+    if not gw["provedor"] or not gw["token"]:
+        return jsonify({
+            "ok": False, "status": "nao_configurado",
+            "mensagem": "Gateway fiscal não configurado. Preencha o provedor e o token "
+                        "em Configurações antes de emitir."
+        }), 400
+
     resultado = _transmitir(tipo, payload, ambiente)
     nota_id = _registrar_nota(oid, tipo, ambiente, payload, resultado)
 
