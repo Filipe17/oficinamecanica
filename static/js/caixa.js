@@ -264,19 +264,67 @@
         <div class="cx-formas" id="rc-formas">
           ${FORMAS.map((f, i) => `<button type="button" class="cx-forma ${i === 0 ? "ativa" : ""}" data-f="${f}">${f}</button>`).join("")}
         </div>
+      </div>
+      <div id="rc-cartao" style="display:none;border-top:1px solid var(--border,#e5e7eb);margin-top:10px;padding-top:10px">
+        <div class="cx-campo"><span>Modalidade</span>
+          <select id="rc-modalidade" style="width:100%">
+            <option value="credito">Crédito</option><option value="debito">Débito</option>
+          </select></div>
+        <div class="cx-campo"><span>Bandeira</span>
+          <input id="rc-bandeira" placeholder="Visa, Master, Elo… (ou deixe vazio)"></div>
+        <div class="cx-campo"><span>Parcelas</span>
+          <input id="rc-parcelas" type="number" min="1" max="24" value="1"></div>
+        <p id="rc-liquido" class="text-muted" style="margin:6px 0 0;font-size:13px"></p>
       </div>`,
       `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
        <button class="btn btn--success" id="rc-ok"><i class="fa-solid fa-check"></i> Confirmar recebimento</button>`);
+
+    const blocoCartao = document.getElementById("rc-cartao");
+    let liquidoInfo = null;
+
+    async function recalcCartao() {
+      if (forma !== "cartao") { liquidoInfo = null; return; }
+      const valor_pago = parseFloat(document.getElementById("rc-valor").value) || 0;
+      const body = {
+        valor: valor_pago,
+        modalidade: document.getElementById("rc-modalidade").value,
+        parcelas: parseInt(document.getElementById("rc-parcelas").value) || 1,
+        bandeira: document.getElementById("rc-bandeira").value.trim(),
+      };
+      try {
+        const r = await cx("POST", "/api/caixa/cartao-calcular", body);
+        liquidoInfo = r;
+        const el = document.getElementById("rc-liquido");
+        el.innerHTML = r.sem_taxa_cadastrada
+          ? `<span style="color:#b91c1c">Sem taxa cadastrada para essa opção — líquido = bruto.</span>`
+          : `Taxa: <b>${(r.percentual || 0).toFixed(2)}%</b> · Desconto: ${money(r.desconto)} · Líquido: <b>${money(r.valor_liquido)}</b>`;
+      } catch (_) { liquidoInfo = null; }
+    }
+
     document.querySelectorAll("#rc-formas .cx-forma").forEach((b) => {
       b.onclick = () => {
         document.querySelectorAll("#rc-formas .cx-forma").forEach((x) => x.classList.remove("ativa"));
         b.classList.add("ativa"); forma = b.dataset.f;
+        const ehCartao = forma === "cartao";
+        blocoCartao.style.display = ehCartao ? "" : "none";
+        if (ehCartao) recalcCartao();
       };
     });
+    ["rc-modalidade", "rc-bandeira", "rc-parcelas", "rc-valor"].forEach((id) =>
+      document.getElementById(id).addEventListener("change", recalcCartao));
+
     document.getElementById("rc-ok").onclick = async () => {
       const valor_pago = parseFloat(document.getElementById("rc-valor").value) || 0;
+      const body = { forma_pagamento: forma, valor_pago };
+      if (forma === "cartao") {
+        body.cartao_modalidade = document.getElementById("rc-modalidade").value;
+        body.cartao_bandeira = document.getElementById("rc-bandeira").value.trim();
+        body.cartao_parcelas = parseInt(document.getElementById("rc-parcelas").value) || 1;
+        body.cartao_taxa = liquidoInfo ? liquidoInfo.percentual : 0;
+        body.cartao_valor_liquido = liquidoInfo ? liquidoInfo.valor_liquido : valor_pago;
+      }
       try {
-        await cx("POST", `/api/caixa/receber/${fid}`, { forma_pagamento: forma, valor_pago });
+        await cx("POST", `/api/caixa/receber/${fid}`, body);
         Modal.fechar(); toast("Recebimento registrado"); boot();
       } catch (e) { toast(e.message, "error"); }
     };
