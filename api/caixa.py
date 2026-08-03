@@ -154,6 +154,23 @@ def cobrancas_abertas():
     return jsonify({"dados": lista})
 
 
+@caixa_bp.route("/api/caixa/cartao-calcular", methods=["POST"])
+def cartao_calcular():
+    """Calcula taxa e líquido do cartão usando a sessão do caixa (token próprio)."""
+    op = _operador()
+    if not op:
+        return jsonify({"erro": "Sessão de caixa inválida"}), 401
+    from api.cartao import taxa_aplicavel
+    d = request.get_json(force=True)
+    valor = float(d.get("valor") or 0)
+    t = taxa_aplicavel(d.get("modalidade"), d.get("parcelas"), d.get("bandeira") or None)
+    pct = float(t["percentual"]) if t else 0.0
+    desconto = round(valor * pct / 100, 2)
+    return jsonify({"percentual": pct, "desconto": desconto,
+                    "valor_liquido": round(valor - desconto, 2),
+                    "sem_taxa_cadastrada": t is None})
+
+
 @caixa_bp.route("/api/caixa/receber/<int:fid>", methods=["POST"])
 def receber(fid):
     op = _operador()
@@ -172,8 +189,25 @@ def receber(fid):
     if not forma:
         return jsonify({"erro": "Escolha a forma de pagamento"}), 400
     valor_pago = float(d.get("valor_pago", reg["valor"]) or 0)
-    query("UPDATE financeiro SET status='pago', valor_pago=?, pago_em=?, forma_pagamento=? WHERE id=?",
-          (valor_pago, now(), forma, fid), commit=True)
+
+    # Dados de cartão (quando a forma for cartão): grava bandeira/parcelas/taxa
+    # e o valor líquido para alimentar o controle de vendas no cartão.
+    if forma == "cartao":
+        from api.cartao import taxa_aplicavel
+        modalidade = d.get("cartao_modalidade") or "credito"
+        parcelas = int(d.get("cartao_parcelas") or 1)
+        bandeira = d.get("cartao_bandeira") or None
+        t = taxa_aplicavel(modalidade, parcelas, bandeira)
+        pct = float(t["percentual"]) if t else 0.0
+        liquido = round(valor_pago - (valor_pago * pct / 100), 2)
+        query("UPDATE financeiro SET status='pago', valor_pago=?, pago_em=?, forma_pagamento=?, "
+              "cartao_bandeira=?, cartao_modalidade=?, cartao_parcelas=?, cartao_taxa=?, "
+              "cartao_valor_liquido=? WHERE id=?",
+              (valor_pago, now(), forma, bandeira, modalidade, parcelas, pct, liquido, fid),
+              commit=True)
+    else:
+        query("UPDATE financeiro SET status='pago', valor_pago=?, pago_em=?, forma_pagamento=? WHERE id=?",
+              (valor_pago, now(), forma, fid), commit=True)
     motivo = f"{reg['descricao'] or 'Recebimento'} ({forma})"
     query("INSERT INTO caixa_mov (caixa_id, tipo, valor, motivo, criado_em) VALUES (?,?,?,?,?)",
           (caixa["id"], "recebimento", valor_pago, motivo, now()), commit=True)
