@@ -196,7 +196,7 @@
         data: f.data.value || null,
         hora: f.hora.value || null,
         descricao: f.descricao.value.trim(),
-        status: f.status ? f.status.value : "agendado",
+        status: (f.status && f.status.value) ? f.status.value : "agendado",
       };
       if (!dados.cliente_id || !dados.data) { toast("Informe cliente e data", "warning"); return; }
       try {

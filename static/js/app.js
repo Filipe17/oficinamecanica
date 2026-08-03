@@ -143,6 +143,8 @@ const MENU = [
   { grupo: "Sistema", itens: [
     { id: "relatorios", nome: "Relatórios", icone: "fa-chart-column" },
     { id: "notas_fiscais", nome: "Notas Fiscais", icone: "fa-file-invoice" },
+    { id: "cartao", nome: "Cartão / Taxas", icone: "fa-credit-card" },
+    { id: "cheques", nome: "Cheques", icone: "fa-money-check" },
     { id: "usuarios", nome: "Usuários", icone: "fa-user-gear" },
     { id: "permissoes", nome: "Permissões", icone: "fa-user-shield" },
     { id: "configuracoes", nome: "Configurações", icone: "fa-gear" },
@@ -157,7 +159,7 @@ const MODULO_DO_ITEM = {
   ordem_servico: "ordem_servico", orcamentos: "orcamentos", agendamentos: "agendamentos",
   servicos: "servicos", produtos: "produtos", estoque: "estoque", xml: "xml",
   financeiro: "financeiro", cobrancas: "financeiro", caixa: "caixa",
-  relatorios: "relatorios", notas_fiscais: "notas_fiscais", usuarios: "usuarios", logs: "logs",
+  relatorios: "relatorios", notas_fiscais: "notas_fiscais", cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
 };
 
 /* ---------------------- Layout: monta a "casca" da página ---------------------- */
