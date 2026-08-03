@@ -85,12 +85,13 @@
        <button class="btn btn--primary" id="ct-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`);
     document.getElementById("ct-salvar").onclick = async () => {
       const f = document.getElementById("ct-form");
+      const val = (n) => { const el = f.querySelector(`[name="${n}"]`); return el ? el.value : ""; };
       const dados = {
-        bandeira: f.bandeira.value.trim() || "Todas",
-        modalidade: f.modalidade.value,
-        parcelas: parseInt(f.parcelas.value) || 1,
-        percentual: parseFloat(f.percentual.value) || 0,
-        prazo_dias: parseInt(f.prazo_dias.value) || 30,
+        bandeira: val("bandeira").trim() || "Todas",
+        modalidade: val("modalidade"),
+        parcelas: parseInt(val("parcelas")) || 1,
+        percentual: parseFloat(val("percentual")) || 0,
+        prazo_dias: parseInt(val("prazo_dias")) || 30,
       };
       try {
         if (ed) await API.put(`/api/cartao/taxas/${reg.id}`, dados);

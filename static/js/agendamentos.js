@@ -188,15 +188,17 @@
 
     document.getElementById("ag-salvar").onclick = async () => {
       const f = document.getElementById("ag-form");
+      const g = (n) => f.querySelector(`[name="${n}"]`);          // ag-form é uma div, não um <form>
+      const val = (n) => { const el = g(n); return el ? el.value : ""; };
       const dados = {
-        cliente_id: f.cliente_id.value || null,
-        veiculo_id: f.veiculo_id.value || null,
-        servico_id: f.servico_id.value || null,
-        mecanico_id: f.mecanico_id.value || null,
-        data: f.data.value || null,
-        hora: f.hora.value || null,
-        descricao: f.descricao.value.trim(),
-        status: (f.status && f.status.value) ? f.status.value : "agendado",
+        cliente_id: val("cliente_id") || null,
+        veiculo_id: val("veiculo_id") || null,
+        servico_id: val("servico_id") || null,
+        mecanico_id: val("mecanico_id") || null,
+        data: val("data") || null,
+        hora: val("hora") || null,
+        descricao: (val("descricao") || "").trim(),
+        status: val("status") || "agendado",
       };
       if (!dados.cliente_id || !dados.data) { toast("Informe cliente e data", "warning"); return; }
       try {

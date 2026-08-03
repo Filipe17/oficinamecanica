@@ -139,19 +139,21 @@
        <button class="btn btn--primary" id="ch-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`);
     document.getElementById("ch-salvar").onclick = async () => {
       const f = document.getElementById("ch-form");
+      const g = (n) => f.querySelector(`[name="${n}"]`);   // ch-form é uma div
+      const val = (n) => { const el = g(n); return el ? el.value : ""; };
       const dados = {
         tipo: t,
-        numero: f.numero.value.trim(),
-        valor: parseFloat(f.valor.value) || 0,
-        banco: f.banco.value.trim(),
-        agencia: f.agencia.value.trim(),
-        conta: f.conta.value.trim(),
-        titular: f.titular.value.trim(),
-        cliente_id: f.cliente_id ? (f.cliente_id.value || null) : null,
-        fornecedor_id: f.fornecedor_id ? (f.fornecedor_id.value || null) : null,
-        emissao: f.emissao.value || null,
-        bom_para: f.bom_para.value || null,
-        observacao: f.observacao.value.trim(),
+        numero: val("numero").trim(),
+        valor: parseFloat(val("valor")) || 0,
+        banco: val("banco").trim(),
+        agencia: val("agencia").trim(),
+        conta: val("conta").trim(),
+        titular: val("titular").trim(),
+        cliente_id: val("cliente_id") || null,
+        fornecedor_id: val("fornecedor_id") || null,
+        emissao: val("emissao") || null,
+        bom_para: val("bom_para") || null,
+        observacao: val("observacao").trim(),
       };
       if (!dados.valor) { toast("Informe o valor do cheque", "warning"); return; }
       try {
