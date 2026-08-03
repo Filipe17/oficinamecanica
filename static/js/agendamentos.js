@@ -30,6 +30,8 @@
     cancelado: { tom: "muted", txt: "Cancelado" },
   };
 
+  let tipo = "recebido";  // (não usado aqui, placeholder seguro)
+  const LIMITE_DIA = 3;   // deve bater com LIMITE_POR_DIA no backend (agendamentos.py)
   let modo = "calendario";        // fixo: só calendário
   let mesRef = new Date();         // mês exibido no calendário
   let cache = [];                  // agendamentos carregados
@@ -122,8 +124,13 @@
       const dataIso = iso(new Date(mesRef.getFullYear(), mesRef.getMonth(), dia));
       const doDia = (porDia[dataIso] || []).sort((a, b) => (a.hora || "").localeCompare(b.hora || ""));
       const hoje = dataIso === iso(new Date());
-      celulas += `<div class="cal-cel ${hoje ? "cal-cel--hoje" : ""}" ${soLeitura ? "" : `data-nova="${dataIso}"`}>
-        <div class="cal-dia">${dia}</div>
+      const ativos = doDia.filter((a) => a.status !== "cancelado").length;
+      const lotado = ativos >= LIMITE_DIA;
+      const contador = ativos > 0
+        ? `<span class="cal-cont ${lotado ? "cal-cont--cheio" : ""}">${lotado ? "Lotado " : ""}${ativos}/${LIMITE_DIA}</span>`
+        : "";
+      celulas += `<div class="cal-cel ${hoje ? "cal-cel--hoje" : ""} ${lotado ? "cal-cel--lotado" : ""}" ${soLeitura || lotado ? "" : `data-nova="${dataIso}"`}>
+        <div class="cal-dia">${dia} ${contador}</div>
         ${doDia.map((a) => {
           const s = STATUS[a.status] || {};
           return `<div class="cal-item cal-item--${s.tom}" title="${a.cliente_nome || ""} ${a.veiculo_placa || ""}" onclick="event.stopPropagation();window.__ag.editar(${a.id})">
