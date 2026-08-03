@@ -45,3 +45,12 @@
   .cal-cel { min-height: 64px; }
   .cal-item { font-size: 10px; }
 }
+
+/* Indicador de lotação do dia */
+.cal-cont {
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+  background: rgba(13,148,136,.15); color: #0d9488; margin-left: 4px;
+}
+.cal-cont--cheio { background: rgba(185,28,28,.15); color: #b91c1c; }
+.cal-cel--lotado { background: rgba(185,28,28,.04); cursor: default; }
+.cal-cel--lotado:hover { background: rgba(185,28,28,.04); }
