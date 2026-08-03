@@ -179,11 +179,11 @@
           <select name="status">${Object.entries(STATUS).map(([k, s]) => `<option value="${k}" ${v("status") === k ? "selected" : ""}>${s.txt}</option>`).join("")}</select></div>` : ""}
       </div>`,
       `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
-       ${ed && !reg.os_id && reg.status !== "cancelado" ? `<button class="btn btn--success" id="ag-gerar-os"><i class="fa-solid fa-screwdriver-wrench"></i> Gerar OS</button>` : ""}
+       ${ed && !reg.os_id && reg.status === "compareceu" ? `<button class="btn btn--success" id="ag-gerar-os"><i class="fa-solid fa-screwdriver-wrench"></i> Gerar OS</button>` : ""}
        ${ed && reg.os_id ? `<span class="badge badge--success" style="align-self:center">OS já gerada</span>` : ""}
        <button class="btn btn--primary" id="ag-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`);
 
-    if (ed && !reg.os_id && reg.status !== "cancelado") {
+    if (ed && !reg.os_id && reg.status === "compareceu") {
       const btnOS = document.getElementById("ag-gerar-os");
       if (btnOS) btnOS.onclick = () => window.__ag.gerarOS(reg.id);
     }
