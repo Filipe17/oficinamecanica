@@ -2,7 +2,7 @@
 nfe.py — Módulo fiscal (NF-e de produtos e NFS-e de serviços).
 
 Estratégia:
-    - A emissão SEMPRE parte de uma OS (ordens_servico, eh_orcamento=0).
+    - A emissão parte do ORÇAMENTO finalizado (ordens_servico, eh_orcamento=1).
     - Itens do tipo 'produto'  -> compõem a NF-e  (ICMS, estadual).
     - Itens do tipo 'servico'  -> compõem a NFS-e (ISS, municipal).
     - Uma OS pode gerar as duas notas (uma de cada), conforme os itens.
@@ -205,11 +205,11 @@ def listar_notas():
     Lista as OS candidatas a emissão + as notas já emitidas de cada uma.
     O front usa isso para montar a tela 'Notas Fiscais'.
     """
-    # OS finalizadas (não-orçamento) — candidatas a nota.
+    # Orçamentos finalizados — candidatos a nota fiscal.
     oss = query(
         "SELECT o.id, o.numero, o.data, o.total, o.status, c.nome AS cliente_nome "
         "FROM ordens_servico o LEFT JOIN clientes c ON c.id=o.cliente_id "
-        "WHERE o.eh_orcamento=0 AND o.status='finalizada' "
+        "WHERE o.eh_orcamento=1 AND o.status='finalizada' "
         "ORDER BY o.id DESC LIMIT 200")
     notas = query("SELECT * FROM notas_fiscais ORDER BY id DESC")
     por_os = {}
