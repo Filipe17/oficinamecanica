@@ -361,7 +361,9 @@
         itens.push({
           tipo: "produto",
           referencia_id: p ? p.id : null,   // vincula ao cadastro p/ baixa de estoque na finalização
+          codigo: p ? (p.codigo || p.sku || p.referencia || "") : null,  // já leva o código do cadastro
           descricao: desc,
+          unidade: p ? (p.unidade || "UN") : "UN",
           quantidade: 1,        // peça trocada é informativa: 1 unidade, sem valor
           valor_unitario: 0,
         });
