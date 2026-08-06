@@ -277,14 +277,18 @@
       <button class="btn btn--ghost" onclick="Modal.fechar()">${soLeitura ? "Fechar" : "Cancelar"}</button>
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
+      ${!soLeitura && ed && !EH_ORC && o.status === "aguardando_aprovacao" && Layout.usuario?.perfil !== "mecanico"
+        ? `<button class="btn btn--primary" onclick="window.__os.gerarOrcamento(${o.id})"><i class="fa-solid fa-file-invoice-dollar"></i> Gerar Orçamento</button>`
+        : ""}
       ${!soLeitura && ed && !EH_ORC && o.status === "finalizada_mecanico" && Layout.usuario?.perfil !== "mecanico"
         ? `<button class="btn btn--success" onclick="window.__os.finalizar(${o.id})"><i class="fa-solid fa-flag-checkered"></i> Finalizar definitivo</button>`
         : ""}
-      ${!soLeitura && ed && !EH_ORC && o.status !== "finalizada" && o.status !== "finalizada_mecanico" && Layout.usuario?.perfil !== "mecanico"
+      ${!soLeitura && ed && !EH_ORC && o.status !== "finalizada" && o.status !== "finalizada_mecanico" && o.status !== "aguardando_aprovacao" && Layout.usuario?.perfil !== "mecanico"
         ? `<small class="text-muted" style="align-self:center">Aguardando mecânico finalizar</small>`
         : ""}
       ${soLeitura ? "" : (() => {
-        const esconderSalvar = ed && !EH_ORC && o.status === "finalizada_mecanico" && Layout.usuario?.perfil !== "mecanico";
+        const esconderSalvar = ed && !EH_ORC && Layout.usuario?.perfil !== "mecanico"
+          && (o.status === "finalizada_mecanico" || o.status === "aguardando_aprovacao");
         return esconderSalvar ? "" : `<button class="btn btn--primary" id="os-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`;
       })()}
     `, true);
@@ -411,6 +415,15 @@
         });
       });
       return itens;
+    },
+    async gerarOrcamento(id) {
+      if (!confirm("Converter esta OS em Orçamento e abrir na tela de Orçamentos?")) return;
+      try {
+        await API.post(`/api/os/${id}/para-orcamento`);
+        toast("Orçamento gerado");
+        Modal.fechar();
+        location.href = "/orcamentos";
+      } catch (e) { toast(e.message, "error"); }
     },
     async converter(id) {
       if (!confirm("Converter este orçamento em Ordem de Serviço?")) return;
