@@ -106,3 +106,74 @@ def curva_abc():
         perc = acumulado / total
         p["classe"] = "A" if perc <= 0.8 else ("B" if perc <= 0.95 else "C")
     return jsonify({"dados": produtos})
+
+
+@estoque_bp.route("/api/estoque/sugestao-compras", methods=["GET"])
+@login_obrigatorio
+def sugestao_compras():
+    """
+    Lista produtos abaixo do estoque mínimo, agrupados por fornecedor.
+    Quantidade sugerida = estoque_maximo - estoque_atual (ou estoque_minimo*2
+    quando estoque_maximo não está definido).
+    Inclui variações (produto_pai_id não nulo) com seus próprios estoques.
+    """
+    criticos = query("""
+        SELECT p.id, p.nome, p.codigo, p.categoria, p.marca,
+               p.estoque_atual, p.estoque_minimo, p.estoque_maximo,
+               p.preco_compra, p.produto_pai_id,
+               f.nome AS fornecedor, f.id AS fornecedor_id,
+               f.telefone AS fornecedor_tel, f.email AS fornecedor_email
+        FROM produtos p
+        LEFT JOIN fornecedores f ON f.id = p.fornecedor_id
+        WHERE p.estoque_minimo > 0
+          AND p.estoque_atual <= p.estoque_minimo
+        ORDER BY f.nome NULLS LAST, p.nome
+    """)
+
+    # Calcula quantidade sugerida e valor estimado
+    for p in criticos:
+        atual = float(p["estoque_atual"] or 0)
+        minimo = float(p["estoque_minimo"] or 0)
+        maximo = float(p["estoque_maximo"] or 0)
+        sugerido = (maximo - atual) if maximo > atual else (minimo * 2 - atual)
+        sugerido = max(round(sugerido, 2), 1)
+        p["sugerido"] = sugerido
+        p["valor_estimado"] = round(sugerido * float(p["preco_compra"] or 0), 2)
+
+    # Agrupa por fornecedor
+    grupos = {}
+    sem_fornecedor = []
+    for p in criticos:
+        forn = p.get("fornecedor") or ""
+        if not forn:
+            sem_fornecedor.append(p)
+            continue
+        if forn not in grupos:
+            grupos[forn] = {
+                "fornecedor": forn,
+                "fornecedor_id": p.get("fornecedor_id"),
+                "telefone": p.get("fornecedor_tel"),
+                "email": p.get("fornecedor_email"),
+                "itens": [],
+                "total_estimado": 0,
+            }
+        grupos[forn]["itens"].append(p)
+        grupos[forn]["total_estimado"] = round(
+            grupos[forn]["total_estimado"] + p["valor_estimado"], 2)
+
+    if sem_fornecedor:
+        grupos["— Sem fornecedor —"] = {
+            "fornecedor": "— Sem fornecedor —",
+            "fornecedor_id": None,
+            "telefone": None,
+            "email": None,
+            "itens": sem_fornecedor,
+            "total_estimado": round(sum(p["valor_estimado"] for p in sem_fornecedor), 2),
+        }
+
+    total_geral = round(sum(g["total_estimado"] for g in grupos.values()), 2)
+    return jsonify({
+        "grupos": list(grupos.values()),
+        "total_itens": len(criticos),
+        "total_geral": total_geral,
+    })
