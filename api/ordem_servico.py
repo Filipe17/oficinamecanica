@@ -367,16 +367,16 @@ def para_orcamento(oid):
             if it.get("tipo") == "produto":
                 prod = None
                 if ref_id:
-                    prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos WHERE id=?",
+                    prod = query("SELECT id, codigo, preco_venda FROM produtos WHERE id=?",
                                  (ref_id,), fetchone=True)
                 if not prod and (it.get("descricao") or "").strip():
-                    prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos "
+                    prod = query("SELECT id, codigo, preco_venda FROM produtos "
                                  "WHERE lower(trim(nome))=lower(trim(?))",
                                  (it["descricao"],), fetchone=True)
                 if prod:
                     ref_id = prod.get("id")
                     codigo = prod.get("codigo")
-                    unidade = prod.get("unidade") or unidade
+                    unidade = unidade or "UN"
                     if not vu:
                         vu = float(prod.get("preco_venda") or 0)
             desc = float(it.get("desconto") or 0)
