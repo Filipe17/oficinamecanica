@@ -81,23 +81,24 @@
       const r = await API.get("/api/notas");
       const lista = r.dados || [];
       if (!lista.length) {
-        alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-inbox"></i>Nenhuma OS finalizada para emitir nota</div>`;
+        alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-inbox"></i>Nenhum orçamento finalizado para emitir nota</div>`;
         return;
       }
       alvo.innerHTML = `<div class="table-wrap"><table class="data">
-        <thead><tr><th>OS</th><th>Cliente</th><th>Data</th><th>Total</th><th>Notas</th><th></th></tr></thead>
+        <thead><tr><th>Orçamento</th><th>Cliente</th><th>Data</th><th>Total</th><th>Notas</th><th></th></tr></thead>
         <tbody>${lista.map((o) => {
           const notas = o.notas || [];
           const temNfe = notas.some((n) => n.tipo === "nfe" && n.status === "autorizada");
           const temNfse = notas.some((n) => n.tipo === "nfse" && n.status === "autorizada");
           const notasHtml = notas.length ? notas.map(badge).join(" ") : `<small class="text-muted">—</small>`;
+          const numero = (o.numero || String(o.id)).replace(/^[A-Z]+-/, "");
           const acoes = soLeitura ? "" : `
             <button class="btn btn--ghost btn--sm" onclick="window.__nf.emitir(${o.id}, 'nfe')" ${temNfe ? "disabled" : ""}>
               <i class="fa-solid fa-box"></i> NF-e</button>
             <button class="btn btn--ghost btn--sm" onclick="window.__nf.emitir(${o.id}, 'nfse')" ${temNfse ? "disabled" : ""}>
               <i class="fa-solid fa-screwdriver-wrench"></i> NFS-e</button>`;
           return `<tr>
-            <td><b>${o.numero || o.id}</b></td>
+            <td><b>${numero}</b></td>
             <td>${o.cliente_nome || "—"}</td>
             <td>${fmt.data(o.data)}</td>
             <td>${fmt.moeda(o.total)}</td>
