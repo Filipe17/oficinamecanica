@@ -312,6 +312,25 @@ def finalizar(oid):
     return jsonify({"ok": True})
 
 
+@os_bp.route("/api/os/<int:oid>/para-orcamento", methods=["POST"])
+@login_obrigatorio
+def para_orcamento(oid):
+    """Converte uma OS (aguardando aprovação) em Orçamento para enviar ao cliente."""
+    perfil = session.get("perfil")
+    if perfil == "mecanico":
+        return jsonify({"erro": "Mecânico não pode gerar orçamento"}), 403
+    o = query("SELECT status, eh_orcamento FROM ordens_servico WHERE id=?",
+              (oid,), fetchone=True)
+    if not o:
+        return jsonify({"erro": "OS não encontrada"}), 404
+    if o.get("eh_orcamento") == 1:
+        return jsonify({"erro": "Já é um orçamento", "ja_orcamento": True}), 400
+    query("UPDATE ordens_servico SET eh_orcamento=1, status='aberta' WHERE id=?",
+          (oid,), commit=True)
+    registrar_log(session["user_id"], "os_para_orcamento", str(oid))
+    return jsonify({"ok": True})
+
+
 @os_bp.route("/api/os/<int:oid>/converter", methods=["POST"])
 @login_obrigatorio
 def converter_orcamento(oid):
