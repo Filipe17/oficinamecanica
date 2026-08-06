@@ -530,6 +530,20 @@ def _migrar_colunas():
     # Grade de produtos: variações de um produto pai (ex: tamanho, embalagem).
     _garantir_coluna("produtos", "produto_pai_id", "INTEGER")
     _garantir_coluna("produtos", "variacao_atributo", "TEXT")
+    # Fornecedores: campos completos
+    _garantir_coluna("fornecedores", "nome_fantasia", "TEXT")
+    _garantir_coluna("fornecedores", "ie", "TEXT")
+    _garantir_coluna("fornecedores", "telefone2", "TEXT")
+    _garantir_coluna("fornecedores", "contato", "TEXT")
+    _garantir_coluna("fornecedores", "site", "TEXT")
+    _garantir_coluna("fornecedores", "endereco", "TEXT")
+    _garantir_coluna("fornecedores", "numero", "TEXT")
+    _garantir_coluna("fornecedores", "bairro", "TEXT")
+    _garantir_coluna("fornecedores", "cidade", "TEXT")
+    _garantir_coluna("fornecedores", "estado", "TEXT")
+    _garantir_coluna("fornecedores", "cep", "TEXT")
+    _garantir_coluna("fornecedores", "prazo_pagamento", "TEXT")
+    _garantir_coluna("fornecedores", "observacoes", "TEXT")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
