@@ -184,3 +184,88 @@ def criar_fornecedor():
                 (d.get("nome"), d.get("cnpj"), d.get("telefone"), d.get("email"), now()),
                 commit=True)
     return jsonify({"ok": True, "id": res["_lastid"]}), 201
+
+
+# =========================================================================
+# GRADE DE PRODUTOS (variações)
+# =========================================================================
+
+@produtos_bp.route("/api/produtos/<int:pid>/variacoes", methods=["GET"])
+@login_obrigatorio
+def listar_variacoes(pid):
+    """Lista as variações de um produto pai."""
+    pai = query("SELECT id, nome FROM produtos WHERE id=? AND (produto_pai_id IS NULL OR produto_pai_id=0)",
+                (pid,), fetchone=True)
+    if not pai:
+        return jsonify({"erro": "Produto pai não encontrado"}), 404
+    variacoes = query(
+        "SELECT * FROM produtos WHERE produto_pai_id=? ORDER BY variacao_atributo", (pid,))
+    for v in variacoes:
+        v["_margem"] = _margem(v.get("preco_compra"), v.get("preco_venda"))
+    return jsonify({"pai": pai, "variacoes": variacoes})
+
+
+@produtos_bp.route("/api/produtos/<int:pid>/variacoes", methods=["POST"])
+@login_obrigatorio
+def criar_variacao(pid):
+    """Cria uma nova variação de um produto pai."""
+    pai = query("SELECT * FROM produtos WHERE id=?", (pid,), fetchone=True)
+    if not pai:
+        return jsonify({"erro": "Produto pai não encontrado"}), 404
+    d = request.get_json(force=True)
+    if not d.get("variacao_atributo"):
+        return jsonify({"erro": "Atributo da variação é obrigatório (ex: 1L, 175/65R14)"}), 400
+    # Herda campos do pai quando não informados
+    res = query(
+        "INSERT INTO produtos (produto_pai_id, variacao_atributo, codigo, codigo_barras, "
+        "nome, categoria, marca, fornecedor_id, localizacao, preco_compra, preco_venda, "
+        "estoque_atual, estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, "
+        "comissao_percentual, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (pid, d.get("variacao_atributo"),
+         d.get("codigo"), d.get("codigo_barras"),
+         f"{pai['nome']} — {d['variacao_atributo']}",   # nome automático
+         pai.get("categoria"), pai.get("marca"), pai.get("fornecedor_id"),
+         pai.get("localizacao"),
+         d.get("preco_compra", pai.get("preco_compra", 0)),
+         d.get("preco_venda", pai.get("preco_venda", 0)),
+         d.get("estoque_atual", 0),
+         d.get("estoque_minimo", pai.get("estoque_minimo", 0)),
+         d.get("estoque_maximo", pai.get("estoque_maximo", 0)),
+         pai.get("ncm"), pai.get("cfop"), pai.get("cest"), d.get("ean"),
+         d.get("comissao_percentual", pai.get("comissao_percentual", 0)), now()),
+        commit=True,
+    )
+    registrar_log(session["user_id"], "criar_variacao",
+                  f"pai={pid} atributo={d['variacao_atributo']}")
+    return jsonify({"ok": True, "id": res["_lastid"]}), 201
+
+
+@produtos_bp.route("/api/produtos/variacoes/<int:vid>", methods=["PUT"])
+@login_obrigatorio
+def editar_variacao(vid):
+    """Edita uma variação (atributo, código, preços, estoque)."""
+    d = request.get_json(force=True)
+    query(
+        "UPDATE produtos SET variacao_atributo=?, codigo=?, codigo_barras=?, "
+        "preco_compra=?, preco_venda=?, estoque_minimo=?, estoque_maximo=?, "
+        "comissao_percentual=?, ean=? WHERE id=? AND produto_pai_id IS NOT NULL",
+        (d.get("variacao_atributo"), d.get("codigo"), d.get("codigo_barras"),
+         d.get("preco_compra", 0), d.get("preco_venda", 0),
+         d.get("estoque_minimo", 0), d.get("estoque_maximo", 0),
+         d.get("comissao_percentual", 0), d.get("ean"), vid),
+        commit=True,
+    )
+    registrar_log(session["user_id"], "editar_variacao", str(vid))
+    return jsonify({"ok": True})
+
+
+@produtos_bp.route("/api/produtos/variacoes/<int:vid>", methods=["DELETE"])
+@login_obrigatorio
+def excluir_variacao(vid):
+    """Remove uma variação. Não permite excluir produto pai diretamente."""
+    v = query("SELECT produto_pai_id FROM produtos WHERE id=?", (vid,), fetchone=True)
+    if not v or not v.get("produto_pai_id"):
+        return jsonify({"erro": "Use a exclusão de produto para produtos sem variação"}), 400
+    query("DELETE FROM produtos WHERE id=?", (vid,), commit=True)
+    registrar_log(session["user_id"], "excluir_variacao", str(vid))
+    return jsonify({"ok": True})
