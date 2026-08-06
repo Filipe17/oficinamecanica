@@ -12,83 +12,52 @@
   } catch (_) {}
 
   // -----------------------------------------------------------------------
-  // Modal de grade (variações)
+  // Modal de grade (variações) — usa Modal.abrir() do sistema
   // -----------------------------------------------------------------------
-  function abrirGrade(prodId, prodNome) {
-    const id = `modal-grade-${prodId}`;
-    if (document.getElementById(id)) return;
-
-    const el = document.createElement("div");
-    el.id = id;
-    el.innerHTML = `
-      <div class="modal-overlay" id="overlay-grade-${prodId}">
-        <div class="modal modal--grande" style="max-width:720px">
-          <div class="modal__header">
-            <h2 class="modal__titulo">Variações — ${prodNome}</h2>
-            <button class="modal__fechar" onclick="document.getElementById('${id}').remove()">×</button>
-          </div>
-          <div class="modal__corpo">
-            <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem">
-              Cada variação herda categoria, marca e NCM do produto pai.<br>
-              Estoque é controlado individualmente por variação.
-            </p>
-
-            <!-- Tabela de variações existentes -->
-            <table class="tabela" id="tbl-var-${prodId}">
-              <thead><tr>
-                <th>Atributo</th><th>Código</th><th>Cód. Barras</th>
-                <th>Compra</th><th>Venda</th><th>Estoque</th><th>Margem</th><th></th>
-              </tr></thead>
-              <tbody id="tbody-var-${prodId}"><tr><td colspan="8" style="text-align:center">Carregando…</td></tr></tbody>
-            </table>
-
-            <hr style="margin:1.2rem 0">
-
-            <!-- Formulário nova variação -->
-            <h3 style="font-size:.9rem;font-weight:600;margin-bottom:.75rem;color:var(--text-muted)">NOVA VARIAÇÃO</h3>
-            <div class="form-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem">
-              <div class="campo">
-                <label>Atributo *</label>
-                <input id="var-attr-${prodId}" placeholder="ex: 1L, 175/65R14">
-              </div>
-              <div class="campo">
-                <label>Código</label>
-                <input id="var-cod-${prodId}" placeholder="SKU">
-              </div>
-              <div class="campo">
-                <label>Cód. Barras</label>
-                <input id="var-barras-${prodId}">
-              </div>
-              <div class="campo">
-                <label>Preço Compra</label>
-                <input id="var-compra-${prodId}" type="number" step="0.01" value="0">
-              </div>
-              <div class="campo">
-                <label>Preço Venda</label>
-                <input id="var-venda-${prodId}" type="number" step="0.01" value="0">
-              </div>
-              <div class="campo">
-                <label>Estoque Inicial</label>
-                <input id="var-estoque-${prodId}" type="number" step="0.01" value="0">
-              </div>
-              <div class="campo">
-                <label>Estoque Mín.</label>
-                <input id="var-emin-${prodId}" type="number" step="0.01" value="0">
-              </div>
-              <div class="campo">
-                <label>Comissão (%)</label>
-                <input id="var-com-${prodId}" type="number" step="0.01" value="0">
-              </div>
-            </div>
-            <div style="margin-top:.75rem;display:flex;gap:.5rem">
-              <button class="btn btn--primary" onclick="window.__grade.salvar(${prodId})">
-                <i class="fa-solid fa-plus"></i> Adicionar Variação
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(el);
+  async function abrirGrade(prodId, prodNome) {
+    Modal.abrir(
+      `<i class="fa-solid fa-layer-group"></i> Grade — ${prodNome}`,
+      `<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem">
+        Cada variação herda categoria, marca e NCM do produto pai.
+        Estoque é controlado individualmente por variação.
+      </p>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr>
+            <th>Atributo</th><th>Código</th><th>Cód. Barras</th>
+            <th>Compra</th><th>Venda</th><th>Estoque</th><th>Margem</th><th></th>
+          </tr></thead>
+          <tbody id="tbody-var-${prodId}">
+            <tr><td colspan="8" style="text-align:center">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <hr style="margin:1.2rem 0">
+      <h3 style="font-size:.9rem;font-weight:600;margin-bottom:.75rem;color:var(--text-muted)">NOVA VARIAÇÃO</h3>
+      <div class="form-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem">
+        <div class="field"><label>Atributo *</label>
+          <input id="var-attr-${prodId}" placeholder="ex: 1L, 175/65R14"></div>
+        <div class="field"><label>Código</label>
+          <input id="var-cod-${prodId}" placeholder="SKU"></div>
+        <div class="field"><label>Cód. Barras</label>
+          <input id="var-barras-${prodId}"></div>
+        <div class="field"><label>Preço Compra</label>
+          <input id="var-compra-${prodId}" type="number" step="0.01" value="0"></div>
+        <div class="field"><label>Preço Venda</label>
+          <input id="var-venda-${prodId}" type="number" step="0.01" value="0"></div>
+        <div class="field"><label>Estoque Inicial</label>
+          <input id="var-estoque-${prodId}" type="number" step="0.01" value="0"></div>
+        <div class="field"><label>Estoque Mín.</label>
+          <input id="var-emin-${prodId}" type="number" step="0.01" value="0"></div>
+        <div class="field"><label>Comissão (%)</label>
+          <input id="var-com-${prodId}" type="number" step="0.01" value="0"></div>
+      </div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>
+       <button class="btn btn--primary" onclick="window.__grade.salvar(${prodId})">
+         <i class="fa-solid fa-plus"></i> Adicionar Variação
+       </button>`,
+      true  // modalGrande
+    );
     carregarVariacoes(prodId);
   }
 
@@ -120,9 +89,7 @@
             </button>
           </td>
         </tr>`).join("");
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   window.__grade = {
@@ -142,7 +109,6 @@
           comissao_percentual: parseFloat(document.getElementById(`var-com-${prodId}`)?.value || 0),
         });
         toast("Variação adicionada");
-        // Limpa campos
         [`var-attr-${prodId}`,`var-cod-${prodId}`,`var-barras-${prodId}`].forEach((id) => {
           const el = document.getElementById(id); if (el) el.value = "";
         });
@@ -178,9 +144,7 @@
       { chave: "nome", titulo: "Nome", render: (v, row) => {
           const tag = row.produto_pai_id
             ? `<span style="font-size:.7rem;background:var(--primary-light,#e8f4fd);color:var(--primary);padding:1px 6px;border-radius:99px;margin-left:4px">variação</span>`
-            : (row.variacao_atributo === undefined || row.variacao_atributo === null)
-              ? ""
-              : "";
+            : "";
           return `${v}${tag}`;
         }},
       { chave: "categoria", titulo: "Categoria" },
@@ -191,7 +155,6 @@
         }},
       { chave: "_margem", titulo: "Margem", render: (v) => (v != null ? `${v}%` : "-") },
       { chave: "_grade", titulo: "Grade", render: (v, row) => {
-          // Só mostra o botão em produtos que NÃO são variações de outro
           if (row.produto_pai_id) return "—";
           return `<button class="btn btn--sm btn--outline" onclick="event.stopPropagation();window.__grade.abrir(${row.id},'${(row.nome||'').replace(/'/g,"\\'")}')">
             <i class="fa-solid fa-layer-group"></i> Grade
