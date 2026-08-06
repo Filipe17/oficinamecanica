@@ -283,7 +283,10 @@
       ${!soLeitura && ed && !EH_ORC && o.status !== "finalizada" && o.status !== "finalizada_mecanico" && Layout.usuario?.perfil !== "mecanico"
         ? `<small class="text-muted" style="align-self:center">Aguardando mecânico finalizar</small>`
         : ""}
-      ${soLeitura ? "" : `<button class="btn btn--primary" id="os-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`}
+      ${soLeitura ? "" : (() => {
+        const esconderSalvar = ed && !EH_ORC && o.status === "finalizada_mecanico" && Layout.usuario?.perfil !== "mecanico";
+        return esconderSalvar ? "" : `<button class="btn btn--primary" id="os-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`;
+      })()}
     `, true);
 
     window.__os = api;
@@ -293,7 +296,8 @@
         .forEach((el) => { el.disabled = true; });
       return;
     }
-    document.getElementById("os-salvar").onclick = () => salvar(ed ? o.id : null, ed ? o : null);
+    const btnSalvar = document.getElementById("os-salvar");
+    if (btnSalvar) btnSalvar.onclick = () => salvar(ed ? o.id : null, ed ? o : null);
     api.calc();
 
     // Campo "Peças trocadas": F1 abre a consulta de produtos; Enter/seleção adiciona.
