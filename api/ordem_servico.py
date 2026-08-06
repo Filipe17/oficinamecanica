@@ -32,7 +32,7 @@ def listar_mecanicos():
 
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
-    "em_execucao", "finalizada", "cancelada",
+    "em_execucao", "finalizada_mecanico", "finalizada", "cancelada",
 }
 
 
@@ -251,17 +251,22 @@ def _gerar_comissoes_os(o, oid):
 @login_obrigatorio
 def finalizar(oid):
     """
-    Finaliza a OS/orçamento: baixa produtos do estoque e (opcional) gera uma
-    conta a receber em aberto — o pagamento é acertado depois no caixa.
+    Finalização DEFINITIVA (estágio 2): só disponível para admin/gerente/atendente,
+    e somente quando a OS estiver com status 'finalizada_mecanico'.
+    Baixa estoque, gera comissões e (opcional) cria conta a receber.
     """
+    perfil = session.get("perfil")
+    if perfil == "mecanico":
+        return jsonify({"erro": "Mecânico não pode fazer a finalização definitiva"}), 403
     if not _dono_os(oid):
-        return jsonify({"erro": "Esta OS pertence a outro mecânico"}), 403
+        return jsonify({"erro": "Acesso negado a esta OS"}), 403
     o = query("SELECT * FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
     if not o:
         return jsonify({"erro": "Registro não encontrado"}), 404
     if o.get("status") == "finalizada":
-        # Evita baixar estoque / gerar cobrança duas vezes
-        return jsonify({"erro": "Este orçamento já foi finalizado", "ja_finalizada": True}), 400
+        return jsonify({"erro": "Este registro já foi finalizado", "ja_finalizada": True}), 400
+    if o.get("status") != "finalizada_mecanico" and o.get("eh_orcamento") != 1:
+        return jsonify({"erro": "A OS precisa estar com status 'Finalizada pelo mecânico' para finalizar definitivamente"}), 400
 
     # Baixa de estoque para itens do tipo produto
     itens = query("SELECT * FROM os_itens WHERE os_id=? AND tipo='produto'", (oid,))
