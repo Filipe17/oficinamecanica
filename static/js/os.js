@@ -419,12 +419,17 @@
       return itens;
     },
     async gerarOrcamento(id) {
-      if (!confirm("Converter esta OS em Orçamento e abrir na tela de Orçamentos?")) return;
+      if (!confirm("Gerar um Orçamento a partir desta OS?\n\nA OS continua em aberto (aguardando aprovação) — o orçamento é só para o cliente aprovar.")) return;
       try {
         const r = await API.post(`/api/os/${id}/para-orcamento`);
-        toast("Orçamento gerado");
-        // Passa o número da OS de origem pro orçamento vincular como OS relacionada
-        if (r.os_numero) sessionStorage.setItem("orc_os_origem", JSON.stringify({ id, numero: r.os_numero }));
+        toast("Orçamento gerado — a OS permanece em aberto");
+        // Abre o ORÇAMENTO recém-criado (registro novo) e vincula o número da
+        // OS de origem como OS relacionada na nota.
+        if (r.orcamento_id) {
+          sessionStorage.setItem("orc_os_origem", JSON.stringify({
+            id: r.orcamento_id, numero: r.os_numero,
+          }));
+        }
         Modal.fechar();
         location.href = "/orcamentos";
       } catch (e) { toast(e.message, "error"); }
