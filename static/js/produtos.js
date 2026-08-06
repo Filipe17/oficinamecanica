@@ -217,11 +217,12 @@
     );
     document.getElementById("mov-rapido-salvar").onclick = async () => {
       const f = document.getElementById("mov-rapido-form");
+      const val = (name) => f.querySelector(`[name="${name}"]`)?.value;
       const dados = {
         produto_id: prodId,
-        tipo: f.tipo.value,
-        quantidade: parseFloat(f.quantidade.value),
-        documento: f.documento.value || null,
+        tipo: val("tipo"),
+        quantidade: parseFloat(val("quantidade")),
+        documento: val("documento") || null,
         origem: "manual",
       };
       if (!dados.quantidade || isNaN(dados.quantidade)) {

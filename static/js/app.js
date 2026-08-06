@@ -132,6 +132,7 @@ const MENU = [
   { grupo: "Cadastros", itens: [
     { id: "servicos", nome: "Serviços", icone: "fa-list-check" },
     { id: "produtos", nome: "Produtos", icone: "fa-box" },
+    { id: "fornecedores", nome: "Fornecedores", icone: "fa-truck" },
     { id: "estoque", nome: "Estoque", icone: "fa-warehouse" },
     { id: "xml", nome: "Importação XML", icone: "fa-file-code" },
   ]},
@@ -157,7 +158,7 @@ const MENU = [
 const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
   ordem_servico: "ordem_servico", orcamentos: "orcamentos", agendamentos: "agendamentos",
-  servicos: "servicos", produtos: "produtos", estoque: "estoque", xml: "xml",
+  servicos: "servicos", produtos: "produtos", fornecedores: "produtos", estoque: "estoque", xml: "xml",
   financeiro: "financeiro", cobrancas: "financeiro", caixa: "caixa",
   relatorios: "relatorios", notas_fiscais: "notas_fiscais", cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
 };
