@@ -319,16 +319,34 @@ def para_orcamento(oid):
     perfil = session.get("perfil")
     if perfil == "mecanico":
         return jsonify({"erro": "Mecânico não pode gerar orçamento"}), 403
-    o = query("SELECT status, eh_orcamento FROM ordens_servico WHERE id=?",
+    o = query("SELECT status, eh_orcamento, numero FROM ordens_servico WHERE id=?",
               (oid,), fetchone=True)
     if not o:
         return jsonify({"erro": "OS não encontrada"}), 404
     if o.get("eh_orcamento") == 1:
         return jsonify({"erro": "Já é um orçamento", "ja_orcamento": True}), 400
+
+    # Ao converter, preenche código e valor de venda dos produtos a partir do
+    # cadastro (na OS as peças ficaram com valor_unitario=0 e codigo=null).
+    itens = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
+    for it in itens:
+        if it.get("tipo") == "produto" and it.get("referencia_id"):
+            prod = query("SELECT codigo, preco_venda, unidade FROM produtos WHERE id=?",
+                         (it["referencia_id"],), fetchone=True)
+            if prod:
+                qtd = float(it.get("quantidade") or 1)
+                vu = float(prod.get("preco_venda") or 0)
+                query("UPDATE os_itens SET codigo=?, valor_unitario=?, unidade=?, "
+                      "subtotal=? WHERE id=?",
+                      (prod.get("codigo"), vu, prod.get("unidade"),
+                       round(qtd * vu, 2), it["id"]),
+                      commit=True)
+
     query("UPDATE ordens_servico SET eh_orcamento=1, status='aberta' WHERE id=?",
           (oid,), commit=True)
+    _recalcular_total(oid)
     registrar_log(session["user_id"], "os_para_orcamento", str(oid))
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "os_numero": o.get("numero")})
 
 
 @os_bp.route("/api/os/<int:oid>/converter", methods=["POST"])
