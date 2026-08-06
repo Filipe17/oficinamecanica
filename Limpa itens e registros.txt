@@ -8,3 +8,7 @@ DELETE FROM agendamentos;
 -- Reseta as sequências de ID (PostgreSQL)
 ALTER SEQUENCE ordens_servico_id_seq RESTART WITH 1;
 ALTER SEQUENCE agendamentos_id_seq RESTART WITH 1;
+
+
+DELETE FROM comissoes;
+ALTER SEQUENCE comissoes_id_seq RESTART WITH 1;
