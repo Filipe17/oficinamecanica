@@ -21,3 +21,9 @@ DELETE FROM financeiro;
 ALTER SEQUENCE caixa_mov_id_seq RESTART WITH 1;
 ALTER SEQUENCE caixa_id_seq RESTART WITH 1;
 ALTER SEQUENCE financeiro_id_seq RESTART WITH 1;
+
+
+DELETE FROM estoque_mov;
+DELETE FROM produtos;
+ALTER SEQUENCE estoque_mov_id_seq RESTART WITH 1;
+ALTER SEQUENCE produtos_id_seq RESTART WITH 1;
