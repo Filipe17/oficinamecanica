@@ -13,6 +13,7 @@
     </div>
     <div class="tabs" id="tabs">
       <button class="tab active" data-aba="alertas">Alertas</button>
+      <button class="tab" data-aba="sugestao"><i class="fa-solid fa-cart-shopping"></i> Sugestão de Compras</button>
       <button class="tab" data-aba="mov">Movimentações</button>
       <button class="tab" data-aba="abc">Curva ABC</button>
     </div>
@@ -37,6 +38,7 @@
     alvo.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
     try {
       if (aba === "alertas") return renderAlertas();
+      if (aba === "sugestao") return renderSugestao();
       if (aba === "mov") return renderMovimentacoes();
       if (aba === "abc") return renderAbc();
     } catch (e) {
@@ -86,6 +88,174 @@
         <td>${fmt.moeda(p.preco_venda)}</td><td>${fmt.moeda(p.valor)}</td>
         <td><span class="badge badge--${cor[p.classe]}">${p.classe}</span></td></tr>`).join("")}
       </tbody></table></div>`;
+  }
+
+  async function renderSugestao() {
+    const r = await API.get("/api/estoque/sugestao-compras");
+    const grupos = r.grupos || [];
+    if (!grupos.length) {
+      alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-check"></i>Nenhum produto abaixo do estoque mínimo</div>`;
+      return;
+    }
+
+    const resumoHtml = `
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+        <div class="stat-mini"><span>${r.total_itens}</span><label>Itens a repor</label></div>
+        <div class="stat-mini"><span>${grupos.length}</span><label>Fornecedores</label></div>
+        <div class="stat-mini"><span>${fmt.moeda(r.total_geral)}</span><label>Valor estimado total</label></div>
+        <div style="margin-left:auto;align-self:center">
+          <button class="btn btn--outline btn--sm" onclick="window.__sugestao.imprimirTudo()">
+            <i class="fa-solid fa-print"></i> Imprimir tudo
+          </button>
+        </div>
+      </div>`;
+
+    const gruposHtml = grupos.map((g, gi) => `
+      <div class="card" style="margin-bottom:1rem">
+        <div class="card__body">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+            <div>
+              <strong style="font-size:1rem">${g.fornecedor}</strong>
+              ${g.telefone ? `<span style="color:var(--text-muted);font-size:.85rem;margin-left:.75rem"><i class="fa-solid fa-phone"></i> ${g.telefone}</span>` : ""}
+              ${g.email ? `<span style="color:var(--text-muted);font-size:.85rem;margin-left:.75rem"><i class="fa-solid fa-envelope"></i> ${g.email}</span>` : ""}
+            </div>
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <span style="font-weight:600;color:var(--primary)">${fmt.moeda(g.total_estimado)}</span>
+              <button class="btn btn--outline btn--sm" onclick="window.__sugestao.imprimir(${gi})">
+                <i class="fa-solid fa-print"></i> Pedido
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data" id="sugestao-tbl-${gi}">
+              <thead><tr>
+                <th>Código</th><th>Produto</th><th>Categoria</th>
+                <th>Atual</th><th>Mínimo</th><th>Máximo</th>
+                <th>Sugerido</th><th>Preço Compra</th><th>Total Est.</th>
+              </tr></thead>
+              <tbody>${g.itens.map((p) => `<tr>
+                <td>${p.codigo || "—"}</td>
+                <td>${p.nome}</td>
+                <td>${p.categoria || "—"}</td>
+                <td><span class="badge badge--danger">${p.estoque_atual ?? 0}</span></td>
+                <td>${p.estoque_minimo ?? 0}</td>
+                <td>${p.estoque_maximo ?? 0}</td>
+                <td><strong>${p.sugerido}</strong></td>
+                <td>${fmt.moeda(p.preco_compra)}</td>
+                <td>${fmt.moeda(p.valor_estimado)}</td>
+              </tr>`).join("")}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`).join("");
+
+    alvo.innerHTML = resumoHtml + gruposHtml;
+
+    // Guarda dados para impressão
+    window.__sugestao = {
+      _grupos: grupos,
+      _total_geral: r.total_geral,
+      _gerarHtmlPedido(g) {
+        const hoje = new Date().toLocaleDateString("pt-BR");
+        const linhas = g.itens.map((p) => `
+          <tr>
+            <td>${p.codigo || "—"}</td>
+            <td>${p.nome}</td>
+            <td style="text-align:center">${p.estoque_atual ?? 0}</td>
+            <td style="text-align:center">${p.estoque_minimo ?? 0}</td>
+            <td style="text-align:center"><strong>${p.sugerido}</strong></td>
+            <td style="text-align:right">R$ ${Number(p.preco_compra||0).toFixed(2)}</td>
+            <td style="text-align:right">R$ ${Number(p.valor_estimado||0).toFixed(2)}</td>
+          </tr>`).join("");
+        return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+          <title>Pedido de Compra — ${g.fornecedor}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 13px; padding: 24px; color: #222; }
+            h1 { font-size: 18px; margin-bottom: 4px; }
+            h2 { font-size: 14px; color: #555; margin-bottom: 16px; font-weight: normal; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            th { background: #1a6b6b; color: #fff; padding: 7px 8px; text-align: left; font-size: 12px; }
+            td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+            tr:nth-child(even) td { background: #f9f9f9; }
+            .total { text-align: right; margin-top: 12px; font-weight: bold; font-size: 14px; }
+            .rodape { margin-top: 32px; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 8px; }
+            @media print { body { padding: 0; } }
+          </style></head><body>
+          <h1>Pedido de Compra</h1>
+          <h2>Fornecedor: <strong>${g.fornecedor}</strong>
+            ${g.telefone ? " | Tel: " + g.telefone : ""}
+            ${g.email ? " | E-mail: " + g.email : ""}
+          </h2>
+          <p style="font-size:12px;color:#888">Data: ${hoje}</p>
+          <table>
+            <thead><tr>
+              <th>Código</th><th>Produto</th><th>Atual</th>
+              <th>Mínimo</th><th>Qtd. Pedido</th><th>Preço Unit.</th><th>Total Est.</th>
+            </tr></thead>
+            <tbody>${linhas}</tbody>
+          </table>
+          <div class="total">Total estimado: R$ ${Number(g.total_estimado||0).toFixed(2)}</div>
+          <div class="rodape">Documento gerado automaticamente pelo DevSystem PRIME em ${hoje}.</div>
+        </body></html>`;
+      },
+      imprimir(gi) {
+        const g = this._grupos[gi];
+        const w = window.open("", "_blank");
+        w.document.write(this._gerarHtmlPedido(g));
+        w.document.close();
+        w.onload = () => w.print();
+      },
+      imprimirTudo() {
+        const hoje = new Date().toLocaleDateString("pt-BR");
+        const todosFornecedores = this._grupos.map((g) => `
+          <div style="page-break-after:always">
+            <h2 style="font-size:16px;margin-bottom:4px">Pedido de Compra — ${g.fornecedor}</h2>
+            ${g.telefone ? `<p style="font-size:12px;color:#555;margin:0">Tel: ${g.telefone}</p>` : ""}
+            ${g.email ? `<p style="font-size:12px;color:#555;margin:0">E-mail: ${g.email}</p>` : ""}
+            <p style="font-size:12px;color:#888">Data: ${hoje}</p>
+            <table style="width:100%;border-collapse:collapse;margin-top:12px">
+              <thead><tr style="background:#1a6b6b;color:#fff">
+                <th style="padding:6px 8px;text-align:left;font-size:12px">Código</th>
+                <th style="padding:6px 8px;text-align:left;font-size:12px">Produto</th>
+                <th style="padding:6px 8px;text-align:center;font-size:12px">Atual</th>
+                <th style="padding:6px 8px;text-align:center;font-size:12px">Mínimo</th>
+                <th style="padding:6px 8px;text-align:center;font-size:12px">Qtd. Pedido</th>
+                <th style="padding:6px 8px;text-align:right;font-size:12px">Preço Unit.</th>
+                <th style="padding:6px 8px;text-align:right;font-size:12px">Total Est.</th>
+              </tr></thead>
+              <tbody>${g.itens.map((p, i) => `
+                <tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+                  <td style="padding:5px 8px;border-bottom:1px solid #eee">${p.codigo||"—"}</td>
+                  <td style="padding:5px 8px;border-bottom:1px solid #eee">${p.nome}</td>
+                  <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:center">${p.estoque_atual??0}</td>
+                  <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:center">${p.estoque_minimo??0}</td>
+                  <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:center"><strong>${p.sugerido}</strong></td>
+                  <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">R$ ${Number(p.preco_compra||0).toFixed(2)}</td>
+                  <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">R$ ${Number(p.valor_estimado||0).toFixed(2)}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+            <div style="text-align:right;margin-top:10px;font-weight:bold">
+              Total estimado: R$ ${Number(g.total_estimado||0).toFixed(2)}
+            </div>
+          </div>`).join("");
+        const w = window.open("", "_blank");
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+          <title>Sugestão de Compras Completa</title>
+          <style>body{font-family:Arial,sans-serif;font-size:13px;padding:24px;color:#222}
+          h1{font-size:20px;margin-bottom:4px} @media print{body{padding:0}}</style>
+          </head><body>
+          <h1>Sugestão de Compras</h1>
+          <p style="color:#888;font-size:12px;margin-bottom:24px">
+            Gerado em ${hoje} — ${this._grupos.length} fornecedor(es) — 
+            Total geral estimado: R$ ${Number(this._total_geral||0).toFixed(2)}
+          </p>
+          ${todosFornecedores}
+        </body></html>`);
+        w.document.close();
+        w.onload = () => w.print();
+      },
+    };
   }
 
   async function abrirMovimento() {
