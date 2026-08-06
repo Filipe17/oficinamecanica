@@ -100,7 +100,7 @@ _MODULO_API = [
 _MODULO_PAGINA = {
     "dashboard": "dashboard", "clientes": "clientes", "veiculos": "veiculos",
     "ordem_servico": "ordem_servico", "orcamentos": "orcamentos",
-    "servicos": "servicos", "produtos": "produtos", "estoque": "estoque",
+    "servicos": "servicos", "produtos": "produtos", "fornecedores": "produtos", "estoque": "estoque",
     "xml": "xml", "financeiro": "financeiro", "cobrancas": "financeiro",
     "pdv": "pdv", "caixa": "caixa", "relatorios": "relatorios", "notas_fiscais": "notas_fiscais", "agendamentos": "agendamentos", "cartao": "cartao", "cheques": "cheques", "usuarios": "usuarios", "logs": "logs",
 }
