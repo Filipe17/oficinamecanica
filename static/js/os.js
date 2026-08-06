@@ -17,14 +17,15 @@
   const soLeitura = Layout.usuario?.perfil !== "administrador"
                  && (Layout.permissoes?.[MODULO_PAG] ?? 2) < 2;
 
-  const STATUS = ["aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas", "em_execucao", "finalizada", "cancelada"];
+  const STATUS = ["aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas", "em_execucao", "finalizada_mecanico", "finalizada", "cancelada"];
   const STATUS_LABEL = {
     aberta: "Aberta", em_analise: "Em análise", aguardando_aprovacao: "Aguard. aprovação",
-    aguardando_pecas: "Aguard. peças", em_execucao: "Em execução", finalizada: "Finalizada", cancelada: "Cancelada",
+    aguardando_pecas: "Aguard. peças", em_execucao: "Em execução",
+    finalizada_mecanico: "Finalizada pelo mecânico", finalizada: "Finalizada", cancelada: "Cancelada",
   };
   const STATUS_TOM = {
     aberta: "info", em_analise: "", aguardando_aprovacao: "warning", aguardando_pecas: "warning",
-    em_execucao: "info", finalizada: "success", cancelada: "danger",
+    em_execucao: "info", finalizada_mecanico: "warning", finalizada: "success", cancelada: "danger",
   };
 
   // Dados auxiliares para os selects e itens
@@ -227,7 +228,10 @@
         <div class="field"><label>Veículo</label>${selectHtml("veiculo_id", veiculos, (v) => `${v.placa || ""} ${v.modelo || ""}`.trim(), ed ? o.veiculo_id : "")}</div>
         <div class="field"><label>Mecânico</label>${selectHtml("mecanico_id", mecanicos, (m) => m.nome, ed ? o.mecanico_id : "")}</div>
         <div class="field"><label>Status</label><select name="status">
-          ${STATUS.map((s) => `<option value="${s}" ${ed && o.status === s ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
+          ${(Layout.usuario?.perfil === "mecanico"
+            ? STATUS.filter((s) => !["finalizada", "cancelada"].includes(s))
+            : STATUS
+          ).map((s) => `<option value="${s}" ${ed && o.status === s ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
         <div class="field"><label>Previsão</label><input type="date" name="previsao" value="${ed && o.previsao ? String(o.previsao).slice(0,10) : ""}"></div>
         <div class="field col-2"><label>Problema relatado</label><textarea name="problema">${ed ? (o.problema || "") : ""}</textarea></div>
         <div class="field col-2"><label>Diagnóstico</label><textarea name="diagnostico">${ed ? (o.diagnostico || "") : ""}</textarea></div>
@@ -273,7 +277,12 @@
       <button class="btn btn--ghost" onclick="Modal.fechar()">${soLeitura ? "Fechar" : "Cancelar"}</button>
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
-      ${!soLeitura && ed && !EH_ORC && o.status !== "finalizada" ? `<button class="btn btn--success" onclick="window.__os.finalizar(${o.id})"><i class="fa-solid fa-flag-checkered"></i> Finalizar</button>` : ""}
+      ${!soLeitura && ed && !EH_ORC && o.status === "finalizada_mecanico" && Layout.usuario?.perfil !== "mecanico"
+        ? `<button class="btn btn--success" onclick="window.__os.finalizar(${o.id})"><i class="fa-solid fa-flag-checkered"></i> Finalizar definitivo</button>`
+        : ""}
+      ${!soLeitura && ed && !EH_ORC && o.status !== "finalizada" && o.status !== "finalizada_mecanico" && Layout.usuario?.perfil !== "mecanico"
+        ? `<small class="text-muted" style="align-self:center">Aguardando mecânico finalizar</small>`
+        : ""}
       ${soLeitura ? "" : `<button class="btn btn--primary" id="os-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`}
     `, true);
 
