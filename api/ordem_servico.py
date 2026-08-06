@@ -328,19 +328,29 @@ def para_orcamento(oid):
 
     # Ao converter, preenche código e valor de venda dos produtos a partir do
     # cadastro (na OS as peças ficaram com valor_unitario=0 e codigo=null).
+    # A peça pode ter sido digitada pelo mecânico sem vínculo (referencia_id
+    # nulo); nesse caso tentamos localizar o produto pelo nome/descrição e,
+    # ao achar, gravamos também o referencia_id para estoque e comissões.
     itens = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
     for it in itens:
-        if it.get("tipo") == "produto" and it.get("referencia_id"):
-            prod = query("SELECT codigo, preco_venda, unidade FROM produtos WHERE id=?",
+        if it.get("tipo") != "produto":
+            continue
+        prod = None
+        if it.get("referencia_id"):
+            prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos WHERE id=?",
                          (it["referencia_id"],), fetchone=True)
-            if prod:
-                qtd = float(it.get("quantidade") or 1)
-                vu = float(prod.get("preco_venda") or 0)
-                query("UPDATE os_itens SET codigo=?, valor_unitario=?, unidade=?, "
-                      "subtotal=? WHERE id=?",
-                      (prod.get("codigo"), vu, prod.get("unidade"),
-                       round(qtd * vu, 2), it["id"]),
-                      commit=True)
+        if not prod and (it.get("descricao") or "").strip():
+            prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos "
+                         "WHERE lower(trim(nome))=lower(trim(?))",
+                         (it["descricao"],), fetchone=True)
+        if prod:
+            qtd = float(it.get("quantidade") or 1)
+            vu = float(prod.get("preco_venda") or 0)
+            query("UPDATE os_itens SET referencia_id=?, codigo=?, valor_unitario=?, "
+                  "unidade=?, subtotal=? WHERE id=?",
+                  (prod.get("id"), prod.get("codigo"), vu, prod.get("unidade"),
+                   round(qtd * vu, 2), it["id"]),
+                  commit=True)
 
     query("UPDATE ordens_servico SET eh_orcamento=1, status='aberta' WHERE id=?",
           (oid,), commit=True)
