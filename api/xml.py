@@ -160,3 +160,192 @@ def importar():
 def historico():
     lista = query("SELECT * FROM xml_importacoes ORDER BY id DESC LIMIT 100")
     return jsonify({"dados": lista})
+
+
+# =========================================================================
+# Importação de Produtos em Lote (XML próprio do DevSystem PRIME)
+# =========================================================================
+
+def _parse_produtos_xml(conteudo):
+    """
+    Lê o XML de produtos no formato próprio do DevSystem PRIME.
+    Retorna lista de dicts com os campos do produto + variações.
+    """
+    root = ET.fromstring(conteudo)
+    if root.tag != "produtos":
+        raise ValueError("XML não parece ser um arquivo de importação de produtos válido")
+
+    def txt(el, tag, default=""):
+        found = el.find(tag)
+        return (found.text or "").strip() if found is not None else default
+
+    def num(el, tag, default=0.0):
+        v = txt(el, tag)
+        try: return float(v) if v else default
+        except ValueError: return default
+
+    produtos = []
+    for p in root.findall("produto"):
+        variacoes = []
+        vars_el = p.find("variacoes")
+        if vars_el is not None:
+            for v in vars_el.findall("variacao"):
+                variacoes.append({
+                    "atributo":           txt(v, "atributo"),
+                    "codigo":             txt(v, "codigo") or None,
+                    "codigo_barras":      txt(v, "codigo_barras") or None,
+                    "ean":                txt(v, "ean") or None,
+                    "preco_compra":       num(v, "preco_compra"),
+                    "preco_venda":        num(v, "preco_venda"),
+                    "estoque_atual":      num(v, "estoque_atual"),
+                    "estoque_minimo":     num(v, "estoque_minimo"),
+                    "estoque_maximo":     num(v, "estoque_maximo"),
+                    "comissao_percentual":num(v, "comissao_percentual"),
+                })
+        produtos.append({
+            "codigo":             txt(p, "codigo") or None,
+            "codigo_barras":      txt(p, "codigo_barras") or None,
+            "nome":               txt(p, "nome"),
+            "categoria":          txt(p, "categoria") or None,
+            "marca":              txt(p, "marca") or None,
+            "fornecedor":         txt(p, "fornecedor") or None,
+            "localizacao":        txt(p, "localizacao") or None,
+            "preco_compra":       num(p, "preco_compra"),
+            "preco_venda":        num(p, "preco_venda"),
+            "estoque_atual":      num(p, "estoque_atual"),
+            "estoque_minimo":     num(p, "estoque_minimo"),
+            "estoque_maximo":     num(p, "estoque_maximo"),
+            "comissao_percentual":num(p, "comissao_percentual"),
+            "ncm":                txt(p, "ncm") or None,
+            "cfop":               txt(p, "cfop") or None,
+            "cest":               txt(p, "cest") or None,
+            "ean":                txt(p, "ean") or None,
+            "variacoes":          variacoes,
+        })
+
+    if not produtos:
+        raise ValueError("Nenhum produto encontrado no XML")
+    return produtos
+
+
+@xml_bp.route("/api/xml/importar-produtos", methods=["POST"])
+@login_obrigatorio
+def importar_produtos():
+    """
+    Importa produtos em lote a partir do XML próprio do DevSystem PRIME.
+    Cria produtos novos e atualiza existentes (localiza por código ou EAN).
+    Suporta grade: variações são criadas como produtos filhos (produto_pai_id).
+    """
+    conteudo = None
+    if "arquivo" in request.files:
+        conteudo = request.files["arquivo"].read().decode("utf-8", errors="ignore")
+    else:
+        d = request.get_json(silent=True) or {}
+        conteudo = d.get("xml")
+
+    if not conteudo:
+        return jsonify({"erro": "Nenhum XML enviado"}), 400
+
+    try:
+        produtos = _parse_produtos_xml(conteudo)
+    except (ET.ParseError, ValueError) as e:
+        return jsonify({"erro": f"Falha ao ler XML de produtos: {e}"}), 400
+
+    novos = atualizados = variacoes_criadas = 0
+
+    for p in produtos:
+        # Resolve fornecedor pelo nome
+        fornecedor_id = None
+        if p["fornecedor"]:
+            f = query("SELECT id FROM fornecedores WHERE lower(nome)=lower(?)",
+                      (p["fornecedor"],), fetchone=True)
+            if f:
+                fornecedor_id = f["id"]
+            else:
+                r = query("INSERT INTO fornecedores (nome, criado_em) VALUES (?,?)",
+                          (p["fornecedor"], now()), commit=True)
+                fornecedor_id = r["_lastid"]
+
+        # Localiza produto existente por código ou EAN
+        existente = None
+        if p["codigo"]:
+            existente = query("SELECT * FROM produtos WHERE codigo=? AND (produto_pai_id IS NULL OR produto_pai_id=0)",
+                              (p["codigo"],), fetchone=True)
+        if not existente and p["ean"]:
+            existente = query("SELECT * FROM produtos WHERE ean=? AND (produto_pai_id IS NULL OR produto_pai_id=0)",
+                              (p["ean"],), fetchone=True)
+
+        if existente:
+            query(
+                "UPDATE produtos SET codigo=?, codigo_barras=?, nome=?, categoria=?, marca=?, "
+                "fornecedor_id=?, localizacao=?, preco_compra=?, preco_venda=?, "
+                "estoque_minimo=?, estoque_maximo=?, comissao_percentual=?, "
+                "ncm=?, cfop=?, cest=?, ean=? WHERE id=?",
+                (p["codigo"], p["codigo_barras"], p["nome"], p["categoria"], p["marca"],
+                 fornecedor_id, p["localizacao"], p["preco_compra"], p["preco_venda"],
+                 p["estoque_minimo"], p["estoque_maximo"], p["comissao_percentual"],
+                 p["ncm"], p["cfop"], p["cest"], p["ean"], existente["id"]),
+                commit=True,
+            )
+            pai_id = existente["id"]
+            atualizados += 1
+        else:
+            r = query(
+                "INSERT INTO produtos (codigo, codigo_barras, nome, categoria, marca, "
+                "fornecedor_id, localizacao, preco_compra, preco_venda, estoque_atual, "
+                "estoque_minimo, estoque_maximo, comissao_percentual, ncm, cfop, cest, "
+                "ean, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (p["codigo"], p["codigo_barras"], p["nome"], p["categoria"], p["marca"],
+                 fornecedor_id, p["localizacao"], p["preco_compra"], p["preco_venda"],
+                 p["estoque_atual"], p["estoque_minimo"], p["estoque_maximo"],
+                 p["comissao_percentual"], p["ncm"], p["cfop"], p["cest"],
+                 p["ean"], now()),
+                commit=True,
+            )
+            pai_id = r["_lastid"]
+            novos += 1
+
+        # Processa variações
+        for v in p.get("variacoes", []):
+            if not v.get("atributo"):
+                continue
+            # Verifica se a variação já existe (mesmo pai + mesmo atributo)
+            var_exist = query(
+                "SELECT id FROM produtos WHERE produto_pai_id=? AND lower(variacao_atributo)=lower(?)",
+                (pai_id, v["atributo"]), fetchone=True)
+            nome_var = f"{p['nome']} — {v['atributo']}"
+            if var_exist:
+                query(
+                    "UPDATE produtos SET codigo=?, codigo_barras=?, nome=?, preco_compra=?, "
+                    "preco_venda=?, estoque_minimo=?, estoque_maximo=?, "
+                    "comissao_percentual=?, ean=? WHERE id=?",
+                    (v["codigo"], v["codigo_barras"], nome_var, v["preco_compra"],
+                     v["preco_venda"], v["estoque_minimo"], v["estoque_maximo"],
+                     v["comissao_percentual"], v["ean"], var_exist["id"]),
+                    commit=True,
+                )
+            else:
+                query(
+                    "INSERT INTO produtos (produto_pai_id, variacao_atributo, codigo, "
+                    "codigo_barras, nome, categoria, marca, fornecedor_id, localizacao, "
+                    "preco_compra, preco_venda, estoque_atual, estoque_minimo, estoque_maximo, "
+                    "comissao_percentual, ncm, cfop, cest, ean, criado_em) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pai_id, v["atributo"], v["codigo"], v["codigo_barras"], nome_var,
+                     p["categoria"], p["marca"], fornecedor_id, p["localizacao"],
+                     v["preco_compra"], v["preco_venda"], v["estoque_atual"],
+                     v["estoque_minimo"], v["estoque_maximo"], v["comissao_percentual"],
+                     p["ncm"], p["cfop"], p["cest"], v["ean"], now()),
+                    commit=True,
+                )
+                variacoes_criadas += 1
+
+    registrar_log(session["user_id"], "importar_produtos_xml",
+                  f"novos={novos} atualizados={atualizados} variacoes={variacoes_criadas}")
+    return jsonify({
+        "ok": True,
+        "produtos_novos": novos,
+        "produtos_atualizados": atualizados,
+        "variacoes_criadas": variacoes_criadas,
+        "total_produtos": len(produtos),
+    })
