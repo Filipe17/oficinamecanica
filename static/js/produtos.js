@@ -150,10 +150,15 @@
       { chave: "categoria", titulo: "Categoria" },
       { chave: "preco_venda", titulo: "Venda", render: (v) => fmt.moeda(v) },
       { chave: "estoque_atual", titulo: "Estoque", render: (v, row) => {
-          // Produto pai com grade: estoque fica nas variações, não exibe valor
           if (!row.produto_pai_id && row.tem_variacoes) return `<span style="color:var(--text-muted)">—</span>`;
           const critico = Number(v) <= Number(row.estoque_minimo || 0);
-          return `<span class="badge ${critico ? "badge--danger" : "badge--success"}">${v ?? 0}</span>`;
+          const badge = `<span class="badge ${critico ? "badge--danger" : "badge--success"}">${v ?? 0}</span>`;
+          const btn = `<button class="icon-btn btn--sm" title="Movimentar estoque"
+            style="margin-left:4px;vertical-align:middle"
+            onclick="event.stopPropagation();window.__movRapido(${row.id},'${(row.nome||'').replace(/'/g,"\\'").replace(/"/g,"&quot;")}',${v??0})">
+            <i class="fa-solid fa-right-left" style="font-size:.7rem"></i>
+          </button>`;
+          return badge + btn;
         }},
       { chave: "_margem", titulo: "Margem", render: (v) => (v != null ? `${v}%` : "-") },
       { chave: "_grade", titulo: "Grade", render: (v, row) => {
@@ -183,5 +188,53 @@
       { nome: "ean", label: "EAN" },
     ],
   });
+  // Movimentação rápida de estoque direto da lista de produtos
+  window.__movRapido = function(prodId, prodNome, estoqueAtual) {
+    Modal.abrir(
+      `<i class="fa-solid fa-right-left"></i> Movimentar Estoque`,
+      `<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem">
+        <strong>${prodNome}</strong> — Estoque atual: <strong>${estoqueAtual}</strong>
+      </p>
+      <div class="form-grid" id="mov-rapido-form">
+        <div class="field"><label>Tipo *</label>
+          <select name="tipo">
+            <option value="entrada">Entrada</option>
+            <option value="saida">Saída</option>
+            <option value="ajuste">Ajuste (definir valor absoluto)</option>
+          </select>
+        </div>
+        <div class="field"><label>Quantidade *</label>
+          <input type="number" name="quantidade" step="0.01" min="0" autofocus>
+        </div>
+        <div class="field col-2"><label>Documento / observação</label>
+          <input name="documento" placeholder="ex: inventário, NF 123…">
+        </div>
+      </div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--primary" id="mov-rapido-salvar">
+         <i class="fa-solid fa-check"></i> Confirmar
+       </button>`
+    );
+    document.getElementById("mov-rapido-salvar").onclick = async () => {
+      const f = document.getElementById("mov-rapido-form");
+      const dados = {
+        produto_id: prodId,
+        tipo: f.tipo.value,
+        quantidade: parseFloat(f.quantidade.value),
+        documento: f.documento.value || null,
+        origem: "manual",
+      };
+      if (!dados.quantidade || isNaN(dados.quantidade)) {
+        toast("Informe a quantidade", "warning"); return;
+      }
+      try {
+        const r = await API.post("/api/estoque/movimentar", dados);
+        toast(`Estoque atualizado → ${r.saldo}`);
+        Modal.fechar();
+        window.__crud?.carregar();
+      } catch (e) { toast(e.message, "error"); }
+    };
+  };
+
   crud.montar();
 })();
