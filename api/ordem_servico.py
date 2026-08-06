@@ -349,47 +349,61 @@ def para_orcamento(oid):
     )
     orc_id = r["_lastid"]
 
-    # 2) Copia os itens da OS para o orçamento, preenchendo código e valor de
-    #    venda a partir do cadastro (na OS as peças ficam com valor_unitario=0
-    #    e codigo=null). A peça pode ter sido digitada pelo mecânico sem vínculo
-    #    (referencia_id nulo); nesse caso localizamos o produto pelo nome.
-    itens = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
-    for it in itens:
-        ref_id = it.get("referencia_id")
-        codigo = it.get("codigo")
-        unidade = it.get("unidade")
-        vu = float(it.get("valor_unitario") or 0)
-        qtd = float(it.get("quantidade") or 1)
-        if it.get("tipo") == "produto":
-            prod = None
-            if ref_id:
-                prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos WHERE id=?",
-                             (ref_id,), fetchone=True)
-            if not prod and (it.get("descricao") or "").strip():
-                prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos "
-                             "WHERE lower(trim(nome))=lower(trim(?))",
-                             (it["descricao"],), fetchone=True)
-            if prod:
-                ref_id = prod.get("id")
-                codigo = prod.get("codigo")
-                unidade = prod.get("unidade") or unidade
-                if not vu:
-                    vu = float(prod.get("preco_venda") or 0)
-        subtotal = round(qtd * vu - float(it.get("desconto") or 0), 2)
-        query(
-            "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, codigo, "
-            "unidade, quantidade, valor_unitario, desconto, subtotal, comissao_percentual) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (orc_id, it.get("tipo"), ref_id, it.get("descricao"), codigo, unidade,
-             qtd, vu, float(it.get("desconto") or 0), subtotal,
-             float(it.get("comissao_percentual") or 0)),
-            commit=True,
-        )
-    _recalcular_total(orc_id)
+    # A partir daqui, se algo falhar, apagamos o orçamento recém-criado para
+    # não deixar um orçamento "vazio" órfão, e devolvemos a mensagem real do
+    # erro (em vez de estourar um 500 genérico no front).
+    try:
+        # 2) Copia os itens da OS para o orçamento, preenchendo código e valor de
+        #    venda a partir do cadastro (na OS as peças ficam com valor_unitario=0
+        #    e codigo=null). A peça pode ter sido digitada pelo mecânico sem vínculo
+        #    (referencia_id nulo); nesse caso localizamos o produto pelo nome.
+        itens = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
+        for it in itens:
+            ref_id = it.get("referencia_id")
+            codigo = it.get("codigo")
+            unidade = it.get("unidade")
+            vu = float(it.get("valor_unitario") or 0)
+            qtd = float(it.get("quantidade") or 1)
+            if it.get("tipo") == "produto":
+                prod = None
+                if ref_id:
+                    prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos WHERE id=?",
+                                 (ref_id,), fetchone=True)
+                if not prod and (it.get("descricao") or "").strip():
+                    prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos "
+                                 "WHERE lower(trim(nome))=lower(trim(?))",
+                                 (it["descricao"],), fetchone=True)
+                if prod:
+                    ref_id = prod.get("id")
+                    codigo = prod.get("codigo")
+                    unidade = prod.get("unidade") or unidade
+                    if not vu:
+                        vu = float(prod.get("preco_venda") or 0)
+            desc = float(it.get("desconto") or 0)
+            subtotal = round(qtd * vu - desc, 2)
+            query(
+                "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, codigo, "
+                "unidade, quantidade, valor_unitario, desconto, subtotal, comissao_percentual) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (orc_id, it.get("tipo"), ref_id, it.get("descricao"), codigo, unidade,
+                 qtd, vu, desc, subtotal, float(it.get("comissao_percentual") or 0)),
+                commit=True,
+            )
+        _recalcular_total(orc_id)
 
-    # 3) A OS de origem permanece na lista, agora aguardando aprovação do cliente.
-    query("UPDATE ordens_servico SET status='aguardando_aprovacao' WHERE id=?",
-          (oid,), commit=True)
+        # 3) A OS de origem permanece na lista, agora aguardando aprovação do cliente.
+        query("UPDATE ordens_servico SET status='aguardando_aprovacao' WHERE id=?",
+              (oid,), commit=True)
+    except Exception as e:
+        # Desfaz o orçamento parcial para não sobrar registro vazio.
+        try:
+            query("DELETE FROM os_itens WHERE os_id=?", (orc_id,), commit=True)
+            query("DELETE FROM ordens_servico WHERE id=?", (orc_id,), commit=True)
+        except Exception:
+            pass
+        import traceback
+        traceback.print_exc()
+        return jsonify({"erro": f"Falha ao gerar orçamento: {e}"}), 500
 
     registrar_log(session["user_id"], "os_para_orcamento",
                   f"os={oid} orc={orc_id}")
