@@ -80,6 +80,26 @@
     window.__orc = api;
     const bn = document.getElementById("orc-novo");
     if (bn) bn.onclick = () => abrirEditor(null);
+
+    // Se a página foi aberta via "Gerar Orçamento" de uma OS, abre o orçamento
+    // recém-criado e já vincula a OS de origem como OS relacionada.
+    const osOrigem = sessionStorage.getItem("orc_os_origem");
+    if (osOrigem) {
+      sessionStorage.removeItem("orc_os_origem");
+      try {
+        const origem = JSON.parse(osOrigem);
+        // Busca o orçamento que veio dessa OS (mais recente com mesmo id)
+        const orc = lista.find((o) => o.id === origem.id);
+        if (orc) {
+          await abrirEditor(orc.id);
+          // Vincula a OS de origem automaticamente
+          if (!osRefs.some((r) => r.id === origem.id)) {
+            osRefs.push({ id: origem.id, numero: origem.numero, cliente: "" });
+            renderOSRefs();
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   /* ----------------------------------------------------------------- EDITOR */

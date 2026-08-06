@@ -419,8 +419,10 @@
     async gerarOrcamento(id) {
       if (!confirm("Converter esta OS em Orçamento e abrir na tela de Orçamentos?")) return;
       try {
-        await API.post(`/api/os/${id}/para-orcamento`);
+        const r = await API.post(`/api/os/${id}/para-orcamento`);
         toast("Orçamento gerado");
+        // Passa o número da OS de origem pro orçamento vincular como OS relacionada
+        if (r.os_numero) sessionStorage.setItem("orc_os_origem", JSON.stringify({ id, numero: r.os_numero }));
         Modal.fechar();
         location.href = "/orcamentos";
       } catch (e) { toast(e.message, "error"); }
