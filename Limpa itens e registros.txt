@@ -1,0 +1,10 @@
+Limpa itens e registros de OS/orçamentos
+DELETE FROM os_itens;
+DELETE FROM ordens_servico;
+
+-- Limpa agendamentos
+DELETE FROM agendamentos;
+
+-- Reseta as sequências de ID (PostgreSQL)
+ALTER SEQUENCE ordens_servico_id_seq RESTART WITH 1;
+ALTER SEQUENCE agendamentos_id_seq RESTART WITH 1;
