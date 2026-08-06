@@ -45,8 +45,17 @@ def listar_produtos():
     offset = (pagina - 1) * por_pagina
     lista = query(f"SELECT * FROM produtos {where} ORDER BY nome LIMIT ? OFFSET ?",
                   params + [por_pagina, offset])
+    # Marca produtos pai que têm variações (para o front mostrar "—" no estoque)
+    ids = [p["id"] for p in lista]
+    variacoes_ids = set()
+    if ids:
+        rows = query(
+            f"SELECT DISTINCT produto_pai_id FROM produtos WHERE produto_pai_id IN ({','.join('?' * len(ids))})",
+            ids)
+        variacoes_ids = {r["produto_pai_id"] for r in rows}
     for p in lista:
         p["margem"] = _margem(p.get("preco_compra"), p.get("preco_venda"))
+        p["tem_variacoes"] = p["id"] in variacoes_ids
     return jsonify({
         "dados": lista, "total": total, "pagina": pagina,
         "por_pagina": por_pagina,
