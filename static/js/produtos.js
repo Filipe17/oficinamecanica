@@ -150,6 +150,8 @@
       { chave: "categoria", titulo: "Categoria" },
       { chave: "preco_venda", titulo: "Venda", render: (v) => fmt.moeda(v) },
       { chave: "estoque_atual", titulo: "Estoque", render: (v, row) => {
+          // Produto pai com grade: estoque fica nas variações, não exibe valor
+          if (!row.produto_pai_id && row.tem_variacoes) return `<span style="color:var(--text-muted)">—</span>`;
           const critico = Number(v) <= Number(row.estoque_minimo || 0);
           return `<span class="badge ${critico ? "badge--danger" : "badge--success"}">${v ?? 0}</span>`;
         }},
