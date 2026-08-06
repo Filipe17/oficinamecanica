@@ -27,3 +27,7 @@ DELETE FROM estoque_mov;
 DELETE FROM produtos;
 ALTER SEQUENCE estoque_mov_id_seq RESTART WITH 1;
 ALTER SEQUENCE produtos_id_seq RESTART WITH 1;
+
+
+DELETE FROM xml_importacoes;
+ALTER SEQUENCE xml_importacoes_id_seq RESTART WITH 1;
