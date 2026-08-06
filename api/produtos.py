@@ -181,18 +181,83 @@ def excluir_servico(sid):
 @produtos_bp.route("/api/fornecedores", methods=["GET"])
 @login_obrigatorio
 def listar_fornecedores():
-    lista = query("SELECT * FROM fornecedores ORDER BY nome")
+    q = request.args.get("q", "").strip()
+    where, params = "", []
+    if q:
+        where = "WHERE nome LIKE ? OR nome_fantasia LIKE ? OR cnpj LIKE ? OR cidade LIKE ?"
+        params = [f"%{q}%"] * 4
+    lista = query(f"SELECT * FROM fornecedores {where} ORDER BY nome", params)
+    # Conta produtos vinculados a cada fornecedor
+    for f in lista:
+        r = query("SELECT COUNT(*) AS n FROM produtos WHERE fornecedor_id=? AND (produto_pai_id IS NULL OR produto_pai_id=0)",
+                  (f["id"],), fetchone=True)
+        f["qtd_produtos"] = r["n"] if r else 0
     return jsonify({"dados": lista, "total": len(lista)})
+
+
+@produtos_bp.route("/api/fornecedores/<int:fid>", methods=["GET"])
+@login_obrigatorio
+def detalhe_fornecedor(fid):
+    f = query("SELECT * FROM fornecedores WHERE id=?", (fid,), fetchone=True)
+    if not f:
+        return jsonify({"erro": "Fornecedor não encontrado"}), 404
+    f["produtos"] = query(
+        "SELECT id, nome, codigo, estoque_atual, preco_compra FROM produtos "
+        "WHERE fornecedor_id=? AND (produto_pai_id IS NULL OR produto_pai_id=0) ORDER BY nome",
+        (fid,))
+    return jsonify(f)
 
 
 @produtos_bp.route("/api/fornecedores", methods=["POST"])
 @login_obrigatorio
 def criar_fornecedor():
     d = request.get_json(force=True)
-    res = query("INSERT INTO fornecedores (nome, cnpj, telefone, email, criado_em) VALUES (?,?,?,?,?)",
-                (d.get("nome"), d.get("cnpj"), d.get("telefone"), d.get("email"), now()),
-                commit=True)
+    if not d.get("nome"):
+        return jsonify({"erro": "Nome é obrigatório"}), 400
+    res = query(
+        "INSERT INTO fornecedores (nome, nome_fantasia, cnpj, ie, telefone, telefone2, "
+        "email, contato, site, endereco, numero, bairro, cidade, estado, cep, "
+        "prazo_pagamento, observacoes, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (d.get("nome"), d.get("nome_fantasia"), d.get("cnpj"), d.get("ie"),
+         d.get("telefone"), d.get("telefone2"), d.get("email"), d.get("contato"),
+         d.get("site"), d.get("endereco"), d.get("numero"), d.get("bairro"),
+         d.get("cidade"), d.get("estado"), d.get("cep"),
+         d.get("prazo_pagamento"), d.get("observacoes"), now()),
+        commit=True)
+    registrar_log(session["user_id"], "criar_fornecedor", d.get("nome"))
     return jsonify({"ok": True, "id": res["_lastid"]}), 201
+
+
+@produtos_bp.route("/api/fornecedores/<int:fid>", methods=["PUT"])
+@login_obrigatorio
+def editar_fornecedor(fid):
+    d = request.get_json(force=True)
+    query(
+        "UPDATE fornecedores SET nome=?, nome_fantasia=?, cnpj=?, ie=?, telefone=?, "
+        "telefone2=?, email=?, contato=?, site=?, endereco=?, numero=?, bairro=?, "
+        "cidade=?, estado=?, cep=?, prazo_pagamento=?, observacoes=? WHERE id=?",
+        (d.get("nome"), d.get("nome_fantasia"), d.get("cnpj"), d.get("ie"),
+         d.get("telefone"), d.get("telefone2"), d.get("email"), d.get("contato"),
+         d.get("site"), d.get("endereco"), d.get("numero"), d.get("bairro"),
+         d.get("cidade"), d.get("estado"), d.get("cep"),
+         d.get("prazo_pagamento"), d.get("observacoes"), fid),
+        commit=True)
+    registrar_log(session["user_id"], "editar_fornecedor", str(fid))
+    return jsonify({"ok": True})
+
+
+@produtos_bp.route("/api/fornecedores/<int:fid>", methods=["DELETE"])
+@login_obrigatorio
+def excluir_fornecedor(fid):
+    # Verifica se tem produtos vinculados
+    n = query("SELECT COUNT(*) AS n FROM produtos WHERE fornecedor_id=?",
+              (fid,), fetchone=True)["n"]
+    if n > 0:
+        return jsonify({"erro": f"Fornecedor possui {n} produto(s) vinculado(s). Desvincule antes de excluir."}), 400
+    query("DELETE FROM fornecedores WHERE id=?", (fid,), commit=True)
+    registrar_log(session["user_id"], "excluir_fornecedor", str(fid))
+    return jsonify({"ok": True})
 
 
 # =========================================================================
