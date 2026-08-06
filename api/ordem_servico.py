@@ -315,48 +315,90 @@ def finalizar(oid):
 @os_bp.route("/api/os/<int:oid>/para-orcamento", methods=["POST"])
 @login_obrigatorio
 def para_orcamento(oid):
-    """Converte uma OS (aguardando aprovação) em Orçamento para enviar ao cliente."""
+    """
+    Gera um Orçamento a partir de uma OS para enviar ao cliente aprovar.
+
+    IMPORTANTE: a OS de origem NÃO é convertida nem some da lista de OS. O
+    orçamento é uma CÓPIA (registro novo com eh_orcamento=1); a OS continua
+    ativa com status 'aguardando_aprovacao', porque o serviço ainda não
+    terminou — o orçamento serve apenas para o cliente aprovar.
+    """
     perfil = session.get("perfil")
     if perfil == "mecanico":
         return jsonify({"erro": "Mecânico não pode gerar orçamento"}), 403
-    o = query("SELECT status, eh_orcamento, numero FROM ordens_servico WHERE id=?",
-              (oid,), fetchone=True)
+    o = query("SELECT * FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
     if not o:
         return jsonify({"erro": "OS não encontrada"}), 404
     if o.get("eh_orcamento") == 1:
-        return jsonify({"erro": "Já é um orçamento", "ja_orcamento": True}), 400
+        return jsonify({"erro": "Este registro já é um orçamento", "ja_orcamento": True}), 400
 
-    # Ao converter, preenche código e valor de venda dos produtos a partir do
-    # cadastro (na OS as peças ficaram com valor_unitario=0 e codigo=null).
-    # A peça pode ter sido digitada pelo mecânico sem vínculo (referencia_id
-    # nulo); nesse caso tentamos localizar o produto pelo nome/descrição e,
-    # ao achar, gravamos também o referencia_id para estoque e comissões.
+    # 1) Cria o registro do orçamento (cópia da OS), com número próprio.
+    novo_numero = _proximo_numero()
+    r = query(
+        "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
+        "data, previsao, status, problema, diagnostico, horas_trabalhadas, garantia, "
+        "observacoes, validade, forma_pagamento, condicoes, obs_finais, eh_orcamento, "
+        "desconto, total, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (novo_numero, o.get("cliente_id"), o.get("veiculo_id"), o.get("mecanico_id"),
+         now(), o.get("previsao"), "aberta", o.get("problema"), o.get("diagnostico"),
+         o.get("horas_trabalhadas", 0), o.get("garantia"), o.get("observacoes"),
+         o.get("validade"), o.get("forma_pagamento"), o.get("condicoes"),
+         o.get("obs_finais"), 1, o.get("desconto", 0), 0, now()),
+        commit=True,
+    )
+    orc_id = r["_lastid"]
+
+    # 2) Copia os itens da OS para o orçamento, preenchendo código e valor de
+    #    venda a partir do cadastro (na OS as peças ficam com valor_unitario=0
+    #    e codigo=null). A peça pode ter sido digitada pelo mecânico sem vínculo
+    #    (referencia_id nulo); nesse caso localizamos o produto pelo nome.
     itens = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
     for it in itens:
-        if it.get("tipo") != "produto":
-            continue
-        prod = None
-        if it.get("referencia_id"):
-            prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos WHERE id=?",
-                         (it["referencia_id"],), fetchone=True)
-        if not prod and (it.get("descricao") or "").strip():
-            prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos "
-                         "WHERE lower(trim(nome))=lower(trim(?))",
-                         (it["descricao"],), fetchone=True)
-        if prod:
-            qtd = float(it.get("quantidade") or 1)
-            vu = float(prod.get("preco_venda") or 0)
-            query("UPDATE os_itens SET referencia_id=?, codigo=?, valor_unitario=?, "
-                  "unidade=?, subtotal=? WHERE id=?",
-                  (prod.get("id"), prod.get("codigo"), vu, prod.get("unidade"),
-                   round(qtd * vu, 2), it["id"]),
-                  commit=True)
+        ref_id = it.get("referencia_id")
+        codigo = it.get("codigo")
+        unidade = it.get("unidade")
+        vu = float(it.get("valor_unitario") or 0)
+        qtd = float(it.get("quantidade") or 1)
+        if it.get("tipo") == "produto":
+            prod = None
+            if ref_id:
+                prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos WHERE id=?",
+                             (ref_id,), fetchone=True)
+            if not prod and (it.get("descricao") or "").strip():
+                prod = query("SELECT id, codigo, preco_venda, unidade FROM produtos "
+                             "WHERE lower(trim(nome))=lower(trim(?))",
+                             (it["descricao"],), fetchone=True)
+            if prod:
+                ref_id = prod.get("id")
+                codigo = prod.get("codigo")
+                unidade = prod.get("unidade") or unidade
+                if not vu:
+                    vu = float(prod.get("preco_venda") or 0)
+        subtotal = round(qtd * vu - float(it.get("desconto") or 0), 2)
+        query(
+            "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, codigo, "
+            "unidade, quantidade, valor_unitario, desconto, subtotal, comissao_percentual) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (orc_id, it.get("tipo"), ref_id, it.get("descricao"), codigo, unidade,
+             qtd, vu, float(it.get("desconto") or 0), subtotal,
+             float(it.get("comissao_percentual") or 0)),
+            commit=True,
+        )
+    _recalcular_total(orc_id)
 
-    query("UPDATE ordens_servico SET eh_orcamento=1, status='aberta' WHERE id=?",
+    # 3) A OS de origem permanece na lista, agora aguardando aprovação do cliente.
+    query("UPDATE ordens_servico SET status='aguardando_aprovacao' WHERE id=?",
           (oid,), commit=True)
-    _recalcular_total(oid)
-    registrar_log(session["user_id"], "os_para_orcamento", str(oid))
-    return jsonify({"ok": True, "os_numero": o.get("numero")})
+
+    registrar_log(session["user_id"], "os_para_orcamento",
+                  f"os={oid} orc={orc_id}")
+    return jsonify({
+        "ok": True,
+        "orcamento_id": orc_id,
+        "orcamento_numero": novo_numero,
+        "os_numero": o.get("numero"),
+    })
 
 
 @os_bp.route("/api/os/<int:oid>/converter", methods=["POST"])
