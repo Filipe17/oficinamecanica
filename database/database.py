@@ -399,6 +399,21 @@ def init_db():
             criado_em TEXT
         )""",
 
+        f"""CREATE TABLE IF NOT EXISTS lembretes_revisao (
+            id {pk},
+            cliente_id INTEGER REFERENCES clientes(id),
+            veiculo_id INTEGER REFERENCES veiculos(id),
+            os_id INTEGER REFERENCES ordens_servico(id),
+            data_ultima_os TEXT,          -- data da OS que originou o lembrete
+            data_prevista TEXT,           -- data calculada para próxima revisão
+            intervalo_dias INTEGER DEFAULT 180,  -- padrão 6 meses
+            status TEXT DEFAULT 'pendente',  -- pendente | enviado | agendado | dispensado
+            canal_envio TEXT,             -- whatsapp | email | manual
+            enviado_em TEXT,
+            obs TEXT,
+            criado_em TEXT
+        )""",
+
         f"""CREATE TABLE IF NOT EXISTS comissoes (
             id {pk},
             usuario_id INTEGER,               -- profissional que recebe (mecânico da OS)
