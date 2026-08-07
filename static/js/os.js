@@ -308,18 +308,69 @@
     const pecaBusca = document.getElementById("os-peca-busca");
     if (pecaBusca) {
       const norm = (s) => (s || "").trim().toLowerCase();
+
+      // Busca por nome OU código OU código de barras/EAN
+      const encontrarProduto = (texto) => {
+        const q = norm(texto);
+        return produtos.find((x) =>
+          norm(x.nome) === q ||
+          norm(x.codigo || "") === q ||
+          norm(x.codigo_barras || "") === q ||
+          norm(x.ean || "") === q
+        );
+      };
+
       const tentarAdicionar = () => {
-        const p = produtos.find((x) => norm(x.nome) === norm(pecaBusca.value));
+        const p = encontrarProduto(pecaBusca.value);
         if (p) { api.addPeca(p); pecaBusca.value = ""; return true; }
         return false;
       };
+
+      // Detecção de coletor de dados: scanners enviam os caracteres muito
+      // rapidamente (< 50ms entre teclas) e terminam com Enter.
+      // Se detectar leitura de scanner, tenta adicionar direto sem abrir busca.
+      let _ultimaTecla = 0;
+      let _bufferScanner = "";
+      let _timerScanner = null;
+
       pecaBusca.addEventListener("keydown", (e) => {
         if (e.key === "F1") {
           e.preventDefault();
           abrirBuscaProdutos((p) => api.addPeca(p));
-        } else if (e.key === "Enter") {
+          return;
+        }
+        if (e.key === "Enter") {
           e.preventDefault();
           if (!tentarAdicionar()) abrirBuscaProdutos((p) => api.addPeca(p));
+          return;
+        }
+        // Detecta velocidade de digitação — scanner digita < 50ms por tecla
+        const agora = Date.now();
+        const intervalo = agora - _ultimaTecla;
+        _ultimaTecla = agora;
+        if (intervalo < 50 && e.key.length === 1) {
+          _bufferScanner += e.key;
+          clearTimeout(_timerScanner);
+          // Se parar de receber chars por 80ms, considera leitura completa
+          _timerScanner = setTimeout(() => {
+            if (_bufferScanner.length >= 4) {
+              // Tenta encontrar pelo buffer (código de barras)
+              const p = encontrarProduto(_bufferScanner);
+              if (p) {
+                api.addPeca(p);
+                pecaBusca.value = "";
+                toast(`✓ ${p.nome} adicionado via coletor`, "success");
+              } else {
+                // Não encontrou — deixa no campo para o usuário ver
+                pecaBusca.value = _bufferScanner;
+                toast("Código não encontrado no cadastro", "warning");
+              }
+            }
+            _bufferScanner = "";
+          }, 80);
+        } else {
+          // Digitação manual — limpa o buffer do scanner
+          _bufferScanner = "";
         }
       });
     }

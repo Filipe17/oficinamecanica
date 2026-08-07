@@ -14,6 +14,7 @@
     <div class="tabs" id="tabs">
       <button class="tab active" data-aba="alertas">Alertas</button>
       <button class="tab" data-aba="sugestao"><i class="fa-solid fa-cart-shopping"></i> Sugestão de Compras</button>
+      <button class="tab" data-aba="inventario"><i class="fa-solid fa-barcode"></i> Inventário</button>
       <button class="tab" data-aba="mov">Movimentações</button>
       <button class="tab" data-aba="abc">Curva ABC</button>
     </div>
@@ -39,6 +40,7 @@
     try {
       if (aba === "alertas") return renderAlertas();
       if (aba === "sugestao") return renderSugestao();
+      if (aba === "inventario") return renderInventario();
       if (aba === "mov") return renderMovimentacoes();
       if (aba === "abc") return renderAbc();
     } catch (e) {
@@ -264,6 +266,209 @@
   // -----------------------------------------------------------------------
   // Cotação: modal de ajuste de quantidades + histórico de preço + envio
   // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Inventário por coletor de dados
+  // -----------------------------------------------------------------------
+  async function renderInventario() {
+    alvo.innerHTML = `
+      <div style="margin-bottom:1rem">
+        <h3 style="margin-bottom:.5rem">Inventário por Coletor</h3>
+        <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem">
+          Leia os códigos de barras dos produtos com o coletor ou digite o código manualmente.
+          O sistema acumula as contagens. Ao finalizar, aplica o ajuste de estoque em lote.
+        </p>
+        <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+          <div style="position:relative;flex:1;min-width:220px">
+            <i class="fa-solid fa-barcode" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted)"></i>
+            <input id="inv-input" placeholder="Leia o código de barras ou digite o código…"
+              autocomplete="off"
+              style="width:100%;padding:.55rem .75rem .55rem 2.2rem;border:2px solid var(--primary);
+                border-radius:8px;font-size:1rem;box-sizing:border-box">
+          </div>
+          <div class="field" style="margin:0;min-width:80px">
+            <label style="font-size:.8rem">Qtd.</label>
+            <input type="number" id="inv-qtd" value="1" min="1" step="1"
+              style="width:80px;text-align:center">
+          </div>
+          <button class="btn btn--outline btn--sm" id="inv-limpar">
+            <i class="fa-solid fa-trash"></i> Limpar lista
+          </button>
+          <button class="btn btn--primary" id="inv-aplicar" style="display:none">
+            <i class="fa-solid fa-check-double"></i> Aplicar inventário
+          </button>
+        </div>
+        <div id="inv-msg" style="margin-top:.5rem;font-size:.85rem;color:var(--text-muted)">
+          Aguardando leitura…
+        </div>
+      </div>
+
+      <div id="inv-tabela"></div>`;
+
+    // Carrega produtos para busca
+    let produtos = [];
+    try {
+      const r = await API.get("/api/produtos?por_pagina=1000");
+      produtos = r.dados || [];
+    } catch(_) {}
+
+    const inventario = new Map(); // produto_id -> { produto, contado }
+    let _ultimaTecla = 0;
+    let _bufferScanner = "";
+    let _timerScanner = null;
+
+    const input = document.getElementById("inv-input");
+    const msg = document.getElementById("inv-msg");
+
+    function encontrar(codigo) {
+      const q = (codigo || "").trim().toLowerCase();
+      return produtos.find((p) =>
+        (p.codigo || "").toLowerCase() === q ||
+        (p.codigo_barras || "").toLowerCase() === q ||
+        (p.ean || "").toLowerCase() === q ||
+        (p.nome || "").toLowerCase() === q
+      );
+    }
+
+    function adicionarLeitura(codigo) {
+      const p = encontrar(codigo);
+      const qtd = Math.max(1, parseInt(document.getElementById("inv-qtd")?.value) || 1);
+      if (!p) {
+        msg.innerHTML = `<span style="color:#e74c3c"><i class="fa-solid fa-triangle-exclamation"></i> Código <strong>${codigo}</strong> não encontrado no cadastro</span>`;
+        input.value = "";
+        return;
+      }
+      const atual = inventario.get(p.id) || { produto: p, contado: 0 };
+      atual.contado += qtd;
+      inventario.set(p.id, atual);
+      msg.innerHTML = `<span style="color:#27ae60"><i class="fa-solid fa-check"></i> <strong>${p.nome}</strong> — ${atual.contado} unidade(s) contada(s)</span>`;
+      input.value = "";
+      document.getElementById("inv-qtd").value = "1";
+      renderTabela();
+    }
+
+    function renderTabela() {
+      const dados = [...inventario.values()];
+      document.getElementById("inv-aplicar").style.display = dados.length ? "" : "none";
+      if (!dados.length) {
+        document.getElementById("inv-tabela").innerHTML = `
+          <div class="empty"><i class="fa-solid fa-inbox"></i>Nenhum produto contado ainda</div>`;
+        return;
+      }
+      document.getElementById("inv-tabela").innerHTML = `
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.5rem">
+          ${dados.length} produto(s) contado(s) — clique no ✕ para remover um item
+        </p>
+        <div class="table-wrap"><table class="data">
+          <thead><tr>
+            <th>Produto</th><th>Código</th><th>Estoque Atual</th>
+            <th>Contado</th><th>Diferença</th><th></th>
+          </tr></thead>
+          <tbody>${dados.map((it) => {
+            const atual = Number(it.produto.estoque_atual || 0);
+            const diff = it.contado - atual;
+            const cor = diff > 0 ? "color:#27ae60" : diff < 0 ? "color:#e74c3c" : "color:#888";
+            const sinal = diff > 0 ? "+" : "";
+            return `<tr>
+              <td><strong>${it.produto.nome}</strong></td>
+              <td>${it.produto.codigo || "—"}</td>
+              <td>${atual}</td>
+              <td>
+                <input type="number" value="${it.contado}" min="0" step="1"
+                  style="width:70px;text-align:center"
+                  onchange="window.__inv.atualizar(${it.produto.id}, this.value)">
+              </td>
+              <td style="${cor};font-weight:700">${sinal}${diff}</td>
+              <td>
+                <button class="icon-btn btn--sm" onclick="window.__inv.remover(${it.produto.id})">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </td>
+            </tr>`;
+          }).join("")}
+          </tbody>
+        </table></div>`;
+    }
+
+    // Detecção de scanner (< 50ms por tecla)
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const v = input.value.trim();
+        if (v) adicionarLeitura(v);
+        return;
+      }
+      const agora = Date.now();
+      const intervalo = agora - _ultimaTecla;
+      _ultimaTecla = agora;
+      if (intervalo < 50 && e.key.length === 1) {
+        _bufferScanner += e.key;
+        clearTimeout(_timerScanner);
+        _timerScanner = setTimeout(() => {
+          if (_bufferScanner.length >= 4) {
+            adicionarLeitura(_bufferScanner);
+          }
+          _bufferScanner = "";
+        }, 80);
+      } else {
+        _bufferScanner = "";
+      }
+    });
+
+    document.getElementById("inv-limpar").onclick = () => {
+      if (!inventario.size || confirm("Limpar toda a contagem?")) {
+        inventario.clear();
+        renderTabela();
+        msg.textContent = "Aguardando leitura…";
+        document.getElementById("inv-aplicar").style.display = "none";
+      }
+    };
+
+    document.getElementById("inv-aplicar").onclick = async () => {
+      const dados = [...inventario.values()];
+      if (!dados.length) return;
+      if (!confirm(`Aplicar ajuste de estoque para ${dados.length} produto(s)?
+
+Esta ação atualiza o estoque atual para os valores contados.`)) return;
+
+      const btn = document.getElementById("inv-aplicar");
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Aplicando…`;
+
+      let ok = 0, erros = 0;
+      for (const it of dados) {
+        try {
+          await API.post("/api/estoque/movimentar", {
+            produto_id: it.produto.id,
+            tipo: "ajuste",
+            quantidade: it.contado,
+            documento: "Inventário por coletor",
+            origem: "inventario",
+          });
+          ok++;
+        } catch(_) { erros++; }
+      }
+
+      toast(`Inventário aplicado — ${ok} produto(s) ajustado(s)${erros ? `, ${erros} erro(s)` : ""}`);
+      inventario.clear();
+      renderTabela();
+      msg.textContent = "Inventário aplicado. Aguardando nova leitura…";
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-check-double"></i> Aplicar inventário`;
+      btn.style.display = "none";
+    };
+
+    window.__inv = {
+      atualizar(id, val) {
+        const it = inventario.get(id);
+        if (it) { it.contado = Math.max(0, parseInt(val) || 0); inventario.set(id, it); renderTabela(); }
+      },
+      remover(id) { inventario.delete(id); renderTabela(); },
+    };
+
+    renderTabela();
+    setTimeout(() => input.focus(), 100);
+  }
+
   async function abrirCotacao(gi) {
     const g = window.__sugestao?._grupos?.[gi];
     if (!g) return;
