@@ -9,7 +9,7 @@ Fluxo:
 """
 from flask import Blueprint, request, jsonify, session, render_template_string
 from database.database import query, now
-from api.auth import login_obrigatorio
+from api.usuarios import login_obrigatorio
 from api.logs import registrar_log
 
 nps_bp = Blueprint("nps", __name__)
