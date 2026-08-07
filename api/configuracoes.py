@@ -23,7 +23,10 @@ CHAVES = ["empresa_nome", "empresa_cnpj", "empresa_telefone", "empresa_cep",
           "empresa_inscricao_municipal", "nfe_provedor", "nfe_ambiente", "nfe_token",
           "boleto_provedor", "boleto_ambiente", "boleto_token", "boleto_metodo",
           "boleto_banco", "boleto_agencia", "boleto_conta", "boleto_convenio",
-          "boleto_carteira", "boleto_banco_ambiente", "boleto_banco_credenciais"]
+          "boleto_carteira", "boleto_banco_ambiente", "boleto_banco_credenciais",
+          # SMTP para envio de emails (cotações, pedidos)
+          "smtp_host", "smtp_porta", "smtp_usuario", "smtp_senha",
+          "smtp_ssl", "smtp_email_remetente", "smtp_nome_remetente"]
 
 # Limite da logo em base64 (~400 KB de imagem) para não inchar o banco/respostas.
 LIMITE_LOGO = 600_000

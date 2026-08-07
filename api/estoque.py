@@ -194,3 +194,131 @@ def sugestao_compras():
         "total_itens": len(criticos),
         "total_geral": total_geral,
     })
+
+
+@estoque_bp.route("/api/estoque/cotacao/historico/<int:produto_id>", methods=["GET"])
+@login_obrigatorio
+def historico_preco(produto_id):
+    """Retorna as últimas entradas do produto para referência de preço."""
+    historico = query(
+        "SELECT m.criado_em, m.quantidade, m.documento, m.origem, "
+        "p.preco_compra AS preco_atual "
+        "FROM estoque_mov m "
+        "JOIN produtos p ON p.id = m.produto_id "
+        "WHERE m.produto_id=? AND m.tipo='entrada' "
+        "ORDER BY m.id DESC LIMIT 5",
+        (produto_id,))
+    # Tenta pegar o último preço pago via XML (NF-e)
+    ultimo_xml = next((h for h in historico if h.get("origem") == "xml"), None)
+    return jsonify({"historico": historico, "ultimo_xml": ultimo_xml})
+
+
+@estoque_bp.route("/api/estoque/cotacao/enviar", methods=["POST"])
+@login_obrigatorio
+def enviar_cotacao():
+    """
+    Envia pedido de cotação/compra por email para um fornecedor.
+    Body: { fornecedor_id, email_destino, itens: [{produto_id, nome, codigo, quantidade, preco_referencia}],
+            obs, prazo, assunto_custom }
+    """
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from api.configuracoes import obter_config
+
+    d = request.get_json(force=True)
+    itens = d.get("itens", [])
+    if not itens:
+        return jsonify({"erro": "Nenhum item para cotar"}), 400
+
+    email_destino = (d.get("email_destino") or "").strip()
+    if not email_destino:
+        return jsonify({"erro": "E-mail do fornecedor não informado"}), 400
+
+    cfg = obter_config()
+    smtp_host = cfg.get("smtp_host", "").strip()
+    smtp_porta = int(cfg.get("smtp_porta") or 587)
+    smtp_usuario = cfg.get("smtp_usuario", "").strip()
+    smtp_senha = cfg.get("smtp_senha", "").strip()
+    smtp_ssl = str(cfg.get("smtp_ssl", "")).lower() in ("1", "true", "sim", "yes")
+    email_rem = cfg.get("smtp_email_remetente") or smtp_usuario
+    nome_rem = cfg.get("smtp_nome_remetente") or cfg.get("empresa_nome") or "DevSystem PRIME"
+
+    if not smtp_host or not smtp_usuario or not smtp_senha:
+        return jsonify({"erro": "Configure o servidor SMTP em Configurações antes de enviar emails"}), 400
+
+    # Busca dados do fornecedor
+    forn = query("SELECT * FROM fornecedores WHERE id=?", (d.get("fornecedor_id"),), fetchone=True) or {}
+    empresa = cfg.get("empresa_nome") or "Oficina"
+    from datetime import date
+    hoje = date.today().strftime("%d/%m/%Y")
+
+    # Monta tabela HTML do pedido
+    linhas_html = "".join(f"""
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #eee">{it.get('codigo') or '—'}</td>
+          <td style="padding:8px;border-bottom:1px solid #eee">{it.get('nome')}</td>
+          <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">{it.get('quantidade')}</td>
+          <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">
+            {"R$ {:.2f}".format(float(it.get('preco_referencia') or 0)) if it.get('preco_referencia') else '—'}
+          </td>
+        </tr>""" for it in itens)
+
+    obs_html = f"<p><strong>Observações:</strong> {d.get('obs')}</p>" if d.get('obs') else ""
+    prazo_html = f"<p><strong>Prazo desejado:</strong> {d.get('prazo')}</p>" if d.get('prazo') else ""
+
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#222">
+      <div style="background:#1a6b6b;padding:20px 24px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0">Pedido de Cotação</h2>
+        <p style="color:#b2dfdf;margin:4px 0 0">{empresa} — {hoje}</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 8px 8px">
+        <p>Prezados <strong>{forn.get('nome', 'Fornecedor')}</strong>,</p>
+        <p>Solicitamos cotação para os itens abaixo:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <thead>
+            <tr style="background:#f5f5f5">
+              <th style="padding:8px;text-align:left;font-size:12px">Código</th>
+              <th style="padding:8px;text-align:left;font-size:12px">Produto</th>
+              <th style="padding:8px;text-align:center;font-size:12px">Qtd.</th>
+              <th style="padding:8px;text-align:right;font-size:12px">Ref. Último Preço</th>
+            </tr>
+          </thead>
+          <tbody>{linhas_html}</tbody>
+        </table>
+        {prazo_html}
+        {obs_html}
+        <p>Por favor, responda com disponibilidade, preços e prazo de entrega.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+        <p style="font-size:12px;color:#888">
+          {empresa}<br>
+          {cfg.get('empresa_telefone') or ''}<br>
+          {email_rem}
+        </p>
+      </div>
+    </div>"""
+
+    assunto = d.get("assunto_custom") or f"Pedido de Cotação — {empresa} — {hoje}"
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = assunto
+    msg["From"] = f"{nome_rem} <{email_rem}>"
+    msg["To"] = email_destino
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        if smtp_ssl:
+            srv = smtplib.SMTP_SSL(smtp_host, smtp_porta, timeout=15)
+        else:
+            srv = smtplib.SMTP(smtp_host, smtp_porta, timeout=15)
+            srv.starttls()
+        srv.login(smtp_usuario, smtp_senha)
+        srv.sendmail(email_rem, [email_destino], msg.as_string())
+        srv.quit()
+    except Exception as e:
+        return jsonify({"erro": f"Falha ao enviar email: {e}"}), 500
+
+    registrar_log(session["user_id"], "cotacao_enviada",
+                  f"forn={d.get('fornecedor_id')} email={email_destino} itens={len(itens)}")
+    return jsonify({"ok": True, "enviado_para": email_destino, "itens": len(itens)})
