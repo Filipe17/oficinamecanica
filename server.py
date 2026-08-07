@@ -176,18 +176,49 @@ def _controle_acesso():
     else:
         modulo = _MODULO_PAGINA.get(request.path.strip("/"))
         if modulo and nivel_de(perfil, modulo) == 0:
-            return redirect("/dashboard")
+            # Redireciona para a primeira página que o perfil pode acessar
+            return redirect(_primeira_pagina_permitida())
         return
 
 
 # -------------------------------------------------------------------------
 # Servir páginas HTML
 # -------------------------------------------------------------------------
+def _primeira_pagina_permitida():
+    """
+    Retorna a primeira página que o perfil do usuário tem permissão de acessar.
+    Usado no redirecionamento pós-login e ao tentar acessar uma página proibida.
+    """
+    from api.permissoes import nivel_de as _nivel
+    perfil = session.get("perfil")
+    if not perfil or perfil == "administrador":
+        return "/dashboard"
+    # Ordem de preferência: dashboard -> ordem_servico -> clientes -> agendamentos
+    # -> produtos -> financeiro -> relatorios
+    candidatos = [
+        ("dashboard",      "dashboard"),
+        ("ordem_servico",  "ordem_servico"),
+        ("agendamentos",   "agendamentos"),
+        ("clientes",       "clientes"),
+        ("veiculos",       "veiculos"),
+        ("produtos",       "produtos"),
+        ("servicos",       "servicos"),
+        ("estoque",        "estoque"),
+        ("financeiro",     "financeiro"),
+        ("relatorios",     "relatorios"),
+        ("orcamentos",     "orcamentos"),
+    ]
+    for pagina, modulo in candidatos:
+        if _nivel(perfil, modulo) > 0:
+            return f"/{pagina}"
+    return "/login"
+
+
 @app.route("/")
 def raiz():
-    # Sem sessão -> login; com sessão -> dashboard
+    # Sem sessão -> login; com sessão -> primeira página permitida
     if session.get("user_id"):
-        return redirect("/dashboard")
+        return redirect(_primeira_pagina_permitida())
     return redirect("/login")
 
 
