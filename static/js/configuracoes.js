@@ -159,6 +159,44 @@
           <input name="smtp_nome_remetente" value="${c.smtp_nome_remetente || ""}" placeholder="Ex: Oficina do Zé — Compras"></div>
       </div>
 
+      <h3 style="margin:22px 0 4px;font-size:15px">Impressora de Etiquetas</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
+        Defina o padrão de etiqueta da sua impressora. Será pré-selecionado ao imprimir etiquetas de produtos.
+      </p>
+      <div class="form-grid" id="cfg-form-etiqueta">
+        <div class="field col-2"><label>Tipo de impressora / etiqueta padrão</label>
+          <select name="etiqueta_tipo">
+            <option value="pimaco_a4" ${(c.etiqueta_tipo||"pimaco_a4")==="pimaco_a4"?"selected":""}>Impressora comum — Pimaco A4 (3 colunas, 66×38mm)</option>
+            <option value="termica_10x5" ${(c.etiqueta_tipo||"")==="termica_10x5"?"selected":""}>Térmica 10×5 cm — Zebra / Argox / Elgin</option>
+            <option value="termica_10x3" ${(c.etiqueta_tipo||"")==="termica_10x3"?"selected":""}>Térmica 10×3 cm — Mini etiqueta</option>
+          </select>
+        </div>
+        <div class="field"><label>Mostrar preço na etiqueta?</label>
+          <select name="etiqueta_mostrar_preco">
+            <option value="1" ${(c.etiqueta_mostrar_preco||"1")==="1"?"selected":""}>Sim</option>
+            <option value="0" ${(c.etiqueta_mostrar_preco||"")==="0"?"selected":""}>Não</option>
+          </select>
+        </div>
+        <div class="field"><label>Mostrar código de barras?</label>
+          <select name="etiqueta_mostrar_barras">
+            <option value="1" ${(c.etiqueta_mostrar_barras||"1")==="1"?"selected":""}>Sim (se disponível)</option>
+            <option value="0" ${(c.etiqueta_mostrar_barras||"")==="0"?"selected":""}>Não</option>
+          </select>
+        </div>
+        <div class="field"><label>Mostrar localização?</label>
+          <select name="etiqueta_mostrar_local">
+            <option value="1" ${(c.etiqueta_mostrar_local||"1")==="1"?"selected":""}>Sim</option>
+            <option value="0" ${(c.etiqueta_mostrar_local||"")==="0"?"selected":""}>Não</option>
+          </select>
+        </div>
+        <div class="field"><label>Mostrar nome da empresa?</label>
+          <select name="etiqueta_mostrar_empresa">
+            <option value="1" ${(c.etiqueta_mostrar_empresa||"1")==="1"?"selected":""}>Sim</option>
+            <option value="0" ${(c.etiqueta_mostrar_empresa||"")==="0"?"selected":""}>Não</option>
+          </select>
+        </div>
+      </div>
+
       <div class="cfg-logo">
         <label>Logo da empresa</label>
         <div class="cfg-logo__box">
@@ -243,7 +281,7 @@
 
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
-    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"]`)?.value || "").trim();
+    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"], #cfg-form-etiqueta [name="${n}"]`)?.value || "").trim();
     const dados = {
       empresa_nome: val("empresa_nome"),
       empresa_cnpj: val("empresa_cnpj"),
@@ -278,6 +316,11 @@
       smtp_ssl: val("smtp_ssl"),
       smtp_email_remetente: val("smtp_email_remetente"),
       smtp_nome_remetente: val("smtp_nome_remetente"),
+      etiqueta_tipo: val("etiqueta_tipo"),
+      etiqueta_mostrar_preco: val("etiqueta_mostrar_preco"),
+      etiqueta_mostrar_barras: val("etiqueta_mostrar_barras"),
+      etiqueta_mostrar_local: val("etiqueta_mostrar_local"),
+      etiqueta_mostrar_empresa: val("etiqueta_mostrar_empresa"),
       empresa_logo: logoAtual,
     };
     try {

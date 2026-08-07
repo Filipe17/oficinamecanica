@@ -265,6 +265,12 @@
     abrir(prodJson) {
       const p = typeof prodJson === "string" ? JSON.parse(prodJson) : prodJson;
       const empresa = Layout.config?.empresa_nome || "";
+      // Carrega preferências salvas em Configurações
+      const cfg = Layout.config || {};
+      const defTipo = cfg.etiqueta_tipo || "pimaco_a4";
+      const defPreco = cfg.etiqueta_mostrar_preco !== "0" ? "1" : "0";
+      const defBarras = cfg.etiqueta_mostrar_barras !== "0" ? "1" : "0";
+      const defLocal = cfg.etiqueta_mostrar_local !== "0" ? "1" : "0";
 
       Modal.abrir(
         `<i class="fa-solid fa-tag"></i> Imprimir Etiqueta — ${p.nome}`,
@@ -273,9 +279,9 @@
           <div class="field col-2">
             <label>Tipo de etiqueta</label>
             <select id="etq-tipo">
-              <option value="pimaco_a4">Pimaco A4 — 3 colunas (folha cheia)</option>
-              <option value="termica_10x5">Térmica 10×5 cm (Zebra/Argox/Elgin)</option>
-              <option value="termica_10x3">Térmica 10×3 cm (mini)</option>
+              <option value="pimaco_a4" ${defTipo==="pimaco_a4"?"selected":""}>Pimaco A4 — 3 colunas (folha cheia)</option>
+              <option value="termica_10x5" ${defTipo==="termica_10x5"?"selected":""}>Térmica 10×5 cm (Zebra/Argox/Elgin)</option>
+              <option value="termica_10x3" ${defTipo==="termica_10x3"?"selected":""}>Térmica 10×3 cm (mini)</option>
             </select>
           </div>
 
@@ -286,22 +292,22 @@
           <div class="field">
             <label>Mostrar preço?</label>
             <select id="etq-preco">
-              <option value="1">Sim</option>
-              <option value="0">Não</option>
+              <option value="1" ${defPreco==="1"?"selected":""}>Sim</option>
+              <option value="0" ${defPreco==="0"?"selected":""}>Não</option>
             </select>
           </div>
           <div class="field">
             <label>Mostrar código de barras?</label>
             <select id="etq-barras">
-              <option value="1">Sim (se disponível)</option>
-              <option value="0">Não</option>
+              <option value="1" ${defBarras==="1"?"selected":""}>Sim (se disponível)</option>
+              <option value="0" ${defBarras==="0"?"selected":""}>Não</option>
             </select>
           </div>
           <div class="field">
             <label>Mostrar localização?</label>
             <select id="etq-local">
-              <option value="1">Sim</option>
-              <option value="0">Não</option>
+              <option value="1" ${defLocal==="1"?"selected":""}>Sim</option>
+              <option value="0" ${defLocal==="0"?"selected":""}>Não</option>
             </select>
           </div>
 
