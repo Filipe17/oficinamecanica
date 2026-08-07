@@ -536,6 +536,8 @@ def _migrar_colunas():
     _garantir_coluna("financeiro", "cartao_parcelas", "INTEGER DEFAULT 1")
     _garantir_coluna("financeiro", "cartao_taxa", "REAL DEFAULT 0")       # % aplicada
     _garantir_coluna("financeiro", "cartao_valor_liquido", "REAL DEFAULT 0")
+    # Limite de crédito por cliente (0 = sem limite definido)
+    _garantir_coluna("clientes", "limite_credito", "REAL DEFAULT 0")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
