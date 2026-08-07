@@ -167,6 +167,18 @@
             <i class="fa-solid fa-layer-group"></i> Grade
           </button>`;
         }},
+      { chave: "_etiqueta", titulo: "Etiqueta", render: (v, row) => {
+          const p = JSON.stringify({
+            id: row.id, nome: row.nome, codigo: row.codigo,
+            codigo_barras: row.codigo_barras || row.ean || "",
+            preco_venda: row.preco_venda, localizacao: row.localizacao || "",
+            marca: row.marca || "", categoria: row.categoria || "",
+          }).replace(/'/g, "\'");
+          return `<button class="icon-btn btn--sm" title="Imprimir etiqueta"
+            onclick="event.stopPropagation();window.__etiqueta.abrir('${p}')">
+            <i class="fa-solid fa-tag"></i>
+          </button>`;
+        }},
     ],
     campos: [
       { nome: "nome", label: "Nome", obrigatorio: true, larguraTotal: true },
@@ -235,6 +247,192 @@
         window.__crud?.carregar();
       } catch (e) { toast(e.message, "error"); }
     };
+  };
+
+  // -----------------------------------------------------------------------
+  // Impressão de Etiquetas
+  // Suporta: Pimaco A4 (3 colunas × linhas), térmica 10×5cm, térmica 10×3cm
+  // -----------------------------------------------------------------------
+  window.__etiqueta = {
+    abrir(prodJson) {
+      const p = typeof prodJson === "string" ? JSON.parse(prodJson) : prodJson;
+      const empresa = Layout.config?.empresa_nome || "";
+
+      Modal.abrir(
+        `<i class="fa-solid fa-tag"></i> Imprimir Etiqueta — ${p.nome}`,
+        `<div class="form-grid" style="grid-template-columns:1fr 1fr;gap:.75rem" id="etq-form">
+
+          <div class="field col-2">
+            <label>Tipo de etiqueta</label>
+            <select id="etq-tipo">
+              <option value="pimaco_a4">Pimaco A4 — 3 colunas (folha cheia)</option>
+              <option value="termica_10x5">Térmica 10×5 cm (Zebra/Argox/Elgin)</option>
+              <option value="termica_10x3">Térmica 10×3 cm (mini)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Quantidade de etiquetas</label>
+            <input type="number" id="etq-qtd" value="1" min="1" max="100">
+          </div>
+          <div class="field">
+            <label>Mostrar preço?</label>
+            <select id="etq-preco">
+              <option value="1">Sim</option>
+              <option value="0">Não</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Mostrar código de barras?</label>
+            <select id="etq-barras">
+              <option value="1">Sim (se disponível)</option>
+              <option value="0">Não</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Mostrar localização?</label>
+            <select id="etq-local">
+              <option value="1">Sim</option>
+              <option value="0">Não</option>
+            </select>
+          </div>
+
+          <div class="field col-2">
+            <label>Nome customizado (deixe vazio para usar o cadastrado)</label>
+            <input id="etq-nome" placeholder="${p.nome}">
+          </div>
+
+        </div>
+        <div id="etq-preview-wrap" style="margin-top:1rem">
+          <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.5rem">Preview:</p>
+          <div id="etq-preview"></div>
+        </div>`,
+        `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+         <button class="btn btn--primary" id="etq-imprimir">
+           <i class="fa-solid fa-print"></i> Imprimir
+         </button>`,
+        true
+      );
+
+      // Atualiza preview ao mudar qualquer opção
+      const atualizar = () => {
+        const tipo = document.getElementById("etq-tipo").value;
+        const mostrarPreco = document.getElementById("etq-preco").value === "1";
+        const mostrarBarras = document.getElementById("etq-barras").value === "1";
+        const mostrarLocal = document.getElementById("etq-local").value === "1";
+        const nomeCustom = document.getElementById("etq-nome").value.trim() || p.nome;
+        document.getElementById("etq-preview").innerHTML =
+          this._gerarEtiquetaHtml(p, { tipo, mostrarPreco, mostrarBarras, mostrarLocal, nomeCustom, empresa, preview: true });
+      };
+      ["etq-tipo","etq-preco","etq-barras","etq-local","etq-nome"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", atualizar);
+        if (el && el.tagName === "INPUT") el.addEventListener("input", atualizar);
+      });
+      atualizar();
+
+      document.getElementById("etq-imprimir").onclick = () => this.imprimir(p, empresa);
+    },
+
+    _gerarEtiquetaHtml(p, opts) {
+      const { tipo, mostrarPreco, mostrarBarras, mostrarLocal, nomeCustom, empresa, preview } = opts;
+
+      // Gera SVG de código de barras simples (Code 128 visual — barras alternadas)
+      const barcodeHtml = (codigo) => {
+        if (!codigo) return "";
+        // Representação visual simplificada (não é Code 128 real, apenas visual para etiqueta)
+        const bars = codigo.split("").map((c) => c.charCodeAt(0)).join("");
+        let svg = `<svg width="120" height="28" xmlns="http://www.w3.org/2000/svg">`;
+        let x = 2;
+        for (let i = 0; i < Math.min(bars.length, 60); i++) {
+          const w = (parseInt(bars[i]) % 3) + 1;
+          if (i % 2 === 0) svg += `<rect x="${x}" y="0" width="${w}" height="24" fill="#000"/>`;
+          x += w + 1;
+        }
+        svg += `<text x="60" y="27" text-anchor="middle" font-size="7" font-family="monospace">${codigo}</text></svg>`;
+        return svg;
+      };
+
+      const preco = Number(p.preco_venda || 0).toLocaleString("pt-BR", {style:"currency",currency:"BRL"});
+      const cod = p.codigo_barras || p.codigo || "";
+
+      if (tipo === "termica_10x5" || tipo === "termica_10x3") {
+        const h = tipo === "termica_10x5" ? "130px" : "78px";
+        const w = "260px";
+        return `<div style="width:${w};height:${h};border:${preview?"1px dashed #ccc":"none"};
+          padding:6px;font-family:Arial,sans-serif;font-size:9px;
+          display:flex;flex-direction:column;justify-content:space-between;
+          background:#fff;box-sizing:border-box">
+          ${empresa ? `<div style="font-size:7px;color:#888;text-align:center">${empresa}</div>` : ""}
+          <div style="font-weight:700;font-size:10px;text-align:center;line-height:1.2">
+            ${nomeCustom.slice(0, 50)}</div>
+          ${p.codigo ? `<div style="text-align:center;font-size:8px;color:#555">Cód: ${p.codigo}</div>` : ""}
+          ${mostrarLocal && p.localizacao ? `<div style="font-size:7px;color:#888;text-align:center">Local: ${p.localizacao}</div>` : ""}
+          ${mostrarBarras && cod ? `<div style="text-align:center">${barcodeHtml(cod)}</div>` : ""}
+          ${mostrarPreco ? `<div style="font-size:14px;font-weight:900;text-align:center;color:#0d9488">${preco}</div>` : ""}
+        </div>`;
+      }
+
+      // Pimaco A4 — etiqueta individual (será repetida em grid)
+      return `<div style="width:180px;height:72px;border:${preview?"1px dashed #ccc":"none"};
+        padding:5px;font-family:Arial,sans-serif;font-size:8px;
+        display:flex;flex-direction:column;justify-content:space-between;
+        background:#fff;box-sizing:border-box">
+        ${empresa ? `<div style="font-size:6px;color:#888">${empresa}</div>` : ""}
+        <div style="font-weight:700;font-size:9px;line-height:1.2">${nomeCustom.slice(0,40)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            ${p.codigo ? `<div style="font-size:7px;color:#555">Cód: ${p.codigo}</div>` : ""}
+            ${mostrarLocal && p.localizacao ? `<div style="font-size:6px;color:#888">Local: ${p.localizacao}</div>` : ""}
+          </div>
+          ${mostrarPreco ? `<div style="font-size:13px;font-weight:900;color:#0d9488">${preco}</div>` : ""}
+        </div>
+        ${mostrarBarras && cod ? `<div>${barcodeHtml(cod)}</div>` : ""}
+      </div>`;
+    },
+
+    imprimir(p, empresa) {
+      const tipo = document.getElementById("etq-tipo").value;
+      const qtd = Math.max(1, Math.min(100, parseInt(document.getElementById("etq-qtd").value) || 1));
+      const mostrarPreco = document.getElementById("etq-preco").value === "1";
+      const mostrarBarras = document.getElementById("etq-barras").value === "1";
+      const mostrarLocal = document.getElementById("etq-local").value === "1";
+      const nomeCustom = document.getElementById("etq-nome").value.trim() || p.nome;
+      const opts = { tipo, mostrarPreco, mostrarBarras, mostrarLocal, nomeCustom, empresa, preview: false };
+
+      const etiquetaHtml = this._gerarEtiquetaHtml(p, opts);
+      const etiquetas = Array(qtd).fill(etiquetaHtml).join("");
+
+      let paginaHtml;
+      if (tipo === "pimaco_a4") {
+        // Grade 3 colunas × N linhas — Pimaco 6182 (66×38mm)
+        paginaHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);
+          gap:3mm;padding:10mm;width:210mm;box-sizing:border-box">${etiquetas}</div>`;
+      } else {
+        // Térmica: cada etiqueta em página separada ou contínua
+        paginaHtml = `<div style="display:flex;flex-direction:column;gap:2mm;padding:2mm">
+          ${etiquetas}</div>`;
+      }
+
+      const css = tipo === "termica_10x5"
+        ? "@page{size:100mm 50mm;margin:0}"
+        : tipo === "termica_10x3"
+        ? "@page{size:100mm 30mm;margin:0}"
+        : "@page{size:A4;margin:0}";
+
+      const w = window.open("", "_blank");
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Etiquetas — ${p.nome}</title>
+        <style>
+          ${css}
+          body{margin:0;padding:0;font-family:Arial,sans-serif;background:#fff}
+          @media print{body{margin:0}}
+        </style>
+      </head><body>${paginaHtml}</body></html>`);
+      w.document.close();
+      w.onload = () => { w.focus(); w.print(); };
+      Modal.fechar();
+    },
   };
 
   crud.montar();
