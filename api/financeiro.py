@@ -602,3 +602,127 @@ def mala_enviar():
                   f"enviados={enviados} erros={len(erros)}")
     return jsonify({"ok": True, "tipo": "email",
                     "enviados": enviados, "erros": erros, "total": len(destinatarios)})
+
+
+# =========================================================================
+# CARNÊ / PARCELAMENTO
+# =========================================================================
+
+@financeiro_bp.route("/api/financeiro/parcelar", methods=["POST"])
+@login_obrigatorio
+@perfil_permitido("administrador", "gerente", "financeiro", "caixa")
+def parcelar():
+    """
+    Gera N parcelas de um valor total, com vencimentos mensais a partir de
+    uma data de entrada. Cada parcela é um registro em financeiro com o
+    mesmo carne_id (UUID) para agrupar.
+    """
+    import uuid as _uuid
+    from datetime import date, timedelta
+    from dateutil.relativedelta import relativedelta
+    from calendar import monthrange
+
+    d = request.get_json(force=True)
+    valor_total   = float(d.get("valor_total") or 0)
+    entrada       = float(d.get("entrada") or 0)      # valor da entrada (parcela 0)
+    num_parcelas  = int(d.get("num_parcelas") or 1)
+    primeira_data = d.get("primeira_data")             # data do 1º vencimento (após entrada)
+    intervalo     = int(d.get("intervalo_dias") or 30) # dias entre parcelas (padrão 30)
+    forma         = d.get("forma_pagamento", "Dinheiro")
+    descricao     = d.get("descricao", "")
+    cliente_id    = d.get("cliente_id")
+    os_id         = d.get("os_id")
+    categoria     = d.get("categoria")
+    tipo          = d.get("tipo", "receber")
+
+    if valor_total <= 0 or num_parcelas < 1:
+        return jsonify({"erro": "Valor total e número de parcelas são obrigatórios"}), 400
+
+    carne_id = str(_uuid.uuid4())
+    ids_criados = []
+
+    # Verifica limite de crédito (total sem entrada)
+    if tipo == "receber" and cliente_id:
+        c = query("SELECT limite_credito FROM clientes WHERE id=?", (cliente_id,), fetchone=True)
+        limite = float((c or {}).get("limite_credito") or 0)
+        if limite > 0:
+            r = query(
+                "SELECT COALESCE(SUM(valor),0) AS saldo FROM financeiro "
+                "WHERE cliente_id=? AND tipo='receber' AND status IN ('aberto','atrasado','parcial')",
+                (cliente_id,), fetchone=True)
+            saldo = float(r["saldo"] or 0)
+            parcelado = valor_total - entrada
+            if saldo + parcelado > limite:
+                return jsonify({
+                    "erro": f"Parcelamento ultrapassa o limite de crédito. "
+                            f"Disponível: R$ {max(limite - saldo, 0):.2f}",
+                    "limite_atingido": True,
+                }), 400
+
+    # Entrada (parcela 0) — vence hoje
+    if entrada > 0:
+        res = query(
+            "INSERT INTO financeiro (tipo, descricao, cliente_id, os_id, valor, vencimento, "
+            "forma_pagamento, categoria, status, carne_id, num_parcela, total_parcelas, criado_em) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (tipo, f"{descricao} — Entrada", cliente_id, os_id, round(entrada, 2),
+             date.today().isoformat(), forma, categoria, "aberto",
+             carne_id, 0, num_parcelas, now()),
+            commit=True)
+        ids_criados.append(res["_lastid"])
+
+    # Parcelas
+    valor_parc = round((valor_total - entrada) / num_parcelas, 2)
+    # Ajuste de centavos na última parcela
+    valor_ultima = round(valor_total - entrada - valor_parc * (num_parcelas - 1), 2)
+
+    try:
+        data_base = date.fromisoformat(primeira_data) if primeira_data else date.today()
+    except Exception:
+        data_base = date.today()
+
+    total_parc = num_parcelas + (1 if entrada > 0 else 0)
+
+    for i in range(num_parcelas):
+        num = i + 1
+        # Vencimento: soma meses inteiros (mantém dia do mês)
+        try:
+            venc = data_base + relativedelta(months=i)
+        except Exception:
+            venc = data_base + timedelta(days=intervalo * i)
+        val = valor_ultima if i == num_parcelas - 1 else valor_parc
+        descr = f"{descricao} — {num}/{num_parcelas}"
+        res = query(
+            "INSERT INTO financeiro (tipo, descricao, cliente_id, os_id, valor, vencimento, "
+            "forma_pagamento, categoria, status, carne_id, num_parcela, total_parcelas, criado_em) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (tipo, descr, cliente_id, os_id, val, venc.isoformat(), forma,
+             categoria, "aberto", carne_id, num, total_parc, now()),
+            commit=True)
+        ids_criados.append(res["_lastid"])
+
+    registrar_log(session["user_id"], "parcelamento",
+                  f"carne={carne_id} parcelas={num_parcelas} total={valor_total}")
+    return jsonify({
+        "ok": True,
+        "carne_id": carne_id,
+        "parcelas_criadas": len(ids_criados),
+        "ids": ids_criados,
+    }), 201
+
+
+@financeiro_bp.route("/api/financeiro/carne/<carne_id>", methods=["GET"])
+@login_obrigatorio
+def listar_carne(carne_id):
+    """Lista todas as parcelas de um carnê."""
+    parcelas = query(
+        "SELECT f.*, c.nome AS cliente_nome FROM financeiro f "
+        "LEFT JOIN clientes c ON c.id=f.cliente_id "
+        "WHERE f.carne_id=? ORDER BY f.num_parcela", (carne_id,))
+    if not parcelas:
+        return jsonify({"erro": "Carnê não encontrado"}), 404
+    total = sum(float(p["valor"] or 0) for p in parcelas)
+    pago = sum(float(p["valor_pago"] or p["valor"] or 0)
+               for p in parcelas if p["status"] == "pago")
+    return jsonify({"parcelas": parcelas, "total": total, "pago": pago,
+                    "pendente": round(total - pago, 2)})
