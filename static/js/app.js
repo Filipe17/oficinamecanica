@@ -139,6 +139,7 @@ const MENU = [
   { grupo: "Financeiro", itens: [
     { id: "financeiro", nome: "Financeiro", icone: "fa-wallet" },
     { id: "cobrancas", nome: "Cobranças", icone: "fa-hand-holding-dollar" },
+    { id: "mala_direta", nome: "Mala Direta", icone: "fa-envelope-open-text" },
     { id: "caixa", nome: "Caixa", icone: "fa-cash-register", novaAba: true },
   ]},
   { grupo: "Sistema", itens: [
@@ -159,7 +160,7 @@ const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
   ordem_servico: "ordem_servico", orcamentos: "orcamentos", agendamentos: "agendamentos",
   servicos: "servicos", produtos: "produtos", fornecedores: "produtos", estoque: "estoque", xml: "xml",
-  financeiro: "financeiro", cobrancas: "financeiro", caixa: "caixa",
+  financeiro: "financeiro", cobrancas: "financeiro", mala_direta: "financeiro", caixa: "caixa",
   relatorios: "relatorios", notas_fiscais: "notas_fiscais", cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
 };
 
