@@ -26,14 +26,155 @@
         </button>`).join("")}
     </div>
     <div class="card" id="rel-box" style="display:none"><div class="card__body">
-      <div class="toolbar">
-        <h3 id="rel-titulo"></h3>
+      <div class="toolbar" style="flex-wrap:wrap;gap:.5rem">
+        <h3 id="rel-titulo" style="margin:0"></h3>
         <div class="toolbar__spacer"></div>
-        <a class="btn btn--ghost btn--sm" id="rel-csv" href="#"><i class="fa-solid fa-file-csv"></i> Exportar CSV</a>
+        <div id="rel-exportar" style="display:none;gap:.4rem;display:flex;flex-wrap:wrap">
+          <button class="btn btn--ghost btn--sm" id="rel-pdf"><i class="fa-solid fa-file-pdf" style="color:#e74c3c"></i> PDF</button>
+          <button class="btn btn--ghost btn--sm" id="rel-html"><i class="fa-solid fa-file-code" style="color:#2980b9"></i> HTML</button>
+          <button class="btn btn--ghost btn--sm" id="rel-xls"><i class="fa-solid fa-file-excel" style="color:#27ae60"></i> XLS</button>
+          <a class="btn btn--ghost btn--sm" id="rel-csv" href="#"><i class="fa-solid fa-file-csv" style="color:#888"></i> CSV</a>
+        </div>
       </div>
       <div id="rel-conteudo"></div>
     </div></div>
   `);
+
+  // Estado do relatório aberto (para exportar)
+  let _relAtual = { id: null, nome: null, dados: [] };
+
+  // -----------------------------------------------------------------------
+  // Exportação genérica — PDF, HTML, XLS para todos os relatórios tabulares
+  // -----------------------------------------------------------------------
+
+  async function _carregarJsPDF() {
+    if (window.jspdf?.jsPDF) return true;
+    await new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    return !!(window.jspdf?.jsPDF);
+  }
+
+  function _exportarHTML(nome, dados) {
+    if (!dados.length) { toast("Sem dados para exportar", "warning"); return; }
+    const cfg = Layout.config || {};
+    const cols = Object.keys(dados[0]);
+    const hoje = new Date().toLocaleDateString("pt-BR");
+    const linhas = dados.map((row) =>
+      `<tr>${cols.map((c) => `<td>${row[c] ?? ""}</td>`).join("")}</tr>`).join("");
+    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+      <title>${nome} — ${cfg.empresa_nome || "Relatório"}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#222}
+        h1{font-size:16px;margin-bottom:2px} h2{font-size:12px;color:#888;margin:0 0 16px;font-weight:normal}
+        table{width:100%;border-collapse:collapse}
+        th{background:#0d9488;color:#fff;padding:7px 8px;text-align:left;font-size:11px}
+        td{padding:6px 8px;border-bottom:1px solid #eee}
+        tr:nth-child(even) td{background:#f9f9f9}
+        .rodape{margin-top:24px;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:8px}
+        @media print{body{padding:0}}
+      </style></head><body>
+      <h1>${nome}</h1>
+      <h2>${cfg.empresa_nome || ""} — Gerado em ${hoje} — ${dados.length} registros</h2>
+      <table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
+      <tbody>${linhas}</tbody></table>
+      <div class="rodape">DevSystem PRIME — ${hoje}</div>
+    </body></html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => w.print();
+  }
+
+  function _exportarXLS(nome, dados) {
+    if (!dados.length) { toast("Sem dados para exportar", "warning"); return; }
+    const cols = Object.keys(dados[0]);
+    // Gera HTML de tabela — Excel abre .xls que é HTML com extensão trocada
+    const linhas = dados.map((row) =>
+      `<tr>${cols.map((c) => `<td>${row[c] ?? ""}</td>`).join("")}</tr>`).join("");
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8">
+      <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
+      <x:ExcelWorksheet><x:Name>${nome}</x:Name>
+      <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+      </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+      </head><body><table>
+      <thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
+      <tbody>${linhas}</tbody></table></body></html>`;
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${nome.replace(/\s+/g,"_")}.xls`;
+    a.click();
+  }
+
+  async function _exportarPDF(nome, dados) {
+    if (!dados.length) { toast("Sem dados para exportar", "warning"); return; }
+    try { await _carregarJsPDF(); } catch(_) { toast("Não foi possível carregar o gerador de PDF", "error"); return; }
+    const cfg = Layout.config || {};
+    const { jsPDF } = window.jspdf;
+    const cols = Object.keys(dados[0]);
+    const hoje = new Date().toLocaleDateString("pt-BR");
+    const doc = new jsPDF({ orientation: cols.length > 6 ? "landscape" : "portrait", unit: "mm", format: "a4" });
+    const W = doc.internal.pageSize.getWidth();
+    const M = 12;
+    const teal = [13, 148, 136];
+    let y = 14;
+
+    // Cabeçalho
+    if (cfg.empresa_logo) {
+      try { doc.addImage(cfg.empresa_logo, cfg.empresa_logo.includes("png") ? "PNG" : "JPEG", M, y, 18, 18); } catch(_) {}
+    }
+    const xh = cfg.empresa_logo ? M + 22 : M;
+    doc.setFont("helvetica","bold").setFontSize(13).setTextColor(20);
+    doc.text(cfg.empresa_nome || "Relatório", xh, y + 5);
+    doc.setFont("helvetica","normal").setFontSize(9).setTextColor(90);
+    doc.text(`${nome} — ${hoje} — ${dados.length} registros`, xh, y + 10);
+    y += 22;
+    doc.setDrawColor(...teal).setLineWidth(0.4).line(M, y, W - M, y);
+    y += 6;
+
+    // Cabeçalho da tabela
+    const colW = Math.min((W - M * 2) / cols.length, 52);
+    doc.setFillColor(...teal);
+    doc.rect(M, y - 4, W - M * 2, 7, "F");
+    doc.setFont("helvetica","bold").setFontSize(7.5).setTextColor(255);
+    cols.forEach((c, i) => doc.text(String(c).slice(0, 14), M + i * colW + 1, y));
+    y += 5;
+
+    // Linhas
+    doc.setFont("helvetica","normal").setFontSize(7).setTextColor(40);
+    dados.forEach((row, ri) => {
+      if (y > (doc.internal.pageSize.getHeight() - 16)) {
+        doc.addPage(); y = 14;
+      }
+      if (ri % 2 === 0) { doc.setFillColor(248,248,248); doc.rect(M, y - 4, W - M * 2, 6, "F"); }
+      cols.forEach((c, i) => {
+        const val = String(row[c] ?? "").slice(0, 20);
+        doc.text(val, M + i * colW + 1, y);
+      });
+      y += 5.5;
+    });
+
+    // Rodapé
+    doc.setFont("helvetica","italic").setFontSize(7).setTextColor(150);
+    doc.text(`DevSystem PRIME — ${hoje}`, M, doc.internal.pageSize.getHeight() - 6);
+    doc.save(`${nome.replace(/\s+/g,"_")}.pdf`);
+  }
+
+  function _ligarBotoesExportar(id, nome, dados) {
+    const wrap = document.getElementById("rel-exportar");
+    if (wrap) wrap.style.display = "flex";
+    const csv = document.getElementById("rel-csv");
+    if (csv) { csv.href = `/api/relatorios/${id}/csv`; csv.style.display = ""; }
+    document.getElementById("rel-pdf").onclick = () => _exportarPDF(nome, dados);
+    document.getElementById("rel-html").onclick = () => _exportarHTML(nome, dados);
+    document.getElementById("rel-xls").onclick = () => _exportarXLS(nome, dados);
+  }
 
   document.querySelectorAll(".rel-card").forEach((b) => {
     b.onclick = () => {
@@ -62,6 +203,10 @@
         <label>De <input type="date" id="com-inicio" value="${primeiroDiaMes()}"></label>
         <label>Até <input type="date" id="com-fim" value="${hojeISO()}"></label>
         <button class="btn btn--primary btn--sm" id="com-filtrar"><i class="fa-solid fa-magnifying-glass"></i> Filtrar</button>
+        <div class="toolbar__spacer"></div>
+        <button class="btn btn--ghost btn--sm" id="com-pdf"><i class="fa-solid fa-file-pdf" style="color:#e74c3c"></i> PDF</button>
+        <button class="btn btn--ghost btn--sm" id="com-html"><i class="fa-solid fa-file-code" style="color:#2980b9"></i> HTML</button>
+        <button class="btn btn--ghost btn--sm" id="com-xls"><i class="fa-solid fa-file-excel" style="color:#27ae60"></i> XLS</button>
       </div>
       <div id="com-resultado"><div class="loading"><i class="fa-solid fa-spinner spin"></i></div></div>`;
     document.getElementById("com-filtrar").onclick = carregarComissoes;
@@ -106,6 +251,15 @@
             <td>${fmt.moeda(d.valor)}</td>
             <td>${fmt.data ? fmt.data(d.criado_em) : (d.criado_em || "").slice(0, 10)}</td></tr>`).join("")}
           </tbody></table></div>`;
+      // Liga exportação de comissões
+      const dadosExp = detalhe.map((d) => ({
+        Profissional: d.profissional, OS: d.os_numero || d.origem_id,
+        Item: d.item, "Base (R$)": d.base_calculo, "% Comissão": d.percentual,
+        "Comissão (R$)": d.valor, Data: (d.criado_em||"").slice(0,10),
+      }));
+      document.getElementById("com-pdf").onclick = () => _exportarPDF("Comissoes", dadosExp);
+      document.getElementById("com-html").onclick = () => _exportarHTML("Comissões", dadosExp);
+      document.getElementById("com-xls").onclick = () => _exportarXLS("Comissoes", dadosExp);
     } catch (e) {
       res.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>${e.message}</div>`;
     }
@@ -126,11 +280,45 @@
         <label>Até <input type="date" id="dre-fim" value="${hojeISO()}"></label>
         <button class="btn btn--primary btn--sm" id="dre-filtrar"><i class="fa-solid fa-magnifying-glass"></i> Gerar</button>
         <div class="toolbar__spacer"></div>
-        <button class="btn btn--ghost btn--sm" id="dre-pdf"><i class="fa-solid fa-file-pdf"></i> Exportar PDF</button>
+        <button class="btn btn--ghost btn--sm" id="dre-pdf"><i class="fa-solid fa-file-pdf" style="color:#e74c3c"></i> PDF</button>
+        <button class="btn btn--ghost btn--sm" id="dre-html"><i class="fa-solid fa-file-code" style="color:#2980b9"></i> HTML</button>
+        <button class="btn btn--ghost btn--sm" id="dre-xls"><i class="fa-solid fa-file-excel" style="color:#27ae60"></i> XLS</button>
       </div>
       <div id="dre-resultado"><div class="loading"><i class="fa-solid fa-spinner spin"></i></div></div>`;
     document.getElementById("dre-filtrar").onclick = carregarDRE;
     document.getElementById("dre-pdf").onclick = exportarDREpdf;
+    document.getElementById("dre-html").onclick = () => {
+      if (!dreAtual) { toast("Gere o DRE antes de exportar", "warning"); return; }
+      const linhas = [
+        { Item: "Receita Bruta", Valor: dreAtual.receita_bruta },
+        { Item: "Vendas PDV", Valor: dreAtual.receita_pdv },
+        { Item: "Ordens de Serviço", Valor: dreAtual.receita_os },
+        { Item: "Deduções", Valor: dreAtual.deducoes },
+        { Item: "Receita Líquida", Valor: dreAtual.receita_liquida },
+        { Item: "CMV", Valor: dreAtual.cmv },
+        { Item: "Lucro Bruto", Valor: dreAtual.lucro_bruto },
+        ...(dreAtual.despesas||[]).map((d) => ({ Item: d.categoria, Valor: d.total })),
+        { Item: "Total Despesas", Valor: dreAtual.total_despesas },
+        { Item: `Resultado Líquido (${dreAtual.margem}%)`, Valor: dreAtual.resultado },
+      ];
+      _exportarHTML("DRE", linhas);
+    };
+    document.getElementById("dre-xls").onclick = () => {
+      if (!dreAtual) { toast("Gere o DRE antes de exportar", "warning"); return; }
+      const linhas = [
+        { Item: "Receita Bruta", Valor: dreAtual.receita_bruta },
+        { Item: "Vendas PDV", Valor: dreAtual.receita_pdv },
+        { Item: "Ordens de Serviço", Valor: dreAtual.receita_os },
+        { Item: "Deduções", Valor: dreAtual.deducoes },
+        { Item: "Receita Líquida", Valor: dreAtual.receita_liquida },
+        { Item: "CMV", Valor: dreAtual.cmv },
+        { Item: "Lucro Bruto", Valor: dreAtual.lucro_bruto },
+        ...(dreAtual.despesas||[]).map((d) => ({ Item: d.categoria, Valor: d.total })),
+        { Item: "Total Despesas", Valor: dreAtual.total_despesas },
+        { Item: `Resultado Líquido (${dreAtual.margem}%)`, Valor: dreAtual.resultado },
+      ];
+      _exportarXLS("DRE", linhas);
+    };
     carregarDRE();
   }
 
@@ -281,9 +469,9 @@
     const box = document.getElementById("rel-box");
     box.style.display = "";
     document.getElementById("rel-titulo").textContent = nome;
-    const csv = document.getElementById("rel-csv");
-    csv.style.display = "";
-    csv.href = `/api/relatorios/${id}/csv`;
+    // Esconde botões enquanto carrega
+    const wrap = document.getElementById("rel-exportar");
+    if (wrap) wrap.style.display = "none";
     const alvo = document.getElementById("rel-conteudo");
     alvo.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
     try {
@@ -296,6 +484,8 @@
         <thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
         <tbody>${lista.map((row) => `<tr>${cols.map((c) => `<td>${row[c] ?? "-"}</td>`).join("")}</tr>`).join("")}</tbody>
         </table></div>`;
+      // Liga botões de exportação com os dados carregados
+      _ligarBotoesExportar(id, nome, lista);
     } catch (e) {
       alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>${e.message}</div>`;
     }
