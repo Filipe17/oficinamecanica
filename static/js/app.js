@@ -160,9 +160,10 @@ const MENU = [
    (ex.: orcamentos→ordem_servico, cobrancas→financeiro) seguem o mesmo nível. */
 const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
-  ordem_servico: "ordem_servico", orcamentos: "orcamentos", agendamentos: "agendamentos",
+  ordem_servico: "ordem_servico", orcamentos: "orcamentos",
+  agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps",
   servicos: "servicos", produtos: "produtos", fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
-  financeiro: "financeiro", cobrancas: "financeiro", mala_direta: "financeiro", caixa: "caixa",
+  financeiro: "financeiro", cobrancas: "cobrancas", mala_direta: "mala_direta", caixa: "caixa",
   relatorios: "relatorios", notas_fiscais: "notas_fiscais", cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
 };
 
@@ -223,7 +224,7 @@ const Layout = {
       const MODULO_PAGINA = {
         dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
         ordem_servico: "ordem_servico", orcamentos: "orcamentos",
-        agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps", lembretes: "lembretes", nps: "nps", lembretes: "lembretes", lembretes: "lembretes", servicos: "servicos", produtos: "produtos",
+        agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps", servicos: "servicos", produtos: "produtos",
         fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
         financeiro: "financeiro", cobrancas: "financeiro", mala_direta: "financeiro",
         relatorios: "relatorios", notas_fiscais: "notas_fiscais",
