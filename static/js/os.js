@@ -67,6 +67,14 @@
           <option value="">Todos os status</option>
           ${STATUS.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("")}
         </select>
+        ${!EH_ORC ? `<div style="display:flex;gap:.3rem;margin-left:.5rem">
+          <button id="btn-view-lista" class="btn btn--sm btn--primary" title="Visualização lista">
+            <i class="fa-solid fa-list"></i>
+          </button>
+          <button id="btn-view-kanban" class="btn btn--sm btn--outline" title="Visualização Kanban">
+            <i class="fa-solid fa-table-columns"></i>
+          </button>
+        </div>` : ""}
       </div>
       <div id="os-tabela"><div class="loading"><i class="fa-solid fa-spinner spin"></i></div></div>
     </div></div>
@@ -74,8 +82,25 @@
 
   const btnNovoOS = document.getElementById("os-novo");
   if (btnNovoOS) btnNovoOS.onclick = () => abrirEditor();
-  document.getElementById("os-busca").oninput = debounce((e) => { busca = e.target.value.trim(); carregar(); });
-  document.getElementById("os-status").onchange = (e) => { filtroStatus = e.target.value; carregar(); };
+  document.getElementById("os-busca").oninput = debounce((e) => { busca = e.target.value.trim(); viewAtual === "kanban" ? carregarKanban() : carregar(); });
+  document.getElementById("os-status").onchange = (e) => { filtroStatus = e.target.value; viewAtual === "kanban" ? carregarKanban() : carregar(); };
+
+  let viewAtual = "lista";
+
+  if (!EH_ORC) {
+    document.getElementById("btn-view-lista")?.addEventListener("click", () => {
+      viewAtual = "lista";
+      document.getElementById("btn-view-lista").className = "btn btn--sm btn--primary";
+      document.getElementById("btn-view-kanban").className = "btn btn--sm btn--outline";
+      carregar();
+    });
+    document.getElementById("btn-view-kanban")?.addEventListener("click", () => {
+      viewAtual = "kanban";
+      document.getElementById("btn-view-lista").className = "btn btn--sm btn--outline";
+      document.getElementById("btn-view-kanban").className = "btn btn--sm btn--primary";
+      carregarKanban();
+    });
+  }
 
   async function carregar() {
     const p = new URLSearchParams({ orcamento: EH_ORC });
@@ -699,6 +724,167 @@
     win.document.open();
     win.document.write(html);
     win.document.close();
+  }
+
+  // -----------------------------------------------------------------------
+  // Kanban de OS
+  // -----------------------------------------------------------------------
+
+  // Colunas do Kanban — apenas os status ativos (sem finalizada/cancelada)
+  const KANBAN_COLUNAS = [
+    { status: "aberta",               label: "Abertas",            cor: "#3b82f6" },
+    { status: "em_analise",           label: "Em Análise",         cor: "#8b5cf6" },
+    { status: "aguardando_aprovacao", label: "Aguard. Aprovação",  cor: "#f59e0b" },
+    { status: "aguardando_pecas",     label: "Aguard. Peças",      cor: "#ef4444" },
+    { status: "em_execucao",          label: "Em Execução",        cor: "#0d9488" },
+    { status: "finalizada_mecanico",  label: "Finaliz. Mecânico",  cor: "#10b981" },
+  ];
+
+  async function carregarKanban() {
+    const alvo = document.getElementById("os-tabela");
+    alvo.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
+    try {
+      // Carrega todas as OS abertas (sem filtro de status para preencher todas as colunas)
+      const params = new URLSearchParams({ orcamento: "0", por_pagina: "500" });
+      if (busca) params.set("q", busca);
+      const r = await API.get(`/api/os?${params}`);
+      const lista = (r.dados || []).filter((o) =>
+        !["finalizada","cancelada"].includes(o.status));
+
+      // Agrupa por status
+      const grupos = {};
+      KANBAN_COLUNAS.forEach((c) => { grupos[c.status] = []; });
+      lista.forEach((o) => { if (grupos[o.status]) grupos[o.status].push(o); });
+
+      // Monta o HTML do Kanban
+      alvo.innerHTML = `
+        <style>
+          .kanban-board{display:flex;gap:.75rem;overflow-x:auto;padding-bottom:.5rem;align-items:flex-start}
+          .kanban-col{flex:0 0 230px;background:var(--bg-alt,#f3f4f6);border-radius:10px;padding:.6rem}
+          .kanban-col__head{display:flex;justify-content:space-between;align-items:center;
+            padding:.4rem .5rem .6rem;font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.4px}
+          .kanban-col__count{background:rgba(0,0,0,.12);color:inherit;border-radius:99px;
+            padding:1px 8px;font-size:.75rem;font-weight:700}
+          .kanban-cards{display:flex;flex-direction:column;gap:.45rem;min-height:60px}
+          .kanban-card{background:#fff;border-radius:8px;padding:.65rem .75rem;
+            cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #e5e7eb;
+            transition:box-shadow .15s,transform .15s;user-select:none}
+          .kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12);transform:translateY(-1px)}
+          .kanban-card.dragging{opacity:.45;transform:scale(.97)}
+          .kanban-col.drag-over .kanban-cards{background:rgba(13,148,136,.08);
+            border-radius:6px;outline:2px dashed #0d9488}
+          .kanban-card__num{font-size:.72rem;color:var(--text-muted);margin-bottom:2px}
+          .kanban-card__cliente{font-weight:700;font-size:.85rem;margin-bottom:2px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .kanban-card__veiculo{font-size:.78rem;color:var(--text-muted);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .kanban-card__footer{display:flex;justify-content:space-between;
+            align-items:center;margin-top:.45rem;padding-top:.4rem;border-top:1px solid #f0f0f0}
+          .kanban-card__mec{font-size:.72rem;color:var(--text-muted)}
+          .kanban-card__edit{opacity:0;transition:opacity .15s;background:none;border:none;
+            cursor:pointer;color:var(--primary);padding:2px 5px;border-radius:4px}
+          .kanban-card:hover .kanban-card__edit{opacity:1}
+        </style>
+        <div class="kanban-board" id="kanban-board">
+          ${KANBAN_COLUNAS.map((col) => `
+            <div class="kanban-col" data-status="${col.status}" id="kcol-${col.status}">
+              <div class="kanban-col__head" style="color:${col.cor}">
+                <span>${col.label}</span>
+                <span class="kanban-col__count">${grupos[col.status].length}</span>
+              </div>
+              <div class="kanban-cards" id="kcards-${col.status}">
+                ${grupos[col.status].map((o) => _kanbanCard(o)).join("")}
+              </div>
+            </div>`).join("")}
+        </div>`;
+
+      _ligarDragDrop();
+    } catch(e) {
+      alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>${e.message}</div>`;
+    }
+  }
+
+  function _kanbanCard(o) {
+    const dias = o.previsao ? (() => {
+      const d = Math.ceil((new Date(o.previsao+"T00:00") - new Date()) / 86400000);
+      return d < 0
+        ? `<span style="color:#ef4444;font-size:.7rem">⚠ ${Math.abs(d)}d atrasado</span>`
+        : d === 0
+        ? `<span style="color:#f59e0b;font-size:.7rem">⏰ Vence hoje</span>`
+        : `<span style="color:var(--text-muted);font-size:.7rem">📅 ${d}d</span>`;
+    })() : "";
+    return `<div class="kanban-card" draggable="true" data-id="${o.id}" data-status="${o.status}">
+      <div class="kanban-card__num">${o.numero || "—"}</div>
+      <div class="kanban-card__cliente">${o.cliente_nome || "—"}</div>
+      <div class="kanban-card__veiculo">${[o.veiculo_placa, o.veiculo_modelo].filter(Boolean).join(" · ") || "—"}</div>
+      <div class="kanban-card__footer">
+        <div class="kanban-card__mec">${o.mecanico_nome ? "🔧 "+o.mecanico_nome : ""}</div>
+        ${dias}
+        <button class="kanban-card__edit" onclick="event.stopPropagation();window.__os.abrir(${o.id})"
+          title="Abrir OS"><i class="fa-solid fa-pen" style="font-size:.75rem"></i></button>
+      </div>
+    </div>`;
+  }
+
+  function _ligarDragDrop() {
+    let cardArrastando = null;
+    let statusOrigem = null;
+
+    document.querySelectorAll(".kanban-card").forEach((card) => {
+      card.addEventListener("dragstart", (e) => {
+        cardArrastando = card;
+        statusOrigem = card.dataset.status;
+        setTimeout(() => card.classList.add("dragging"), 0);
+        e.dataTransfer.effectAllowed = "move";
+      });
+      card.addEventListener("dragend", () => {
+        card.classList.remove("dragging");
+        document.querySelectorAll(".kanban-col").forEach((c) => c.classList.remove("drag-over"));
+        cardArrastando = null;
+      });
+    });
+
+    document.querySelectorAll(".kanban-col").forEach((col) => {
+      col.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        col.classList.add("drag-over");
+      });
+      col.addEventListener("dragleave", (e) => {
+        if (!col.contains(e.relatedTarget)) col.classList.remove("drag-over");
+      });
+      col.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        col.classList.remove("drag-over");
+        if (!cardArrastando) return;
+        const novoStatus = col.dataset.status;
+        if (novoStatus === statusOrigem) return;
+        const osId = cardArrastando.dataset.id;
+
+        // Move card visualmente imediatamente
+        const cardsDiv = col.querySelector(".kanban-cards");
+        cardsDiv.appendChild(cardArrastando);
+        cardArrastando.dataset.status = novoStatus;
+
+        // Atualiza contador
+        const countOrig = document.querySelector(`#kcol-${statusOrigem} .kanban-col__count`);
+        const countDest = document.querySelector(`#kcol-${novoStatus} .kanban-col__count`);
+        if (countOrig) countOrig.textContent = parseInt(countOrig.textContent) - 1;
+        if (countDest) countDest.textContent = parseInt(countDest.textContent) + 1;
+
+        statusOrigem = novoStatus;
+
+        // Persiste no backend
+        try {
+          await API.put(`/api/os/${osId}`, { status: novoStatus });
+          toast(`OS movida para ${STATUS_LABEL[novoStatus]}`, "success");
+        } catch(err) {
+          toast(err.message, "error");
+          // Reverte visualmente em caso de erro
+          carregarKanban();
+        }
+      });
+    });
   }
 
   window.__os = api;
