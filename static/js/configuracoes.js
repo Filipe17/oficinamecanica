@@ -134,6 +134,31 @@
           <input name="boleto_banco_credenciais" value="${c.boleto_banco_credenciais || ""}" placeholder="Definiremos os campos exatos ao integrar o banco escolhido" autocomplete="off"></div>
       </div>
 
+      <h3 style="margin:22px 0 4px;font-size:15px">Email (SMTP)</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
+        Configurações do servidor de email para envio de cotações e pedidos de compra aos fornecedores.
+        Funciona com Gmail, Outlook, Zoho, e qualquer provedor SMTP.
+      </p>
+      <div class="form-grid" id="cfg-form-smtp">
+        <div class="field"><label>Servidor SMTP</label>
+          <input name="smtp_host" value="${c.smtp_host || ""}" placeholder="ex: smtp.gmail.com"></div>
+        <div class="field"><label>Porta</label>
+          <input name="smtp_porta" type="number" value="${c.smtp_porta || "587"}" placeholder="587"></div>
+        <div class="field"><label>Usuário / Email</label>
+          <input name="smtp_usuario" type="email" value="${c.smtp_usuario || ""}" placeholder="seu@email.com"></div>
+        <div class="field"><label>Senha / App Password</label>
+          <input name="smtp_senha" type="password" value="${c.smtp_senha || ""}" placeholder="Senha ou App Password" autocomplete="off"></div>
+        <div class="field"><label>SSL/TLS</label>
+          <select name="smtp_ssl">
+            <option value="0" ${(c.smtp_ssl || "0") === "0" ? "selected" : ""}>STARTTLS (porta 587)</option>
+            <option value="1" ${(c.smtp_ssl || "") === "1" ? "selected" : ""}>SSL direto (porta 465)</option>
+          </select></div>
+        <div class="field"><label>Email remetente</label>
+          <input name="smtp_email_remetente" type="email" value="${c.smtp_email_remetente || ""}" placeholder="Deixe vazio para usar o usuário"></div>
+        <div class="field col-2"><label>Nome do remetente</label>
+          <input name="smtp_nome_remetente" value="${c.smtp_nome_remetente || ""}" placeholder="Ex: Oficina do Zé — Compras"></div>
+      </div>
+
       <div class="cfg-logo">
         <label>Logo da empresa</label>
         <div class="cfg-logo__box">
@@ -218,7 +243,7 @@
 
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
-    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-boleto [name="${n}"]`)?.value || "").trim();
+    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"]`)?.value || "").trim();
     const dados = {
       empresa_nome: val("empresa_nome"),
       empresa_cnpj: val("empresa_cnpj"),
@@ -246,6 +271,13 @@
       boleto_carteira: val("boleto_carteira"),
       boleto_banco_ambiente: val("boleto_banco_ambiente"),
       boleto_banco_credenciais: val("boleto_banco_credenciais"),
+      smtp_host: val("smtp_host"),
+      smtp_porta: val("smtp_porta"),
+      smtp_usuario: val("smtp_usuario"),
+      smtp_senha: val("smtp_senha"),
+      smtp_ssl: val("smtp_ssl"),
+      smtp_email_remetente: val("smtp_email_remetente"),
+      smtp_nome_remetente: val("smtp_nome_remetente"),
       empresa_logo: logoAtual,
     };
     try {

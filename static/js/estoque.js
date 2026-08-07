@@ -122,7 +122,10 @@
             <div style="display:flex;gap:.5rem;align-items:center">
               <span style="font-weight:600;color:var(--primary)">${fmt.moeda(g.total_estimado)}</span>
               <button class="btn btn--outline btn--sm" onclick="window.__sugestao.imprimir(${gi})">
-                <i class="fa-solid fa-print"></i> Pedido
+                <i class="fa-solid fa-print"></i> Imprimir
+              </button>
+              <button class="btn btn--primary btn--sm" onclick="abrirCotacao(${gi})">
+                <i class="fa-solid fa-paper-plane"></i> Cotar / Email
               </button>
             </div>
           </div>
@@ -255,6 +258,126 @@
         w.document.close();
         w.onload = () => w.print();
       },
+    };
+  }
+
+  // -----------------------------------------------------------------------
+  // Cotação: modal de ajuste de quantidades + histórico de preço + envio
+  // -----------------------------------------------------------------------
+  async function abrirCotacao(gi) {
+    const g = window.__sugestao?._grupos?.[gi];
+    if (!g) return;
+
+    // Carrega histórico de preço de cada item
+    const itensComHistorico = await Promise.all(g.itens.map(async (it) => {
+      try {
+        const r = await API.get(`/api/estoque/cotacao/historico/${it.id}`);
+        return { ...it, _historico: r.historico || [], _ultimo_xml: r.ultimo_xml };
+      } catch (_) { return { ...it, _historico: [], _ultimo_xml: null }; }
+    }));
+
+    const linhas = itensComHistorico.map((it, idx) => {
+      const ultimoPreco = it._ultimo_xml
+        ? `<span style="color:var(--text-muted);font-size:.8rem">Último: R$ ${Number(it._ultimo_xml.preco_atual||0).toFixed(2)} (${it._ultimo_xml.origem})</span>`
+        : `<span style="color:var(--text-muted);font-size:.8rem">Sem histórico</span>`;
+      return `<tr>
+        <td style="padding:6px 4px">${it.codigo || "—"}</td>
+        <td style="padding:6px 4px">${it.nome}<br>${ultimoPreco}</td>
+        <td style="padding:6px 4px;text-align:center">
+          <input type="number" step="0.01" min="1" value="${it.sugerido}"
+            id="cot-qtd-${idx}" style="width:70px;text-align:center">
+        </td>
+        <td style="padding:6px 4px;text-align:right">
+          <input type="number" step="0.01" min="0"
+            value="${Number(it.preco_compra||0).toFixed(2)}"
+            id="cot-ref-${idx}" style="width:90px;text-align:right"
+            placeholder="R$ ref.">
+        </td>
+      </tr>`;
+    }).join("");
+
+    Modal.abrir(
+      `<i class="fa-solid fa-envelope"></i> Cotação — ${g.fornecedor}`,
+      `<div style="margin-bottom:1rem">
+        <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:.5rem">
+          Ajuste as quantidades e o preço de referência antes de enviar.
+        </p>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="font-size:.8rem;color:var(--text-muted)">
+            <th style="padding:6px 4px;text-align:left">Código</th>
+            <th style="padding:6px 4px;text-align:left">Produto</th>
+            <th style="padding:6px 4px;text-align:center">Qtd.</th>
+            <th style="padding:6px 4px;text-align:right">Ref. Preço</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1rem">
+        <div class="field col-2">
+          <label>E-mail do fornecedor *</label>
+          <input id="cot-email" type="email" value="${g.email || ""}"
+            placeholder="email@fornecedor.com.br">
+        </div>
+        <div class="field">
+          <label>Prazo desejado</label>
+          <input id="cot-prazo" placeholder="ex: 5 dias úteis">
+        </div>
+        <div class="field">
+          <label>Assunto (opcional)</label>
+          <input id="cot-assunto" placeholder="Pedido de Cotação — ...">
+        </div>
+        <div class="field col-2">
+          <label>Observações</label>
+          <input id="cot-obs" placeholder="Informações adicionais ao fornecedor…">
+        </div>
+      </div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--outline" onclick="window.__cotacao.imprimir(${gi})">
+         <i class="fa-solid fa-print"></i> Só imprimir
+       </button>
+       <button class="btn btn--primary" id="cot-enviar-btn">
+         <i class="fa-solid fa-paper-plane"></i> Enviar por email
+       </button>`,
+      true
+    );
+
+    document.getElementById("cot-enviar-btn").onclick = async () => {
+      const email = document.getElementById("cot-email")?.value.trim();
+      if (!email) { toast("Informe o e-mail do fornecedor", "warning"); return; }
+
+      const itensCotacao = itensComHistorico.map((it, idx) => ({
+        produto_id: it.id,
+        nome: it.nome,
+        codigo: it.codigo,
+        quantidade: parseFloat(document.getElementById(`cot-qtd-${idx}`)?.value || it.sugerido),
+        preco_referencia: parseFloat(document.getElementById(`cot-ref-${idx}`)?.value || 0) || null,
+      }));
+
+      const btn = document.getElementById("cot-enviar-btn");
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Enviando…`;
+
+      try {
+        await API.post("/api/estoque/cotacao/enviar", {
+          fornecedor_id: g.fornecedor_id,
+          email_destino: email,
+          itens: itensCotacao,
+          obs: document.getElementById("cot-obs")?.value.trim() || null,
+          prazo: document.getElementById("cot-prazo")?.value.trim() || null,
+          assunto_custom: document.getElementById("cot-assunto")?.value.trim() || null,
+        });
+        toast(`Cotação enviada para ${email}`);
+        Modal.fechar();
+      } catch (e) {
+        toast(e.message, "error");
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Enviar por email`;
+      }
+    };
+
+    window.__cotacao = {
+      _gi: gi,
+      imprimir(gi) { window.__sugestao?.imprimir(gi); Modal.fechar(); },
     };
   }
 
