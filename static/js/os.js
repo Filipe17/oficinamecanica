@@ -302,6 +302,7 @@
       <button class="btn btn--ghost" onclick="Modal.fechar()">${soLeitura ? "Fechar" : "Cancelar"}</button>
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
       ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirChecklist(${o.id})"><i class="fa-solid fa-clipboard-check"></i> Checklist</button>` : ""}
+      ${ed && !EH_ORC && o.status === "finalizada" ? `<button class="btn btn--outline" onclick="window.__nps?.abrirEnvio(${o.id},${o.cliente_id},'${(o.cliente_nome||'').replace(/'/g,"\'")}','${o.cliente_email||''}','${o.cliente_whatsapp||o.cliente_telefone||''}')"><i class="fa-solid fa-star"></i> NPS</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
       ${!soLeitura && ed && !EH_ORC && o.status === "aguardando_aprovacao" && Layout.usuario?.perfil !== "mecanico"
         ? `<button class="btn btn--primary" onclick="window.__os.gerarOrcamento(${o.id})"><i class="fa-solid fa-file-invoice-dollar"></i> Gerar Orçamento</button>`

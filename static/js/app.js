@@ -128,6 +128,8 @@ const MENU = [
     { id: "ordem_servico", nome: "Ordem de Serviço", icone: "fa-screwdriver-wrench" },
     { id: "orcamentos", nome: "Orçamentos", icone: "fa-file-invoice-dollar" },
     { id: "agendamentos", nome: "Agendamentos", icone: "fa-calendar-days" },
+    { id: "lembretes", nome: "Lembretes de Revisão", icone: "fa-bell" },
+    { id: "nps", nome: "NPS / Avaliações", icone: "fa-star" },
   ]},
   { grupo: "Cadastros", itens: [
     { id: "servicos", nome: "Serviços", icone: "fa-list-check" },
@@ -221,7 +223,7 @@ const Layout = {
       const MODULO_PAGINA = {
         dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
         ordem_servico: "ordem_servico", orcamentos: "orcamentos",
-        agendamentos: "agendamentos", lembretes: "lembretes", lembretes: "lembretes", servicos: "servicos", produtos: "produtos",
+        agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps", lembretes: "lembretes", nps: "nps", lembretes: "lembretes", lembretes: "lembretes", servicos: "servicos", produtos: "produtos",
         fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
         financeiro: "financeiro", cobrancas: "financeiro", mala_direta: "financeiro",
         relatorios: "relatorios", notas_fiscais: "notas_fiscais",

@@ -31,6 +31,7 @@
     notas_fiscais: "Notas Fiscais",
     agendamentos:  "Agendamentos",
     lembretes:     "Lembretes de Revisão",
+    nps:           "NPS / Avaliações",
     cartao:        "Cartão / Taxas",
     cheques:       "Cheques",
     usuarios:      "Usuários",
