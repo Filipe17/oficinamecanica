@@ -127,6 +127,15 @@ def sugestao_compras():
         LEFT JOIN fornecedores f ON f.id = p.fornecedor_id
         WHERE p.estoque_minimo > 0
           AND p.estoque_atual <= p.estoque_minimo
+          AND (
+            -- inclui variações (tem pai)
+            p.produto_pai_id IS NOT NULL
+            OR
+            -- inclui produtos simples (sem pai E sem filhos)
+            NOT EXISTS (
+              SELECT 1 FROM produtos v WHERE v.produto_pai_id = p.id
+            )
+          )
         ORDER BY f.nome NULLS LAST, p.nome
     """)
 
