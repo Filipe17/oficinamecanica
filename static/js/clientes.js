@@ -22,6 +22,25 @@
       { chave: "telefone", titulo: "Telefone" },
       { chave: "cidade", titulo: "Cidade" },
       { chave: "estado", titulo: "UF" },
+      { chave: "limite_credito", titulo: "Limite / Saldo", render: (v, row) => {
+          const limite = Number(v || 0);
+          if (!limite) return `<span style="color:var(--text-muted);font-size:.8rem">—</span>`;
+          const saldo = Number(row.saldo_devedor || 0);
+          const pct = Math.min(Math.round(saldo / limite * 100), 100);
+          const cor = pct >= 100 ? "#e74c3c" : pct >= 80 ? "#e67e22" : "#27ae60";
+          const label = pct >= 100
+            ? `<span style="color:#e74c3c;font-weight:700">Limite atingido</span>`
+            : pct >= 80
+            ? `<span style="color:#e67e22">⚠ ${pct}% usado</span>`
+            : `<span style="color:#27ae60">${fmt.moeda(limite - saldo)} disponível</span>`;
+          return `<div style="font-size:.8rem">
+            <div>${fmt.moeda(saldo)} / ${fmt.moeda(limite)}</div>
+            <div style="background:#eee;border-radius:4px;height:4px;margin-top:2px;width:80px">
+              <div style="background:${cor};width:${pct}%;height:4px;border-radius:4px"></div>
+            </div>
+            <div style="margin-top:1px">${label}</div>
+          </div>`;
+        }},
     ],
     campos: [
       { nome: "nome", label: "Nome / Razão Social", obrigatorio: true, larguraTotal: true },
@@ -36,6 +55,7 @@
       { nome: "bairro", label: "Bairro" },
       { nome: "cidade", label: "Cidade" },
       { nome: "estado", label: "Estado (UF)" },
+      { nome: "limite_credito", label: "Limite de Crédito (R$)", tipo: "number", placeholder: "0 = sem limite" },
       { nome: "observacoes", label: "Observações", tipo: "textarea", larguraTotal: true },
     ],
   });
