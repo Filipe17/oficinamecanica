@@ -276,6 +276,7 @@
     `, `
       <button class="btn btn--ghost" onclick="Modal.fechar()">${soLeitura ? "Fechar" : "Cancelar"}</button>
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
+      ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirChecklist(${o.id})"><i class="fa-solid fa-clipboard-check"></i> Checklist</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
       ${!soLeitura && ed && !EH_ORC && o.status === "aguardando_aprovacao" && Layout.usuario?.perfil !== "mecanico"
         ? `<button class="btn btn--primary" onclick="window.__os.gerarOrcamento(${o.id})"><i class="fa-solid fa-file-invoice-dollar"></i> Gerar Orçamento</button>`
@@ -701,5 +702,197 @@
   }
 
   window.__os = api;
+
+  // -----------------------------------------------------------------------
+  // Checklist de Inspeção Veicular
+  // -----------------------------------------------------------------------
+  api.abrirChecklist = async function(osId) {
+    Modal.abrir(
+      `<i class="fa-solid fa-clipboard-check"></i> Checklist de Inspeção — OS ${osId}`,
+      `<div id="chk-body"><div class="loading"><i class="fa-solid fa-spinner spin"></i> Carregando…</div></div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--outline" id="chk-imprimir"><i class="fa-solid fa-print"></i> Imprimir laudo</button>
+       <button class="btn btn--primary" id="chk-salvar"><i class="fa-solid fa-check"></i> Salvar checklist</button>`,
+      true
+    );
+
+    let _itens = [];
+
+    try {
+      const r = await API.get(`/api/os/${osId}/checklist`);
+      _itens = r.itens || [];
+      renderChecklist(_itens);
+    } catch(e) {
+      document.getElementById("chk-body").innerHTML =
+        `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>${e.message}</div>`;
+      return;
+    }
+
+    function renderChecklist(itens) {
+      const grupos = {};
+      itens.forEach((it, idx) => {
+        const g = it.grupo || "Outros";
+        if (!grupos[g]) grupos[g] = [];
+        grupos[g].push({ ...it, _idx: idx });
+      });
+
+      const cores = { ok: "#27ae60", avariado: "#e74c3c", nao_verificado: "#95a5a6" };
+      const labels = { ok: "OK", avariado: "Avariado", nao_verificado: "Não verificado" };
+
+      const html = Object.entries(grupos).map(([grupo, gItens]) => `
+        <div style="margin-bottom:1.25rem">
+          <div style="font-weight:700;font-size:.85rem;text-transform:uppercase;
+            color:var(--primary);border-bottom:2px solid var(--primary);
+            padding-bottom:4px;margin-bottom:.6rem;letter-spacing:.5px">${grupo}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.4rem">
+            ${gItens.map((it) => `
+              <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;
+                border-radius:6px;background:var(--bg-alt,#f8f9fa);
+                border:1px solid ${it.status==="avariado"?"#fad7d7":it.status==="ok"?"#d4edda":"#e9ecef"};
+                flex-direction:column;align-items:stretch">
+                <div style="display:flex;align-items:center;gap:.5rem">
+                  <select data-idx="${it._idx}" class="chk-status"
+                    style="border:none;background:transparent;font-size:.8rem;
+                    color:${cores[it.status]};font-weight:600;cursor:pointer;padding:0;flex:0 0 auto">
+                    ${["ok","avariado","nao_verificado"].map((s) =>
+                      `<option value="${s}" ${it.status===s?"selected":""}>${labels[s]}</option>`
+                    ).join("")}
+                  </select>
+                  <span style="flex:1;font-size:.82rem;color:#333">${it.item}</span>
+                </div>
+                ${it.status==="avariado" ? `
+                  <input class="chk-obs" data-idx="${it._idx}"
+                    placeholder="Descreva o dano…" value="${(it.obs||"").replace(/"/g,"&quot;")}"
+                    style="font-size:.75rem;padding:3px 6px;border:1px solid #ddd;
+                    border-radius:4px;background:#fff">` : ""}
+              </div>`).join("")}
+          </div>
+        </div>`).join("");
+
+      const avariados = itens.filter((i) => i.status === "avariado").length;
+      const verificados = itens.filter((i) => i.status !== "nao_verificado").length;
+
+      document.getElementById("chk-body").innerHTML = `
+        <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+          <div class="stat-mini"><span style="color:#27ae60">${itens.filter(i=>i.status==="ok").length}</span><label>OK</label></div>
+          <div class="stat-mini"><span style="color:#e74c3c">${avariados}</span><label>Avariados</label></div>
+          <div class="stat-mini"><span style="color:#888">${itens.filter(i=>i.status==="nao_verificado").length}</span><label>Não verificados</label></div>
+          <div class="stat-mini"><span>${verificados}/${itens.length}</span><label>Verificados</label></div>
+          <button class="btn btn--ghost btn--sm" style="margin-left:auto"
+            onclick="window.__os._chkMarcarTodos('ok')">✓ Marcar todos OK</button>
+        </div>
+        <div id="chk-grupos">${html}</div>`;
+
+      document.querySelectorAll(".chk-status").forEach((sel) => {
+        sel.onchange = () => {
+          _itens[parseInt(sel.dataset.idx)].status = sel.value;
+          renderChecklist(_itens);
+        };
+      });
+      document.querySelectorAll(".chk-obs").forEach((inp) => {
+        inp.oninput = () => { _itens[parseInt(inp.dataset.idx)].obs = inp.value; };
+      });
+    }
+
+    api._chkMarcarTodos = (status) => {
+      _itens.forEach((it) => { it.status = status; });
+      renderChecklist(_itens);
+    };
+
+    document.getElementById("chk-salvar").onclick = async () => {
+      const btn = document.getElementById("chk-salvar");
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Salvando…`;
+      try {
+        const r = await API.post(`/api/os/${osId}/checklist`, { itens: _itens });
+        toast(`Checklist salvo — ${r.avariados} item(s) avariado(s)`);
+        Modal.fechar();
+      } catch(e) {
+        toast(e.message, "error");
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-check"></i> Salvar checklist`;
+      }
+    };
+
+    document.getElementById("chk-imprimir").onclick = () => {
+      const cfg = Layout.config || {};
+      const empresa = cfg.empresa_nome || "Oficina";
+      const hoje = new Date().toLocaleDateString("pt-BR");
+      const avariados = _itens.filter((i) => i.status === "avariado");
+      const ok = _itens.filter((i) => i.status === "ok");
+      const nv = _itens.filter((i) => i.status === "nao_verificado");
+      const grupos = {};
+      _itens.forEach((it) => {
+        const g = it.grupo || "Outros";
+        if (!grupos[g]) grupos[g] = [];
+        grupos[g].push(it);
+      });
+      const tabelaGrupos = Object.entries(grupos).map(([grupo, itens]) => `
+        <tr style="background:#f0f0f0">
+          <td colspan="3" style="padding:6px 8px;font-weight:700;font-size:11px;
+            text-transform:uppercase;letter-spacing:.5px">${grupo}</td>
+        </tr>
+        ${itens.map((it) => `<tr>
+          <td style="padding:5px 8px;font-size:11px">${it.item}</td>
+          <td style="padding:5px 8px;text-align:center;font-size:11px;font-weight:700;
+            color:${it.status==="ok"?"#27ae60":it.status==="avariado"?"#e74c3c":"#888"}">
+            ${it.status==="ok"?"✓ OK":it.status==="avariado"?"✗ Avariado":"— N/V"}
+          </td>
+          <td style="padding:5px 8px;font-size:10px;color:#555">${it.obs||""}</td>
+        </tr>`).join("")}`).join("");
+
+      const w = window.open("", "_blank");
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Checklist — OS ${osId}</title>
+        <style>
+          body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#222}
+          h1{font-size:16px;margin:0} h2{font-size:12px;color:#555;margin:2px 0 16px;font-weight:normal}
+          table{width:100%;border-collapse:collapse;margin-top:12px}
+          th{background:#1a6b6b;color:#fff;padding:7px 8px;text-align:left;font-size:11px}
+          td{border-bottom:1px solid #eee}
+          .resumo{display:flex;gap:24px;margin:12px 0;padding:10px;background:#f9f9f9;border-radius:6px}
+          .resumo div{text-align:center} .resumo strong{display:block;font-size:18px}
+          .resumo small{font-size:10px;color:#888}
+          .assinatura{margin-top:48px;display:flex;justify-content:space-between;gap:40px}
+          .assinatura div{text-align:center;flex:1}
+          .assinatura hr{border:none;border-top:1px solid #333;margin-bottom:4px}
+          @media print{body{padding:0}}
+        </style>
+      </head><body>
+        <h1>Laudo de Inspeção Veicular</h1>
+        <h2>${empresa} — OS ${osId} — ${hoje}</h2>
+        <div class="resumo">
+          <div><strong style="color:#27ae60">${ok.length}</strong><small>OK</small></div>
+          <div><strong style="color:#e74c3c">${avariados.length}</strong><small>Avariados</small></div>
+          <div><strong style="color:#888">${nv.length}</strong><small>Não verificados</small></div>
+          <div><strong>${_itens.length}</strong><small>Total</small></div>
+        </div>
+        ${avariados.length ? `
+          <div style="background:#fde8e8;border:1px solid #f5c6cb;border-radius:6px;padding:10px;margin-bottom:12px">
+            <strong style="color:#c0392b">⚠ Avarias encontradas:</strong>
+            <ul style="margin:6px 0 0 16px;padding:0">
+              ${avariados.map((it) => `<li style="font-size:11px">${it.item}${it.obs?` — ${it.obs}`:""}</li>`).join("")}
+            </ul>
+          </div>` : `
+          <div style="background:#d4edda;border:1px solid #c3e6cb;border-radius:6px;padding:10px;margin-bottom:12px">
+            <strong style="color:#155724">✓ Nenhuma avaria encontrada</strong>
+          </div>`}
+        <table>
+          <thead><tr><th>Item</th><th style="width:100px;text-align:center">Status</th><th>Observação</th></tr></thead>
+          <tbody>${tabelaGrupos}</tbody>
+        </table>
+        <div class="assinatura">
+          <div><hr>Responsável técnico / Mecânico</div>
+          <div><hr>Cliente — Ciente das condições do veículo</div>
+        </div>
+        <p style="font-size:9px;color:#aaa;margin-top:20px;text-align:center">
+          DevSystem PRIME — ${hoje} — OS ${osId}
+        </p>
+      </body></html>`);
+      w.document.close();
+      w.onload = () => w.print();
+    };
+  };
+
   carregar();
 })();
