@@ -389,6 +389,16 @@ def init_db():
             criado_em TEXT
         )""",
 
+        f"""CREATE TABLE IF NOT EXISTS os_checklist (
+            id {pk},
+            os_id INTEGER NOT NULL REFERENCES ordens_servico(id),
+            item TEXT NOT NULL,          -- nome do item inspecionado
+            grupo TEXT,                  -- grupo: Lataria, Pneus, Elétrica, etc.
+            status TEXT DEFAULT 'ok',    -- ok | avariado | nao_verificado
+            obs TEXT,                    -- observação específica do item
+            criado_em TEXT
+        )""",
+
         f"""CREATE TABLE IF NOT EXISTS comissoes (
             id {pk},
             usuario_id INTEGER,               -- profissional que recebe (mecânico da OS)
