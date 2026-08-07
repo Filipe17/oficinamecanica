@@ -143,3 +143,213 @@ def gerar_os(aid):
           (oid, aid), commit=True)
     registrar_log(session["user_id"], "agendamento_gerou_os", f"{aid} -> OS {oid}")
     return jsonify({"ok": True, "os_id": oid})
+
+
+# =========================================================================
+# LEMBRETES DE REVISÃO
+# =========================================================================
+
+@agendamentos_bp.route("/api/lembretes", methods=["GET"])
+@login_obrigatorio
+def listar_lembretes():
+    """
+    Lista lembretes de revisão com filtro por status.
+    Também calcula automaticamente lembretes a partir de OS finalizadas
+    que não têm lembrete gerado ainda.
+    """
+    status = request.args.get("status", "pendente").strip()
+    intervalo = int(request.args.get("intervalo", 180))
+
+    # Gera lembretes automaticamente para OS finalizadas sem lembrete
+    _gerar_lembretes_automaticos(intervalo)
+
+    where = ["1=1"]
+    params = []
+    if status != "todos":
+        where.append("l.status = ?")
+        params.append(status)
+
+    lista = query(
+        f"SELECT l.*, c.nome AS cliente_nome, c.telefone, c.whatsapp, c.email, "
+        f"v.placa AS veiculo_placa, v.modelo AS veiculo_modelo, v.marca AS veiculo_marca "
+        f"FROM lembretes_revisao l "
+        f"LEFT JOIN clientes c ON c.id=l.cliente_id "
+        f"LEFT JOIN veiculos v ON v.id=l.veiculo_id "
+        f"WHERE {' AND '.join(where)} ORDER BY l.data_prevista", params)
+
+    # Marca atrasados (data prevista < hoje e status pendente)
+    from datetime import date
+    hoje = date.today().isoformat()
+    for l in lista:
+        l["atrasado"] = (l.get("data_prevista") or "") < hoje and l["status"] == "pendente"
+
+    total_pendente = query(
+        "SELECT COUNT(*) AS n FROM lembretes_revisao WHERE status='pendente'",
+        fetchone=True)["n"]
+    total_atrasado = query(
+        f"SELECT COUNT(*) AS n FROM lembretes_revisao "
+        f"WHERE status='pendente' AND data_prevista < ?", (hoje,), fetchone=True)["n"]
+
+    return jsonify({
+        "dados": lista,
+        "total": len(lista),
+        "total_pendente": total_pendente,
+        "total_atrasado": total_atrasado,
+    })
+
+
+def _gerar_lembretes_automaticos(intervalo_dias=180):
+    """
+    Para cada OS finalizada sem lembrete gerado, cria um lembrete
+    com data prevista = data_os + intervalo_dias.
+    """
+    from datetime import date, timedelta
+    # OS finalizadas que ainda não têm lembrete
+    sem_lembrete = query(
+        "SELECT o.id, o.cliente_id, o.veiculo_id, o.data "
+        "FROM ordens_servico o "
+        "WHERE o.status='finalizada' AND o.eh_orcamento=0 "
+        "AND o.cliente_id IS NOT NULL "
+        "AND NOT EXISTS (SELECT 1 FROM lembretes_revisao l WHERE l.os_id=o.id)")
+    for os in sem_lembrete:
+        data_os = (os.get("data") or "")[:10]
+        if not data_os:
+            continue
+        try:
+            dt = date.fromisoformat(data_os)
+            data_prevista = (dt + timedelta(days=intervalo_dias)).isoformat()
+        except Exception:
+            continue
+        query(
+            "INSERT INTO lembretes_revisao (cliente_id, veiculo_id, os_id, "
+            "data_ultima_os, data_prevista, intervalo_dias, status, criado_em) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (os["cliente_id"], os.get("veiculo_id"), os["id"],
+             data_os, data_prevista, intervalo_dias, "pendente", now()),
+            commit=True)
+
+
+@agendamentos_bp.route("/api/lembretes/<int:lid>/registrar", methods=["POST"])
+@login_obrigatorio
+def registrar_lembrete(lid):
+    """Registra o envio/dispensa de um lembrete."""
+    d = request.get_json(force=True)
+    acao = d.get("acao", "enviado")  # enviado | dispensado | agendado
+    canal = d.get("canal", "manual")
+    query(
+        "UPDATE lembretes_revisao SET status=?, canal_envio=?, enviado_em=?, obs=? WHERE id=?",
+        (acao, canal, now(), d.get("obs"), lid), commit=True)
+    registrar_log(session["user_id"], f"lembrete_{acao}", str(lid))
+    return jsonify({"ok": True})
+
+
+@agendamentos_bp.route("/api/lembretes/<int:lid>/reagendar", methods=["POST"])
+@login_obrigatorio
+def reagendar_lembrete(lid):
+    """Reagenda um lembrete para uma nova data."""
+    d = request.get_json(force=True)
+    nova_data = d.get("data_prevista")
+    if not nova_data:
+        return jsonify({"erro": "data_prevista obrigatória"}), 400
+    query(
+        "UPDATE lembretes_revisao SET data_prevista=?, status='pendente', obs=? WHERE id=?",
+        (nova_data, d.get("obs"), lid), commit=True)
+    return jsonify({"ok": True})
+
+
+@agendamentos_bp.route("/api/lembretes/email", methods=["POST"])
+@login_obrigatorio
+def enviar_lembrete_email(lid=None):
+    """Envia lembrete de revisão por email via SMTP."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from api.configuracoes import obter_config
+    from datetime import date
+
+    d = request.get_json(force=True)
+    lid = d.get("lembrete_id")
+    l = query(
+        "SELECT lr.*, c.nome AS cliente_nome, c.email AS cliente_email, "
+        "v.placa, v.modelo, v.marca "
+        "FROM lembretes_revisao lr "
+        "LEFT JOIN clientes c ON c.id=lr.cliente_id "
+        "LEFT JOIN veiculos v ON v.id=lr.veiculo_id "
+        "WHERE lr.id=?", (lid,), fetchone=True)
+    if not l:
+        return jsonify({"erro": "Lembrete não encontrado"}), 404
+
+    email_dest = (d.get("email") or l.get("cliente_email") or "").strip()
+    if not email_dest:
+        return jsonify({"erro": "Cliente sem email cadastrado"}), 400
+
+    cfg = obter_config()
+    smtp_host = cfg.get("smtp_host", "").strip()
+    smtp_porta = int(cfg.get("smtp_porta") or 587)
+    smtp_usuario = cfg.get("smtp_usuario", "").strip()
+    smtp_senha = cfg.get("smtp_senha", "").strip()
+    smtp_ssl = str(cfg.get("smtp_ssl", "")).lower() in ("1", "true", "sim")
+    email_rem = cfg.get("smtp_email_remetente") or smtp_usuario
+    nome_rem = cfg.get("smtp_nome_remetente") or cfg.get("empresa_nome") or "Oficina"
+    empresa = cfg.get("empresa_nome") or "Oficina"
+    tel = cfg.get("empresa_telefone") or ""
+
+    if not smtp_host or not smtp_usuario or not smtp_senha:
+        return jsonify({"erro": "Configure o SMTP em Configurações"}), 400
+
+    veiculo = f"{l.get('veiculo_marca','')} {l.get('veiculo_modelo','')} — {l.get('placa','')}".strip(" —")
+    data_prev = l.get("data_prevista", "")[:10]
+    try:
+        from datetime import datetime
+        data_fmt = datetime.strptime(data_prev, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except Exception:
+        data_fmt = data_prev
+
+    mensagem_custom = d.get("mensagem", "").strip()
+    corpo_extra = f"<p>{mensagem_custom}</p>" if mensagem_custom else ""
+    hoje = date.today().strftime("%d/%m/%Y")
+
+    html = f"""<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#222">
+      <div style="background:#0d9488;padding:20px 24px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0">Lembrete de Revisão</h2>
+        <p style="color:#ccfbf1;margin:4px 0 0">{empresa}</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 8px 8px">
+        <p>Olá <strong>{l.get('cliente_nome','')}</strong>,</p>
+        <p>Já está na hora de trazer seu veículo para uma revisão! 🔧</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f9fafb;border-radius:6px">
+          <tr><td style="padding:10px 14px;border-bottom:1px solid #eee"><strong>Veículo</strong></td>
+              <td style="padding:10px 14px;border-bottom:1px solid #eee">{veiculo or "—"}</td></tr>
+          <tr><td style="padding:10px 14px;border-bottom:1px solid #eee"><strong>Última revisão</strong></td>
+              <td style="padding:10px 14px;border-bottom:1px solid #eee">{l.get('data_ultima_os','—')}</td></tr>
+          <tr style="background:#fef3c7"><td style="padding:10px 14px"><strong>Revisão prevista</strong></td>
+              <td style="padding:10px 14px"><strong style="color:#0d9488">{data_fmt}</strong></td></tr>
+        </table>
+        {corpo_extra}
+        <p>Entre em contato para agendar sua revisão:</p>
+        <p><strong>{tel}</strong></p>
+        <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+        <p style="font-size:11px;color:#aaa">{empresa} — {hoje}</p>
+      </div>
+    </div>"""
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Lembrete de Revisão — {empresa}"
+    msg["From"] = f"{nome_rem} <{email_rem}>"
+    msg["To"] = email_dest
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        srv = smtplib.SMTP_SSL(smtp_host, smtp_porta, timeout=15) if smtp_ssl \
+              else smtplib.SMTP(smtp_host, smtp_porta, timeout=15)
+        if not smtp_ssl: srv.starttls()
+        srv.login(smtp_usuario, smtp_senha)
+        srv.sendmail(email_rem, [email_dest], msg.as_string())
+        srv.quit()
+    except Exception as e:
+        return jsonify({"erro": f"Falha ao enviar email: {e}"}), 500
+
+    query("UPDATE lembretes_revisao SET status='enviado', canal_envio='email', "
+          "enviado_em=? WHERE id=?", (now(), lid), commit=True)
+    registrar_log(session["user_id"], "lembrete_email", f"lid={lid} para={email_dest}")
+    return jsonify({"ok": True, "enviado_para": email_dest})
