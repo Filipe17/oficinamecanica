@@ -70,6 +70,31 @@ def listar():
 @perfil_permitido("administrador", "gerente", "financeiro", "caixa")
 def criar():
     d = request.get_json(force=True)
+
+    # Verifica limite de crédito ao criar conta a RECEBER
+    if d.get("tipo", "receber") == "receber" and d.get("cliente_id"):
+        cid = d["cliente_id"]
+        c = query("SELECT limite_credito FROM clientes WHERE id=?", (cid,), fetchone=True)
+        limite = float((c or {}).get("limite_credito") or 0)
+        if limite > 0:
+            r = query(
+                "SELECT COALESCE(SUM(valor),0) AS saldo FROM financeiro "
+                "WHERE cliente_id=? AND tipo='receber' AND status IN ('aberto','atrasado','parcial')",
+                (cid,), fetchone=True)
+            saldo = float(r["saldo"] or 0)
+            novo_valor = float(d.get("valor") or 0)
+            if saldo + novo_valor > limite:
+                disponivel = max(limite - saldo, 0)
+                return jsonify({
+                    "erro": f"Cliente atingiu o limite de crédito. "
+                            f"Limite: R$ {limite:.2f} | Saldo devedor: R$ {saldo:.2f} | "
+                            f"Disponível: R$ {disponivel:.2f}",
+                    "limite_atingido": True,
+                    "limite": limite,
+                    "saldo_devedor": saldo,
+                    "credito_disponivel": disponivel,
+                }), 400
+
     res = query(
         "INSERT INTO financeiro (tipo, descricao, cliente_id, fornecedor_id, os_id, "
         "valor, vencimento, forma_pagamento, categoria, status, juros, multa, criado_em) "

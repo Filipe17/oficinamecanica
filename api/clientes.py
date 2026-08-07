@@ -42,6 +42,16 @@ def listar():
         f"SELECT * FROM clientes {where} ORDER BY {ordem} LIMIT ? OFFSET ?",
         params + [por_pagina, offset],
     )
+    # Calcula saldo devedor (contas abertas+atrasadas) para cada cliente
+    for c in lista:
+        if float(c.get("limite_credito") or 0) > 0:
+            r = query(
+                "SELECT COALESCE(SUM(valor),0) AS saldo FROM financeiro "
+                "WHERE cliente_id=? AND tipo='receber' AND status IN ('aberto','atrasado','parcial')",
+                (c["id"],), fetchone=True)
+            c["saldo_devedor"] = round(float(r["saldo"] or 0), 2)
+        else:
+            c["saldo_devedor"] = None
     return jsonify({
         "dados": lista,
         "total": total,
@@ -61,6 +71,15 @@ def detalhe(cid):
     cliente["historico"] = query(
         "SELECT id, numero, data, status, total FROM ordens_servico "
         "WHERE cliente_id=? ORDER BY id DESC LIMIT 20", (cid,))
+    # Saldo devedor atual
+    r = query(
+        "SELECT COALESCE(SUM(valor),0) AS saldo FROM financeiro "
+        "WHERE cliente_id=? AND tipo='receber' AND status IN ('aberto','atrasado','parcial')",
+        (cid,), fetchone=True)
+    cliente["saldo_devedor"] = round(float(r["saldo"] or 0), 2)
+    limite = float(cliente.get("limite_credito") or 0)
+    cliente["credito_disponivel"] = round(max(limite - cliente["saldo_devedor"], 0), 2) if limite > 0 else None
+    cliente["limite_atingido"] = limite > 0 and cliente["saldo_devedor"] >= limite
     return jsonify(cliente)
 
 
@@ -72,12 +91,12 @@ def criar():
         return jsonify({"erro": "Nome é obrigatório"}), 400
     res = query(
         "INSERT INTO clientes (tipo, cpf_cnpj, nome, telefone, whatsapp, email, "
-        "cep, endereco, numero, bairro, cidade, estado, observacoes, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "cep, endereco, numero, bairro, cidade, estado, observacoes, limite_credito, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get("tipo", "PF"), d.get("cpf_cnpj"), d.get("nome"), d.get("telefone"),
          d.get("whatsapp"), d.get("email"), d.get("cep"), d.get("endereco"),
          d.get("numero"), d.get("bairro"), d.get("cidade"), d.get("estado"),
-         d.get("observacoes"), now()),
+         d.get("observacoes"), float(d.get("limite_credito") or 0), now()),
         commit=True,
     )
     registrar_log(session["user_id"], "criar_cliente", d.get("nome"))
@@ -91,11 +110,11 @@ def editar(cid):
     query(
         "UPDATE clientes SET tipo=?, cpf_cnpj=?, nome=?, telefone=?, whatsapp=?, "
         "email=?, cep=?, endereco=?, numero=?, bairro=?, cidade=?, estado=?, "
-        "observacoes=? WHERE id=?",
+        "observacoes=?, limite_credito=? WHERE id=?",
         (d.get("tipo", "PF"), d.get("cpf_cnpj"), d.get("nome"), d.get("telefone"),
          d.get("whatsapp"), d.get("email"), d.get("cep"), d.get("endereco"),
          d.get("numero"), d.get("bairro"), d.get("cidade"), d.get("estado"),
-         d.get("observacoes"), cid),
+         d.get("observacoes"), float(d.get("limite_credito") or 0), cid),
         commit=True,
     )
     registrar_log(session["user_id"], "editar_cliente", str(cid))
@@ -108,3 +127,34 @@ def excluir(cid):
     query("DELETE FROM clientes WHERE id=?", (cid,), commit=True)
     registrar_log(session["user_id"], "excluir_cliente", str(cid))
     return jsonify({"ok": True})
+
+
+@clientes_bp.route("/api/clientes/<int:cid>/credito", methods=["GET"])
+@login_obrigatorio
+def situacao_credito(cid):
+    """
+    Retorna a situação de crédito do cliente:
+    limite, saldo devedor, crédito disponível e se atingiu o limite.
+    Usado pela OS e pelo financeiro antes de criar novas contas.
+    """
+    c = query("SELECT id, nome, limite_credito FROM clientes WHERE id=?",
+              (cid,), fetchone=True)
+    if not c:
+        return jsonify({"erro": "Cliente não encontrado"}), 404
+    limite = float(c.get("limite_credito") or 0)
+    r = query(
+        "SELECT COALESCE(SUM(valor),0) AS saldo FROM financeiro "
+        "WHERE cliente_id=? AND tipo='receber' AND status IN ('aberto','atrasado','parcial')",
+        (cid,), fetchone=True)
+    saldo = round(float(r["saldo"] or 0), 2)
+    disponivel = round(max(limite - saldo, 0), 2) if limite > 0 else None
+    return jsonify({
+        "cliente_id": cid,
+        "nome": c["nome"],
+        "limite_credito": limite,
+        "saldo_devedor": saldo,
+        "credito_disponivel": disponivel,
+        "tem_limite": limite > 0,
+        "limite_atingido": limite > 0 and saldo >= limite,
+        "limite_proximo": limite > 0 and saldo >= (limite * 0.8),  # >= 80% usado
+    })
