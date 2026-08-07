@@ -1,17 +1,18 @@
-Limpa itens e registros de OS/orçamentos
+-- Deleta os dados (ordem importa por causa das FKs)
+DELETE FROM os_checklist;
+DELETE FROM cobrancas_historico;
+DELETE FROM comissoes;
 DELETE FROM os_itens;
 DELETE FROM ordens_servico;
-
--- Limpa agendamentos
 DELETE FROM agendamentos;
 
--- Reseta as sequências de ID (PostgreSQL)
+-- Reseta as sequências
+ALTER SEQUENCE os_checklist_id_seq RESTART WITH 1;
+ALTER SEQUENCE cobrancas_historico_id_seq RESTART WITH 1;
+ALTER SEQUENCE comissoes_id_seq RESTART WITH 1;
+ALTER SEQUENCE os_itens_id_seq RESTART WITH 1;
 ALTER SEQUENCE ordens_servico_id_seq RESTART WITH 1;
 ALTER SEQUENCE agendamentos_id_seq RESTART WITH 1;
-
-
-DELETE FROM comissoes;
-ALTER SEQUENCE comissoes_id_seq RESTART WITH 1;
 
 
 DELETE FROM caixa_mov;
