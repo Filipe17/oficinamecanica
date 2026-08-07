@@ -206,3 +206,152 @@ def cobrancas():
         "FROM financeiro f LEFT JOIN clientes c ON c.id=f.cliente_id "
         "WHERE f.tipo='receber' AND f.status='atrasado' ORDER BY f.vencimento")
     return jsonify({"dados": lista, "total": sum(x["valor"] for x in lista)})
+
+
+# =========================================================================
+# COBRANÇAS — histórico de tentativas e envio por email
+# =========================================================================
+
+@financeiro_bp.route("/api/cobrancas/historico/<int:fid>", methods=["GET"])
+@login_obrigatorio
+def historico_cobranca(fid):
+    """Retorna o histórico de tentativas de cobrança de uma conta."""
+    hist = query(
+        "SELECT h.*, u.nome AS usuario_nome FROM cobrancas_historico h "
+        "LEFT JOIN usuarios u ON u.id=h.usuario_id "
+        "WHERE h.financeiro_id=? ORDER BY h.id DESC", (fid,))
+    return jsonify({"dados": hist})
+
+
+@financeiro_bp.route("/api/cobrancas/registrar", methods=["POST"])
+@login_obrigatorio
+def registrar_cobranca():
+    """Registra uma tentativa de cobrança (WhatsApp, ligação, manual)."""
+    d = request.get_json(force=True)
+    fid = d.get("financeiro_id")
+    canal = d.get("canal", "manual")
+    if not fid:
+        return jsonify({"erro": "financeiro_id obrigatório"}), 400
+    query(
+        "INSERT INTO cobrancas_historico (financeiro_id, canal, mensagem, usuario_id, criado_em) "
+        "VALUES (?,?,?,?,?)",
+        (fid, canal, d.get("mensagem"), session["user_id"], now()), commit=True)
+    return jsonify({"ok": True})
+
+
+@financeiro_bp.route("/api/cobrancas/email", methods=["POST"])
+@login_obrigatorio
+def enviar_cobranca_email():
+    """Envia cobrança por email via SMTP configurado e registra no histórico."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from api.configuracoes import obter_config
+    from datetime import date
+
+    d = request.get_json(force=True)
+    fid = d.get("financeiro_id")
+    if not fid:
+        return jsonify({"erro": "financeiro_id obrigatório"}), 400
+
+    # Carrega a conta + dados do cliente
+    f = query(
+        "SELECT fi.*, c.nome AS cliente_nome, c.email AS cliente_email, "
+        "c.cpf_cnpj, c.telefone, c.whatsapp "
+        "FROM financeiro fi LEFT JOIN clientes c ON c.id=fi.cliente_id "
+        "WHERE fi.id=?", (fid,), fetchone=True)
+    if not f:
+        return jsonify({"erro": "Lançamento não encontrado"}), 404
+
+    email_destino = (d.get("email") or f.get("cliente_email") or "").strip()
+    if not email_destino:
+        return jsonify({"erro": "Cliente sem email cadastrado"}), 400
+
+    cfg = obter_config()
+    smtp_host = cfg.get("smtp_host", "").strip()
+    smtp_porta = int(cfg.get("smtp_porta") or 587)
+    smtp_usuario = cfg.get("smtp_usuario", "").strip()
+    smtp_senha = cfg.get("smtp_senha", "").strip()
+    smtp_ssl = str(cfg.get("smtp_ssl", "")).lower() in ("1", "true", "sim", "yes")
+    email_rem = cfg.get("smtp_email_remetente") or smtp_usuario
+    nome_rem = cfg.get("smtp_nome_remetente") or cfg.get("empresa_nome") or "Oficina"
+    empresa = cfg.get("empresa_nome") or "Oficina"
+
+    if not smtp_host or not smtp_usuario or not smtp_senha:
+        return jsonify({"erro": "Configure o servidor SMTP em Configurações antes de enviar emails"}), 400
+
+    valor = float(f.get("valor") or 0)
+    juros = float(f.get("juros") or 0)
+    multa = float(f.get("multa") or 0)
+    total = valor + juros + multa
+    ja_pago = float(f.get("valor_pago") or 0)
+    restante = max(total - ja_pago, 0)
+    venc = (f.get("vencimento") or "")[:10]
+    hoje = date.today()
+    try:
+        from datetime import datetime
+        dias_atraso = (hoje - datetime.strptime(venc, "%Y-%m-%d").date()).days if venc else 0
+    except Exception:
+        dias_atraso = 0
+
+    mensagem_custom = d.get("mensagem", "").strip()
+    obs_html = f"<p style='color:#555'>{mensagem_custom}</p>" if mensagem_custom else ""
+
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#222">
+      <div style="background:#c0392b;padding:20px 24px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0">Aviso de Cobrança</h2>
+        <p style="color:#f5b7b1;margin:4px 0 0">{empresa}</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 8px 8px">
+        <p>Prezado(a) <strong>{f.get('cliente_nome', '')}</strong>,</p>
+        <p>Identificamos um débito em aberto em seu cadastro:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#fafafa;border-radius:6px">
+          <tr><td style="padding:10px 14px;border-bottom:1px solid #eee"><strong>Descrição</strong></td>
+              <td style="padding:10px 14px;border-bottom:1px solid #eee">{f.get('descricao','—')}</td></tr>
+          <tr><td style="padding:10px 14px;border-bottom:1px solid #eee"><strong>Valor original</strong></td>
+              <td style="padding:10px 14px;border-bottom:1px solid #eee">R$ {valor:.2f}</td></tr>
+          {"<tr><td style='padding:10px 14px;border-bottom:1px solid #eee'><strong>Juros/Multa</strong></td><td style='padding:10px 14px;border-bottom:1px solid #eee'>R$ " + f"{juros+multa:.2f}" + "</td></tr>" if juros+multa > 0 else ""}
+          <tr style="background:#fff3cd"><td style="padding:10px 14px;border-bottom:1px solid #eee"><strong>Total a pagar</strong></td>
+              <td style="padding:10px 14px;border-bottom:1px solid #eee"><strong>R$ {restante:.2f}</strong></td></tr>
+          <tr><td style="padding:10px 14px;border-bottom:1px solid #eee"><strong>Vencimento</strong></td>
+              <td style="padding:10px 14px;border-bottom:1px solid #eee">{venc}</td></tr>
+          {"<tr style='background:#fde8e8'><td style='padding:10px 14px'><strong>Dias em atraso</strong></td><td style='padding:10px 14px;color:#c0392b'><strong>" + str(dias_atraso) + " dias</strong></td></tr>" if dias_atraso > 0 else ""}
+        </table>
+        {obs_html}
+        <p>Entre em contato conosco para regularizar sua situação:</p>
+        <p><strong>{cfg.get('empresa_telefone','')}</strong> &nbsp;|&nbsp; {email_rem}</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+        <p style="font-size:12px;color:#888">{empresa} — Este é um email automático, não responda diretamente.</p>
+      </div>
+    </div>"""
+
+    assunto = f"Aviso de Cobrança — {empresa} — Venc. {venc}"
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = assunto
+    msg["From"] = f"{nome_rem} <{email_rem}>"
+    msg["To"] = email_destino
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        if smtp_ssl:
+            srv = smtplib.SMTP_SSL(smtp_host, smtp_porta, timeout=15)
+        else:
+            srv = smtplib.SMTP(smtp_host, smtp_porta, timeout=15)
+            srv.starttls()
+        srv.login(smtp_usuario, smtp_senha)
+        srv.sendmail(email_rem, [email_destino], msg.as_string())
+        srv.quit()
+    except Exception as e:
+        return jsonify({"erro": f"Falha ao enviar email: {e}"}), 500
+
+    # Registra no histórico
+    query(
+        "INSERT INTO cobrancas_historico (financeiro_id, canal, mensagem, usuario_id, criado_em) "
+        "VALUES (?,?,?,?,?)",
+        (fid, "email", f"Email enviado para {email_destino}", session["user_id"], now()),
+        commit=True)
+
+    registrar_log(session["user_id"], "cobranca_email", f"fin={fid} para={email_destino}")
+    return jsonify({"ok": True, "enviado_para": email_destino})
