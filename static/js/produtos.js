@@ -168,14 +168,16 @@
           </button>`;
         }},
       { chave: "_etiqueta", titulo: "Etiqueta", render: (v, row) => {
-          const p = JSON.stringify({
+          // Guarda os dados no map global e passa só o id — evita problema de aspas no onclick
+          window.__etqCache = window.__etqCache || {};
+          window.__etqCache[row.id] = {
             id: row.id, nome: row.nome, codigo: row.codigo,
             codigo_barras: row.codigo_barras || row.ean || "",
             preco_venda: row.preco_venda, localizacao: row.localizacao || "",
             marca: row.marca || "", categoria: row.categoria || "",
-          }).replace(/'/g, "\'");
+          };
           return `<button class="icon-btn btn--sm" title="Imprimir etiqueta"
-            onclick="event.stopPropagation();window.__etiqueta.abrir('${p}')">
+            onclick="event.stopPropagation();window.__etiqueta.abrirPorId(${row.id})">
             <i class="fa-solid fa-tag"></i>
           </button>`;
         }},
@@ -254,6 +256,12 @@
   // Suporta: Pimaco A4 (3 colunas × linhas), térmica 10×5cm, térmica 10×3cm
   // -----------------------------------------------------------------------
   window.__etiqueta = {
+    abrirPorId(id) {
+      const p = (window.__etqCache || {})[id];
+      if (!p) { toast("Produto não encontrado", "error"); return; }
+      this.abrir(p);
+    },
+
     abrir(prodJson) {
       const p = typeof prodJson === "string" ? JSON.parse(prodJson) : prodJson;
       const empresa = Layout.config?.empresa_nome || "";
