@@ -364,38 +364,63 @@
       const preco = Number(p.preco_venda || 0).toLocaleString("pt-BR", {style:"currency",currency:"BRL"});
       const cod = p.codigo_barras || p.codigo || "";
 
-      if (tipo === "termica_10x5" || tipo === "termica_10x3") {
-        const h = tipo === "termica_10x5" ? "130px" : "78px";
-        const w = "260px";
-        return `<div style="width:${w};height:${h};border:${preview?"1px dashed #ccc":"none"};
-          padding:6px;font-family:Arial,sans-serif;font-size:9px;
-          display:flex;flex-direction:column;justify-content:space-between;
-          background:#fff;box-sizing:border-box">
-          ${empresa ? `<div style="font-size:7px;color:#888;text-align:center">${empresa}</div>` : ""}
-          <div style="font-weight:700;font-size:10px;text-align:center;line-height:1.2">
-            ${nomeCustom.slice(0, 50)}</div>
-          ${p.codigo ? `<div style="text-align:center;font-size:8px;color:#555">Cód: ${p.codigo}</div>` : ""}
-          ${mostrarLocal && p.localizacao ? `<div style="font-size:7px;color:#888;text-align:center">Local: ${p.localizacao}</div>` : ""}
-          ${mostrarBarras && cod ? `<div style="text-align:center">${barcodeHtml(cod)}</div>` : ""}
-          ${mostrarPreco ? `<div style="font-size:14px;font-weight:900;text-align:center;color:#0d9488">${preco}</div>` : ""}
+      // Ajusta tamanho da fonte do nome conforme comprimento
+      const tamNome = nomeCustom.length > 35 ? "8px" : nomeCustom.length > 25 ? "9px" : "11px";
+      const tamNomePimaco = nomeCustom.length > 30 ? "7px" : nomeCustom.length > 20 ? "8px" : "9px";
+
+      if (tipo === "termica_10x5") {
+        return `<div style="width:264px;height:132px;border:${preview?"1px dashed #bbb":"none"};
+          padding:7px 8px;font-family:Arial,sans-serif;background:#fff;
+          box-sizing:border-box;display:flex;flex-direction:column;gap:3px">
+          ${empresa ? `<div style="font-size:7px;color:#aaa;text-align:center;letter-spacing:.5px;text-transform:uppercase">${empresa}</div>` : ""}
+          <div style="font-weight:700;font-size:${tamNome};line-height:1.3;text-align:center;flex:1;
+            display:flex;align-items:center;justify-content:center;word-break:break-word;
+            max-height:42px;overflow:hidden">${nomeCustom}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:7.5px;color:#555">
+              ${p.codigo ? `<span>Cód: <strong>${p.codigo}</strong></span>` : ""}
+              ${mostrarLocal && p.localizacao ? `<span style="margin-left:6px;color:#888">| ${p.localizacao}</span>` : ""}
+            </div>
+            ${mostrarPreco ? `<div style="font-size:15px;font-weight:900;color:#0d9488;letter-spacing:-.5px">${preco}</div>` : ""}
+          </div>
+          ${mostrarBarras && cod ? `<div style="text-align:center;margin-top:2px">${barcodeHtml(cod)}</div>` : ""}
         </div>`;
       }
 
-      // Pimaco A4 — etiqueta individual (será repetida em grid)
-      return `<div style="width:180px;height:72px;border:${preview?"1px dashed #ccc":"none"};
-        padding:5px;font-family:Arial,sans-serif;font-size:8px;
-        display:flex;flex-direction:column;justify-content:space-between;
-        background:#fff;box-sizing:border-box">
-        ${empresa ? `<div style="font-size:6px;color:#888">${empresa}</div>` : ""}
-        <div style="font-weight:700;font-size:9px;line-height:1.2">${nomeCustom.slice(0,40)}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            ${p.codigo ? `<div style="font-size:7px;color:#555">Cód: ${p.codigo}</div>` : ""}
-            ${mostrarLocal && p.localizacao ? `<div style="font-size:6px;color:#888">Local: ${p.localizacao}</div>` : ""}
+      if (tipo === "termica_10x3") {
+        return `<div style="width:264px;height:79px;border:${preview?"1px dashed #bbb":"none"};
+          padding:5px 8px;font-family:Arial,sans-serif;background:#fff;
+          box-sizing:border-box;display:flex;flex-direction:column;gap:2px">
+          ${empresa ? `<div style="font-size:6px;color:#aaa;text-align:center;text-transform:uppercase">${empresa}</div>` : ""}
+          <div style="font-weight:700;font-size:${tamNome};line-height:1.2;text-align:center;
+            overflow:hidden;max-height:28px;word-break:break-word">${nomeCustom}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:7px;color:#555">
+              ${p.codigo ? `Cód: <strong>${p.codigo}</strong>` : ""}
+              ${mostrarLocal && p.localizacao ? `<span style="color:#888"> | ${p.localizacao}</span>` : ""}
+            </div>
+            ${mostrarPreco ? `<div style="font-size:13px;font-weight:900;color:#0d9488">${preco}</div>` : ""}
           </div>
-          ${mostrarPreco ? `<div style="font-size:13px;font-weight:900;color:#0d9488">${preco}</div>` : ""}
+          ${mostrarBarras && cod ? `<div style="text-align:center">${barcodeHtml(cod)}</div>` : ""}
+        </div>`;
+      }
+
+      // Pimaco A4 — 66×38mm por etiqueta
+      return `<div style="width:186px;height:107px;border:${preview?"1px dashed #bbb":"none"};
+        padding:6px 7px;font-family:Arial,sans-serif;background:#fff;
+        box-sizing:border-box;display:flex;flex-direction:column;gap:2px">
+        ${empresa ? `<div style="font-size:6px;color:#aaa;text-align:center;text-transform:uppercase;letter-spacing:.4px">${empresa}</div>` : ""}
+        <div style="font-weight:700;font-size:${tamNomePimaco};line-height:1.3;text-align:center;
+          flex:1;display:flex;align-items:center;justify-content:center;
+          word-break:break-word;overflow:hidden;max-height:36px">${nomeCustom}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div style="font-size:7px;color:#555;line-height:1.5">
+            ${p.codigo ? `<div>Cód: <strong>${p.codigo}</strong></div>` : ""}
+            ${mostrarLocal && p.localizacao ? `<div style="color:#888">${p.localizacao}</div>` : ""}
+          </div>
+          ${mostrarPreco ? `<div style="font-size:14px;font-weight:900;color:#0d9488;letter-spacing:-.5px">${preco}</div>` : ""}
         </div>
-        ${mostrarBarras && cod ? `<div>${barcodeHtml(cod)}</div>` : ""}
+        ${mostrarBarras && cod ? `<div style="text-align:center;margin-top:1px">${barcodeHtml(cod)}</div>` : ""}
       </div>`;
     },
 
