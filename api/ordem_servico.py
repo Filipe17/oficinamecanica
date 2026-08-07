@@ -434,3 +434,111 @@ def excluir(oid):
     query("DELETE FROM ordens_servico WHERE id=?", (oid,), commit=True)
     registrar_log(session["user_id"], "excluir_os", str(oid))
     return jsonify({"ok": True})
+
+
+# =========================================================================
+# CHECKLIST DE INSPEÇÃO VEICULAR
+# =========================================================================
+
+# Itens padrão do checklist organizados por grupo
+CHECKLIST_PADRAO = [
+    # Lataria exterior
+    {"grupo": "Lataria", "item": "Para-choque dianteiro"},
+    {"grupo": "Lataria", "item": "Para-choque traseiro"},
+    {"grupo": "Lataria", "item": "Capô"},
+    {"grupo": "Lataria", "item": "Porta dianteira esquerda"},
+    {"grupo": "Lataria", "item": "Porta dianteira direita"},
+    {"grupo": "Lataria", "item": "Porta traseira esquerda"},
+    {"grupo": "Lataria", "item": "Porta traseira direita"},
+    {"grupo": "Lataria", "item": "Para-lama dianteiro esquerdo"},
+    {"grupo": "Lataria", "item": "Para-lama dianteiro direito"},
+    {"grupo": "Lataria", "item": "Lateral esquerda"},
+    {"grupo": "Lataria", "item": "Lateral direita"},
+    {"grupo": "Lataria", "item": "Tampa do porta-malas"},
+    {"grupo": "Lataria", "item": "Teto"},
+    # Vidros e retrovisores
+    {"grupo": "Vidros", "item": "Para-brisa dianteiro"},
+    {"grupo": "Vidros", "item": "Para-brisa traseiro"},
+    {"grupo": "Vidros", "item": "Vidro porta dianteira esquerda"},
+    {"grupo": "Vidros", "item": "Vidro porta dianteira direita"},
+    {"grupo": "Vidros", "item": "Retrovisor esquerdo"},
+    {"grupo": "Vidros", "item": "Retrovisor direito"},
+    {"grupo": "Vidros", "item": "Retrovisor interno"},
+    # Pneus e rodas
+    {"grupo": "Pneus e Rodas", "item": "Pneu dianteiro esquerdo"},
+    {"grupo": "Pneus e Rodas", "item": "Pneu dianteiro direito"},
+    {"grupo": "Pneus e Rodas", "item": "Pneu traseiro esquerdo"},
+    {"grupo": "Pneus e Rodas", "item": "Pneu traseiro direito"},
+    {"grupo": "Pneus e Rodas", "item": "Estepe"},
+    {"grupo": "Pneus e Rodas", "item": "Calota/Aro dianteiro esquerdo"},
+    {"grupo": "Pneus e Rodas", "item": "Calota/Aro dianteiro direito"},
+    {"grupo": "Pneus e Rodas", "item": "Calota/Aro traseiro esquerdo"},
+    {"grupo": "Pneus e Rodas", "item": "Calota/Aro traseiro direito"},
+    # Elétrica
+    {"grupo": "Elétrica", "item": "Farol dianteiro esquerdo"},
+    {"grupo": "Elétrica", "item": "Farol dianteiro direito"},
+    {"grupo": "Elétrica", "item": "Lanterna traseira esquerda"},
+    {"grupo": "Elétrica", "item": "Lanterna traseira direita"},
+    {"grupo": "Elétrica", "item": "Seta dianteira esquerda"},
+    {"grupo": "Elétrica", "item": "Seta dianteira direita"},
+    {"grupo": "Elétrica", "item": "Luz de ré"},
+    {"grupo": "Elétrica", "item": "Buzina"},
+    {"grupo": "Elétrica", "item": "Limpador de para-brisa"},
+    # Interior
+    {"grupo": "Interior", "item": "Bancos dianteiros"},
+    {"grupo": "Interior", "item": "Bancos traseiros"},
+    {"grupo": "Interior", "item": "Painel/Dashboard"},
+    {"grupo": "Interior", "item": "Volante"},
+    {"grupo": "Interior", "item": "Tapetes"},
+    {"grupo": "Interior", "item": "Rádio/Central multimídia"},
+    {"grupo": "Interior", "item": "Ar-condicionado"},
+    # Documentos
+    {"grupo": "Documentos", "item": "CRLV (documento do veículo)"},
+    {"grupo": "Documentos", "item": "Manual do proprietário"},
+    {"grupo": "Documentos", "item": "Chave reserva"},
+    {"grupo": "Documentos", "item": "Macaco e chave de roda"},
+]
+
+
+@os_bp.route("/api/os/<int:oid>/checklist", methods=["GET"])
+@login_obrigatorio
+def get_checklist(oid):
+    """Retorna o checklist da OS. Se não existir, retorna o padrão."""
+    itens = query("SELECT * FROM os_checklist WHERE os_id=? ORDER BY id", (oid,))
+    if itens:
+        return jsonify({"os_id": oid, "itens": itens, "existe": True})
+    # Retorna o padrão sem gravar (só grava quando o usuário salvar)
+    return jsonify({
+        "os_id": oid,
+        "itens": [{"id": None, "os_id": oid, "item": i["item"],
+                   "grupo": i["grupo"], "status": "nao_verificado", "obs": ""}
+                  for i in CHECKLIST_PADRAO],
+        "existe": False,
+    })
+
+
+@os_bp.route("/api/os/<int:oid>/checklist", methods=["POST"])
+@login_obrigatorio
+def salvar_checklist(oid):
+    """Salva (cria ou substitui) o checklist da OS."""
+    o = query("SELECT id FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
+    if not o:
+        return jsonify({"erro": "OS não encontrada"}), 404
+    d = request.get_json(force=True)
+    itens = d.get("itens", [])
+    if not itens:
+        return jsonify({"erro": "Nenhum item enviado"}), 400
+    # Remove itens anteriores e regrava
+    query("DELETE FROM os_checklist WHERE os_id=?", (oid,), commit=True)
+    for it in itens:
+        query(
+            "INSERT INTO os_checklist (os_id, item, grupo, status, obs, criado_em) "
+            "VALUES (?,?,?,?,?,?)",
+            (oid, it.get("item"), it.get("grupo"), it.get("status", "nao_verificado"),
+             it.get("obs", ""), now()),
+            commit=True,
+        )
+    avariados = sum(1 for i in itens if i.get("status") == "avariado")
+    registrar_log(session["user_id"], "salvar_checklist",
+                  f"os={oid} itens={len(itens)} avariados={avariados}")
+    return jsonify({"ok": True, "itens": len(itens), "avariados": avariados})
