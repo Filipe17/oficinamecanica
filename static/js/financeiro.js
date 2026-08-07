@@ -85,7 +85,13 @@
           const temEncargo = num(f.juros) + num(f.multa) > 0;
           const rest = restante(f);
           return `<tr>
-          <td>${f.descricao || "-"}</td>
+          <td>
+            ${f.descricao || "-"}
+            ${f.total_parcelas > 1 ? `<span style="font-size:.7rem;background:#e0f2fe;color:#0369a1;
+              padding:1px 6px;border-radius:99px;margin-left:4px;white-space:nowrap">
+              ${f.num_parcela === 0 ? "Entrada" : `${f.num_parcela}/${f.total_parcelas}`}
+            </span>` : ""}
+          </td>
           <td>${(tipo === "receber" ? f.cliente_nome : f.fornecedor_nome) || "-"}</td>
           <td>${f.categoria ? `<span class="badge badge--info">${f.categoria}</span>` : `<small class="muted">—</small>`}</td>
           <td>${fmt.data(f.vencimento)}</td>
@@ -120,7 +126,7 @@
       <div class="form-grid" id="fin-form">
         <div class="field col-2"><label>Descrição *</label><input name="descricao" value="${val("descricao")}"></div>
         ${parceiro}
-        <div class="field"><label>Valor *</label><input type="number" step="0.01" name="valor" value="${val("valor")}"></div>
+        <div class="field"><label>Valor *</label><input type="number" step="0.01" name="valor" id="fin-valor" value="${val("valor")}" oninput="window.__fin._prevCarne()"></div>
         <div class="field"><label>Vencimento</label><input type="date" name="vencimento" value="${val("vencimento") ? String(val("vencimento")).slice(0,10) : ""}"></div>
         <div class="field"><label>Juros (R$)</label><input type="number" step="0.01" name="juros" value="${val("juros", 0)}"></div>
         <div class="field"><label>Multa (R$)</label><input type="number" step="0.01" name="multa" value="${val("multa", 0)}"></div>
@@ -129,26 +135,127 @@
         <div class="field"><label>Categoria (DRE)</label><select name="categoria">
           <option value="">— sem categoria —</option>
           ${(CATEGORIAS[tipo] || []).map((c) => `<option value="${c}" ${val("categoria") === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+        ${!ed ? `
+        <!-- Parcelamento / Carnê -->
+        <div class="field col-2" style="border-top:1px solid var(--border,#eee);padding-top:.75rem;margin-top:.25rem">
+          <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+            <input type="checkbox" id="fin-parcelar" onchange="window.__fin._toggleCarne(this.checked)">
+            <span style="font-weight:600"><i class="fa-solid fa-receipt"></i> Parcelar / Gerar Carnê</span>
+          </label>
+        </div>
+        <div id="fin-carne-wrap" style="display:none;grid-column:1/-1">
+          <div class="form-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.6rem">
+            <div class="field"><label>Nº de parcelas</label>
+              <input type="number" id="carne-parcelas" value="3" min="2" max="60"
+                oninput="window.__fin._prevCarne()"></div>
+            <div class="field"><label>Entrada (R$)</label>
+              <input type="number" id="carne-entrada" value="0" min="0" step="0.01"
+                oninput="window.__fin._prevCarne()"></div>
+            <div class="field"><label>1ª parcela em</label>
+              <input type="date" id="carne-data1"></div>
+          </div>
+          <div id="carne-preview" style="margin-top:.75rem;background:var(--bg-alt,#f8f9fa);
+            border-radius:8px;padding:.75rem;font-size:.82rem"></div>
+        </div>` : ""}
       </div>`,
       `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
        <button class="btn btn--primary" id="fin-salvar"><i class="fa-solid fa-check"></i> Salvar</button>`);
+
+    // Preview do carnê
+    window.__fin._prevCarne = () => {
+      const wrap = document.getElementById("carne-preview");
+      if (!wrap) return;
+      const total = parseFloat(document.getElementById("fin-valor")?.value) || 0;
+      const n = parseInt(document.getElementById("carne-parcelas")?.value) || 1;
+      const ent = parseFloat(document.getElementById("carne-entrada")?.value) || 0;
+      const data1Inp = document.getElementById("carne-data1")?.value;
+      if (!total || n < 1) { wrap.innerHTML = ""; return; }
+      const parc = (total - ent) / n;
+      const hoje = new Date();
+      const linhas = [];
+      if (ent > 0) {
+        linhas.push(`<tr><td>Entrada</td><td>${hoje.toLocaleDateString("pt-BR")}</td>
+          <td style="text-align:right"><strong>${fmt.moeda(ent)}</strong></td></tr>`);
+      }
+      for (let i = 0; i < n; i++) {
+        let d;
+        if (data1Inp) {
+          d = new Date(data1Inp + "T00:00");
+          d.setMonth(d.getMonth() + i);
+        } else {
+          d = new Date();
+          d.setMonth(d.getMonth() + i + 1);
+        }
+        const val = i === n-1 ? Math.round((total - ent - parc*(n-1))*100)/100 : Math.round(parc*100)/100;
+        linhas.push(`<tr><td>${i+1}/${n}</td><td>${d.toLocaleDateString("pt-BR")}</td>
+          <td style="text-align:right">${fmt.moeda(val)}</td></tr>`);
+      }
+      wrap.innerHTML = `<strong>Preview do carnê:</strong>
+        <table style="width:100%;border-collapse:collapse;margin-top:.4rem">
+          <thead><tr style="color:var(--text-muted)"><th style="text-align:left">Parcela</th>
+            <th style="text-align:left">Vencimento</th><th style="text-align:right">Valor</th></tr></thead>
+          <tbody>${linhas.join("")}</tbody>
+          <tfoot><tr style="border-top:1px solid #ddd;font-weight:700">
+            <td colspan="2">Total</td><td style="text-align:right">${fmt.moeda(total)}</td></tr></tfoot>
+        </table>`;
+    };
+    window.__fin._toggleCarne = (on) => {
+      const w = document.getElementById("fin-carne-wrap");
+      if (w) w.style.display = on ? "" : "none";
+      if (on) {
+        // Pré-preenche data1 com próximo mês
+        const d = new Date(); d.setMonth(d.getMonth()+1);
+        const inp = document.getElementById("carne-data1");
+        if (inp && !inp.value) inp.value = d.toISOString().slice(0,10);
+        window.__fin._prevCarne();
+      }
+    };
+
     document.getElementById("fin-salvar").onclick = async () => {
       const f = document.getElementById("fin-form");
-      const dados = {
-        tipo, descricao: f.descricao.value.trim(),
-        valor: parseFloat(f.valor.value) || 0,
-        vencimento: f.vencimento.value || null,
-        forma_pagamento: f.forma_pagamento.value,
-        categoria: f.categoria.value || null,
-        juros: parseFloat(f.juros.value) || 0,
-        multa: parseFloat(f.multa.value) || 0,
-        cliente_id: f.cliente_id ? (f.cliente_id.value || null) : null,
-        fornecedor_id: f.fornecedor_id ? (f.fornecedor_id.value || null) : null,
-      };
-      if (!dados.descricao || !dados.valor) { toast("Informe descrição e valor", "warning"); return; }
+      const usaCarne = document.getElementById("fin-parcelar")?.checked;
+      const descricao = f.querySelector("[name=descricao]").value.trim();
+      const valor = parseFloat(f.querySelector("[name=valor]").value) || 0;
+      const vencimento = f.querySelector("[name=vencimento]")?.value || null;
+      const forma = f.querySelector("[name=forma_pagamento]").value;
+      const categoria = f.querySelector("[name=categoria]").value || null;
+      const juros = parseFloat(f.querySelector("[name=juros]")?.value) || 0;
+      const multa = parseFloat(f.querySelector("[name=multa]")?.value) || 0;
+      const cli = f.querySelector("[name=cliente_id]");
+      const forn = f.querySelector("[name=fornecedor_id]");
+      if (!descricao || !valor) { toast("Informe descrição e valor", "warning"); return; }
+
       try {
-        if (ed) { await API.put(`/api/financeiro/${reg.id}`, dados); toast("Lançamento atualizado"); }
-        else { await API.post("/api/financeiro", dados); toast("Lançamento criado"); }
+        if (ed) {
+          await API.put(`/api/financeiro/${reg.id}`, {
+            tipo, descricao, valor, vencimento, forma_pagamento: forma,
+            categoria, juros, multa,
+            cliente_id: cli ? (cli.value || null) : null,
+            fornecedor_id: forn ? (forn.value || null) : null,
+          });
+          toast("Lançamento atualizado");
+        } else if (usaCarne) {
+          const n = parseInt(document.getElementById("carne-parcelas")?.value) || 1;
+          const ent = parseFloat(document.getElementById("carne-entrada")?.value) || 0;
+          const data1 = document.getElementById("carne-data1")?.value || null;
+          if (n < 2) { toast("Parcelamento requer ao menos 2 parcelas", "warning"); return; }
+          await API.post("/api/financeiro/parcelar", {
+            tipo, descricao, valor_total: valor, entrada: ent,
+            num_parcelas: n, primeira_data: data1,
+            forma_pagamento: forma, categoria,
+            cliente_id: cli ? (cli.value || null) : null,
+            os_id: null,
+          });
+          toast(`Carnê gerado — ${n} parcela(s)${ent > 0 ? " + entrada" : ""}`);
+        } else {
+          await API.post("/api/financeiro", {
+            tipo, descricao, valor, vencimento, forma_pagamento: forma,
+            categoria, juros, multa,
+            cliente_id: cli ? (cli.value || null) : null,
+            fornecedor_id: forn ? (forn.value || null) : null,
+          });
+          toast("Lançamento criado");
+        }
         Modal.fechar(); carregar();
       } catch (e) { toast(e.message, "error"); }
     };
