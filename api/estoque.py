@@ -81,10 +81,18 @@ def movimentacoes():
 @login_obrigatorio
 def alertas():
     """Produtos zerados e produtos abaixo do estoque mínimo (críticos)."""
-    sem_estoque = query("SELECT * FROM produtos WHERE estoque_atual <= 0 ORDER BY nome")
+    # Exclui produtos pai que têm variações — o estoque real fica nas variações
+    _excluir_pais = """
+        AND (produto_pai_id IS NOT NULL OR NOT EXISTS (
+            SELECT 1 FROM produtos v WHERE v.produto_pai_id = produtos.id
+        ))
+    """
+    sem_estoque = query(
+        "SELECT * FROM produtos WHERE estoque_atual <= 0 " + _excluir_pais + " ORDER BY nome")
     criticos = query(
         "SELECT * FROM produtos WHERE estoque_atual > 0 "
-        "AND estoque_minimo > 0 AND estoque_atual <= estoque_minimo ORDER BY nome")
+        "AND estoque_minimo > 0 AND estoque_atual <= estoque_minimo "
+        + _excluir_pais + " ORDER BY nome")
     return jsonify({"sem_estoque": sem_estoque, "criticos": criticos})
 
 
