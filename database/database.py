@@ -380,6 +380,15 @@ def init_db():
             valor TEXT
         )""",
         # ---------------- Comissões ----------------
+        f"""CREATE TABLE IF NOT EXISTS cobrancas_historico (
+            id {pk},
+            financeiro_id INTEGER REFERENCES financeiro(id),
+            canal TEXT NOT NULL,        -- whatsapp, email, ligacao, manual
+            mensagem TEXT,
+            usuario_id INTEGER REFERENCES usuarios(id),
+            criado_em TEXT
+        )""",
+
         f"""CREATE TABLE IF NOT EXISTS comissoes (
             id {pk},
             usuario_id INTEGER,               -- profissional que recebe (mecânico da OS)
@@ -527,23 +536,6 @@ def _migrar_colunas():
     _garantir_coluna("financeiro", "cartao_parcelas", "INTEGER DEFAULT 1")
     _garantir_coluna("financeiro", "cartao_taxa", "REAL DEFAULT 0")       # % aplicada
     _garantir_coluna("financeiro", "cartao_valor_liquido", "REAL DEFAULT 0")
-    # Grade de produtos: variações de um produto pai (ex: tamanho, embalagem).
-    _garantir_coluna("produtos", "produto_pai_id", "INTEGER")
-    _garantir_coluna("produtos", "variacao_atributo", "TEXT")
-    # Fornecedores: campos completos
-    _garantir_coluna("fornecedores", "nome_fantasia", "TEXT")
-    _garantir_coluna("fornecedores", "ie", "TEXT")
-    _garantir_coluna("fornecedores", "telefone2", "TEXT")
-    _garantir_coluna("fornecedores", "contato", "TEXT")
-    _garantir_coluna("fornecedores", "site", "TEXT")
-    _garantir_coluna("fornecedores", "endereco", "TEXT")
-    _garantir_coluna("fornecedores", "numero", "TEXT")
-    _garantir_coluna("fornecedores", "bairro", "TEXT")
-    _garantir_coluna("fornecedores", "cidade", "TEXT")
-    _garantir_coluna("fornecedores", "estado", "TEXT")
-    _garantir_coluna("fornecedores", "cep", "TEXT")
-    _garantir_coluna("fornecedores", "prazo_pagamento", "TEXT")
-    _garantir_coluna("fornecedores", "observacoes", "TEXT")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
