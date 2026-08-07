@@ -81,6 +81,7 @@ _MODULO_API = [
     ("/api/veiculos", "veiculos"),
     ("/api/servicos", "servicos"),
     ("/api/produtos", "produtos"),
+    ("/api/fornecedores", "fornecedores"),
     ("/api/estoque", "estoque"),
     ("/api/xml", "xml"),
     ("/api/financeiro", "financeiro"),
@@ -94,7 +95,6 @@ _MODULO_API = [
     ("/api/relatorios", "relatorios"),
     ("/api/notas", "notas_fiscais"),
     ("/api/agendamentos", "agendamentos"),
-    ("/api/lembretes", "agendamentos"),
     ("/api/usuarios", "usuarios"),
     ("/api/logs", "logs"),
 ]
@@ -102,9 +102,9 @@ _MODULO_API = [
 _MODULO_PAGINA = {
     "dashboard": "dashboard", "clientes": "clientes", "veiculos": "veiculos",
     "ordem_servico": "ordem_servico", "orcamentos": "orcamentos",
-    "servicos": "servicos", "produtos": "produtos", "fornecedores": "produtos", "estoque": "estoque",
+    "servicos": "servicos", "produtos": "produtos", "fornecedores": "fornecedores", "estoque": "estoque",
     "xml": "xml", "financeiro": "financeiro", "cobrancas": "financeiro", "mala_direta": "financeiro",
-    "pdv": "pdv", "caixa": "caixa", "relatorios": "relatorios", "notas_fiscais": "notas_fiscais", "agendamentos": "agendamentos", "lembretes": "agendamentos", "cartao": "cartao", "cheques": "cheques", "usuarios": "usuarios", "logs": "logs",
+    "pdv": "pdv", "caixa": "caixa", "relatorios": "relatorios", "notas_fiscais": "notas_fiscais", "agendamentos": "agendamentos", "lembretes": "lembretes", "cartao": "cartao", "cheques": "cheques", "usuarios": "usuarios", "logs": "logs",
 }
 _SEMPRE_LIBERADO = ("/api/me", "/api/logout", "/api/login", "/api/health", "/", "/login")
 
