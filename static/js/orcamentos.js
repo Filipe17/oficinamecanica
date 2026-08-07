@@ -59,10 +59,34 @@
         ${soLeitura ? "" : `<button class="btn btn--primary" id="orc-novo"><i class="fa-solid fa-plus"></i> Novo orçamento</button>`}
       </div>
       <div class="card"><div class="card__body">
+        <div class="toolbar" style="margin-bottom:1rem">
+          <div class="toolbar__search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="orc-busca" placeholder="Buscar por nº, cliente ou placa…">
+          </div>
+          <div style="display:flex;gap:.3rem;margin-left:.5rem">
+            <button id="btn-orc-lista" class="btn btn--sm btn--primary" title="Visualização lista">
+              <i class="fa-solid fa-list"></i>
+            </button>
+            <button id="btn-orc-kanban" class="btn btn--sm btn--outline" title="Visualização Kanban">
+              <i class="fa-solid fa-table-columns"></i>
+            </button>
+          </div>
+        </div>
+        <div id="orc-view"></div>
+      </div></div>
+    `);
+    window.__orc = api;
+
+    let _viewOrc = "lista";
+    let _listaOrc = lista;
+
+    function _renderLista(dados) {
+      document.getElementById("orc-view").innerHTML = `
         <div class="table-wrap"><table class="data">
           <thead><tr><th>ID</th><th>Cliente</th><th>Veículo</th><th>Data</th><th>Total</th><th>Status</th><th></th></tr></thead>
           <tbody>
-            ${lista.length ? lista.map((o) => `<tr>
+            ${dados.length ? dados.map((o) => `<tr>
               <td><b>${(o.numero && o.numero.includes("-")) ? o.numero.slice(o.numero.indexOf("-") + 1) : (o.numero || "-")}</b></td>
               <td>${o.cliente_nome || "-"}</td>
               <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
@@ -74,10 +98,93 @@
                 ${soLeitura ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__orc.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
               </td></tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted" style="padding:30px">Nenhum orçamento ainda.</td></tr>`}
           </tbody>
-        </table></div>
-      </div></div>
-    `);
-    window.__orc = api;
+        </table></div>`;
+    }
+
+    function _renderKanban(dados) {
+      const COLUNAS = [
+        { status: "aberta",     label: "Em Andamento", cor: "#3b82f6", icone: "fa-clock" },
+        { status: "finalizada", label: "Finalizado",   cor: "#10b981", icone: "fa-circle-check" },
+        { status: "cancelada",  label: "Cancelado",    cor: "#ef4444", icone: "fa-circle-xmark" },
+      ];
+      const grupos = {};
+      COLUNAS.forEach((c) => { grupos[c.status] = []; });
+      dados.forEach((o) => {
+        const s = grupos[o.status] ? o.status : "aberta";
+        grupos[s].push(o);
+      });
+
+      const view = document.getElementById("orc-view");
+      view.innerHTML = `
+        <style>
+          .orc-kanban{display:flex;gap:.75rem;overflow-x:auto;padding-bottom:.5rem;align-items:flex-start}
+          .orc-col{flex:1;min-width:220px;background:var(--bg-alt,#f3f4f6);border-radius:10px;padding:.6rem}
+          .orc-col__head{display:flex;justify-content:space-between;align-items:center;
+            padding:.4rem .5rem .6rem;font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.4px}
+          .orc-col__count{background:rgba(0,0,0,.12);color:inherit;border-radius:99px;
+            padding:1px 8px;font-size:.75rem;font-weight:700}
+          .orc-cards{display:flex;flex-direction:column;gap:.45rem;min-height:60px}
+          .orc-card{background:#fff;border-radius:8px;padding:.65rem .75rem;
+            box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #e5e7eb;
+            transition:box-shadow .15s,transform .15s;cursor:pointer}
+          .orc-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12);transform:translateY(-1px)}
+          .orc-card__num{font-size:.72rem;color:var(--text-muted);margin-bottom:2px}
+          .orc-card__cliente{font-weight:700;font-size:.85rem;margin-bottom:2px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .orc-card__veiculo{font-size:.78rem;color:var(--text-muted);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .orc-card__footer{display:flex;justify-content:space-between;align-items:center;
+            margin-top:.45rem;padding-top:.4rem;border-top:1px solid #f0f0f0;font-size:.78rem}
+        </style>
+        <div class="orc-kanban">
+          ${COLUNAS.map((col) => `
+            <div class="orc-col">
+              <div class="orc-col__head" style="color:${col.cor}">
+                <span><i class="fa-solid ${col.icone}" style="margin-right:5px"></i>${col.label}</span>
+                <span class="orc-col__count">${grupos[col.status].length}</span>
+              </div>
+              <div class="orc-cards">
+                ${grupos[col.status].length ? grupos[col.status].map((o) => `
+                  <div class="orc-card" onclick="window.__orc.abrir(${o.id})">
+                    <div class="orc-card__num">${(o.numero||"").replace(/.*-/,"") || o.id}</div>
+                    <div class="orc-card__cliente">${o.cliente_nome || "—"}</div>
+                    <div class="orc-card__veiculo">${[o.veiculo_placa, o.veiculo_modelo].filter(Boolean).join(" · ") || "—"}</div>
+                    <div class="orc-card__footer">
+                      <span>${fmt.data(o.data || o.criado_em)}</span>
+                      <strong style="color:${col.cor}">${money(o.total)}</strong>
+                    </div>
+                  </div>`).join("") : `<div style="color:var(--text-muted);font-size:.82rem;text-align:center;padding:1rem">Nenhum</div>`}
+              </div>
+            </div>`).join("")}
+        </div>`;
+    }
+
+    function _filtrarEAtualizar() {
+      const q = (document.getElementById("orc-busca")?.value || "").trim().toLowerCase();
+      const dados = q ? _listaOrc.filter((o) =>
+        (o.cliente_nome||"").toLowerCase().includes(q) ||
+        (o.numero||"").toLowerCase().includes(q) ||
+        (o.veiculo_placa||"").toLowerCase().includes(q)
+      ) : _listaOrc;
+      _viewOrc === "kanban" ? _renderKanban(dados) : _renderLista(dados);
+    }
+
+    document.getElementById("orc-busca").oninput = debounce(_filtrarEAtualizar);
+    document.getElementById("btn-orc-lista").onclick = () => {
+      _viewOrc = "lista";
+      document.getElementById("btn-orc-lista").className = "btn btn--sm btn--primary";
+      document.getElementById("btn-orc-kanban").className = "btn btn--sm btn--outline";
+      _filtrarEAtualizar();
+    };
+    document.getElementById("btn-orc-kanban").onclick = () => {
+      _viewOrc = "kanban";
+      document.getElementById("btn-orc-lista").className = "btn btn--sm btn--outline";
+      document.getElementById("btn-orc-kanban").className = "btn btn--sm btn--primary";
+      _filtrarEAtualizar();
+    };
+
+    _renderLista(lista);
+
     const bn = document.getElementById("orc-novo");
     if (bn) bn.onclick = () => abrirEditor(null);
 
