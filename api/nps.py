@@ -8,9 +8,8 @@ Fluxo:
 4. A tela de NPS exibe histórico, média, classificação e comentários.
 """
 from flask import Blueprint, request, jsonify, session, render_template_string
-from database.database import query, now
+from database.database import query, now, registrar_log
 from api.usuarios import login_obrigatorio
-from api.logs import registrar_log
 
 nps_bp = Blueprint("nps", __name__)
 
