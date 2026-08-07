@@ -88,6 +88,7 @@ _MODULO_API = [
     ("/api/cartao", "cartao"),
     ("/api/cheques", "cheques"),
     ("/api/cobrancas", "financeiro"),
+    ("/api/mala-direta", "financeiro"),
     ("/api/pdv", "pdv"),
     ("/api/caixa", "caixa"),
     ("/api/relatorios", "relatorios"),
@@ -101,7 +102,7 @@ _MODULO_PAGINA = {
     "dashboard": "dashboard", "clientes": "clientes", "veiculos": "veiculos",
     "ordem_servico": "ordem_servico", "orcamentos": "orcamentos",
     "servicos": "servicos", "produtos": "produtos", "fornecedores": "produtos", "estoque": "estoque",
-    "xml": "xml", "financeiro": "financeiro", "cobrancas": "financeiro",
+    "xml": "xml", "financeiro": "financeiro", "cobrancas": "financeiro", "mala_direta": "financeiro",
     "pdv": "pdv", "caixa": "caixa", "relatorios": "relatorios", "notas_fiscais": "notas_fiscais", "agendamentos": "agendamentos", "cartao": "cartao", "cheques": "cheques", "usuarios": "usuarios", "logs": "logs",
 }
 _SEMPRE_LIBERADO = ("/api/me", "/api/logout", "/api/login", "/api/health", "/", "/login")
