@@ -181,6 +181,28 @@ const Layout = {
     return [l1, l2].filter(Boolean);
   },
 
+  // Retorna a primeira página que o usuário tem permissão de acessar
+  _primeiraPaginaPermitida(permissoes, perfil) {
+    if (perfil === "administrador") return "/dashboard";
+    const candidatos = [
+      ["dashboard",     "dashboard"],
+      ["ordem_servico", "ordem_servico"],
+      ["agendamentos",  "agendamentos"],
+      ["clientes",      "clientes"],
+      ["veiculos",      "veiculos"],
+      ["produtos",      "produtos"],
+      ["servicos",      "servicos"],
+      ["estoque",       "estoque"],
+      ["financeiro",    "financeiro"],
+      ["relatorios",    "relatorios"],
+      ["orcamentos",    "orcamentos"],
+    ];
+    for (const [pagina, modulo] of candidatos) {
+      if ((permissoes[modulo] || 0) > 0) return `/${pagina}`;
+    }
+    return "/login";
+  },
+
   // Protege a página, carrega o usuário e injeta sidebar/topbar
   async iniciar(paginaAtiva, titulo) {
     try {
@@ -192,6 +214,27 @@ const Layout = {
       return null;
     }
     try { this.config = await API.get("/api/configuracoes"); } catch (_) { this.config = {}; }
+
+    // Verifica se o usuário tem permissão para a página atual
+    const perfil = this.usuario.perfil;
+    if (perfil !== "administrador") {
+      const MODULO_PAGINA = {
+        dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
+        ordem_servico: "ordem_servico", orcamentos: "orcamentos",
+        agendamentos: "agendamentos", servicos: "servicos", produtos: "produtos",
+        fornecedores: "produtos", estoque: "estoque", xml: "xml",
+        financeiro: "financeiro", cobrancas: "financeiro", mala_direta: "financeiro",
+        relatorios: "relatorios", notas_fiscais: "notas_fiscais",
+        cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
+      };
+      const modulo = MODULO_PAGINA[paginaAtiva];
+      if (modulo && (this.permissoes[modulo] || 0) === 0) {
+        // Sem permissão — redireciona para primeira página permitida
+        location.href = this._primeiraPaginaPermitida(this.permissoes, perfil);
+        return null;
+      }
+    }
+
     this._render(paginaAtiva, titulo);
     return this.usuario;
   },
