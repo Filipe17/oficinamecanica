@@ -355,3 +355,225 @@ def enviar_cobranca_email():
 
     registrar_log(session["user_id"], "cobranca_email", f"fin={fid} para={email_destino}")
     return jsonify({"ok": True, "enviado_para": email_destino})
+
+
+# =========================================================================
+# MALA DIRETA — envio em lote por email ou geração de cartas para impressão
+# =========================================================================
+
+TEMPLATES_MALA_DIRETA = {
+    "cobranca": {
+        "nome": "Cobrança de débito",
+        "assunto": "Aviso de Cobrança — {empresa}",
+        "corpo": "Prezado(a) {nome},\n\nIdentificamos um débito em aberto de {valor} com vencimento em {vencimento} ({dias_atraso} dias em atraso).\n\nPor favor, entre em contato para regularizar sua situação.\n\nAtenciosamente,\n{empresa}\n{telefone_empresa}",
+    },
+    "promocao": {
+        "nome": "Promoção / Oferta especial",
+        "assunto": "Oferta especial para você — {empresa}",
+        "corpo": "Olá {nome},\n\nTemos uma oferta especial para você! Entre em contato e saiba mais.\n\nAtenciosamente,\n{empresa}\n{telefone_empresa}",
+    },
+    "revisao": {
+        "nome": "Aviso de revisão programada",
+        "assunto": "Lembrete de revisão — {empresa}",
+        "corpo": "Olá {nome},\n\nPassou da hora de revisar seu veículo! Agende agora e garanta a segurança na estrada.\n\nAtenciosamente,\n{empresa}\n{telefone_empresa}",
+    },
+    "agradecimento": {
+        "nome": "Agradecimento / Pós-venda",
+        "assunto": "Obrigado pela preferência — {empresa}",
+        "corpo": "Olá {nome},\n\nAgradecemos sua visita e confiança em nossos serviços. Estamos sempre à disposição!\n\nAtenciosamente,\n{empresa}\n{telefone_empresa}",
+    },
+    "personalizado": {
+        "nome": "Mensagem personalizada",
+        "assunto": "",
+        "corpo": "",
+    },
+}
+
+
+@financeiro_bp.route("/api/mala-direta/templates", methods=["GET"])
+@login_obrigatorio
+def mala_templates():
+    return jsonify({"templates": TEMPLATES_MALA_DIRETA})
+
+
+@financeiro_bp.route("/api/mala-direta/destinatarios", methods=["GET"])
+@login_obrigatorio
+def mala_destinatarios():
+    """
+    Retorna lista de clientes conforme o filtro:
+    - todos: todos os clientes
+    - inadimplentes: com contas a receber atrasadas
+    - ativos: com OS finalizada nos últimos N meses (padrão 6)
+    - ids: lista de IDs específicos (query param ids=1,2,3)
+    """
+    filtro = request.args.get("filtro", "todos")
+    meses = int(request.args.get("meses", 6))
+
+    if filtro == "inadimplentes":
+        lista = query(
+            "SELECT DISTINCT c.id, c.nome, c.email, c.telefone, c.whatsapp "
+            "FROM clientes c JOIN financeiro f ON f.cliente_id=c.id "
+            "WHERE f.tipo='receber' AND f.status='atrasado' AND c.email IS NOT NULL "
+            "AND c.email != '' ORDER BY c.nome")
+    elif filtro == "ativos":
+        lista = query(
+            "SELECT DISTINCT c.id, c.nome, c.email, c.telefone, c.whatsapp "
+            "FROM clientes c JOIN ordens_servico o ON o.cliente_id=c.id "
+            "WHERE o.status='finalizada' AND o.eh_orcamento=0 "
+            "AND o.data >= date('now', ? || ' months') "
+            "AND c.email IS NOT NULL AND c.email != '' ORDER BY c.nome",
+            (f"-{meses}",))
+    elif filtro == "ids":
+        ids_raw = request.args.get("ids", "")
+        try:
+            ids = [int(x) for x in ids_raw.split(",") if x.strip().isdigit()]
+        except Exception:
+            ids = []
+        if not ids:
+            return jsonify({"dados": [], "total": 0})
+        placeholders = ",".join("?" * len(ids))
+        lista = query(
+            f"SELECT id, nome, email, telefone, whatsapp FROM clientes "
+            f"WHERE id IN ({placeholders}) AND email IS NOT NULL AND email != '' "
+            f"ORDER BY nome", ids)
+    else:  # todos
+        lista = query(
+            "SELECT id, nome, email, telefone, whatsapp FROM clientes "
+            "WHERE email IS NOT NULL AND email != '' ORDER BY nome")
+
+    # Para inadimplentes, busca dados financeiros para as variáveis
+    if filtro == "inadimplentes":
+        for c in lista:
+            f = query(
+                "SELECT valor, vencimento, "
+                "(julianday('now') - julianday(vencimento)) AS dias "
+                "FROM financeiro WHERE cliente_id=? AND tipo='receber' "
+                "AND status='atrasado' ORDER BY vencimento LIMIT 1",
+                (c["id"],), fetchone=True)
+            c["valor_atraso"] = f["valor"] if f else None
+            c["vencimento_atraso"] = f["vencimento"] if f else None
+            c["dias_atraso"] = int(f["dias"] or 0) if f else 0
+
+    return jsonify({"dados": lista, "total": len(lista)})
+
+
+@financeiro_bp.route("/api/mala-direta/enviar", methods=["POST"])
+@login_obrigatorio
+def mala_enviar():
+    """
+    Envia emails em lote. Body:
+    { destinatarios: [{id, nome, email, valor_atraso?, vencimento_atraso?, dias_atraso?}],
+      assunto, corpo, tipo: 'email'|'impressao' }
+    Para impressão, retorna o HTML das cartas; para email, envia via SMTP.
+    """
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from api.configuracoes import obter_config
+
+    d = request.get_json(force=True)
+    destinatarios = d.get("destinatarios", [])
+    assunto_tpl = d.get("assunto", "").strip()
+    corpo_tpl = d.get("corpo", "").strip()
+    tipo = d.get("tipo", "email")
+
+    if not destinatarios:
+        return jsonify({"erro": "Nenhum destinatário selecionado"}), 400
+    if not corpo_tpl:
+        return jsonify({"erro": "O corpo da mensagem não pode estar vazio"}), 400
+
+    cfg = obter_config()
+    empresa = cfg.get("empresa_nome") or "Oficina"
+    tel_empresa = cfg.get("empresa_telefone") or ""
+
+    def aplicar_variaveis(texto, dest):
+        from datetime import date
+        hoje = date.today()
+        return (texto
+            .replace("{nome}", dest.get("nome") or "Cliente")
+            .replace("{empresa}", empresa)
+            .replace("{telefone_empresa}", tel_empresa)
+            .replace("{valor}", f"R$ {float(dest.get('valor_atraso') or 0):.2f}")
+            .replace("{vencimento}", str(dest.get("vencimento_atraso") or "—")[:10])
+            .replace("{dias_atraso}", str(dest.get("dias_atraso") or 0))
+            .replace("{data_hoje}", hoje.strftime("%d/%m/%Y"))
+        )
+
+    # Modo impressão — retorna HTML das cartas
+    if tipo == "impressao":
+        from datetime import date
+        hoje = date.today().strftime("%d/%m/%Y")
+        cartas = []
+        for dest in destinatarios:
+            corpo_final = aplicar_variaveis(corpo_tpl, dest)
+            corpo_html = corpo_final.replace("\n", "<br>")
+            cartas.append(f"""
+            <div style="page-break-after:always;font-family:Arial,sans-serif;
+                        max-width:680px;margin:0 auto;padding:40px">
+              <div style="text-align:right;font-size:12px;color:#888;margin-bottom:32px">
+                {empresa} — {hoje}
+              </div>
+              <div style="margin-bottom:24px">
+                <strong>{dest.get('nome','')}</strong>
+              </div>
+              <div style="line-height:1.8;font-size:14px">{corpo_html}</div>
+              <hr style="margin:40px 0;border:none;border-top:1px solid #ddd">
+            </div>""")
+        html_cartas = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
+          <title>Mala Direta — {empresa}</title>
+          <style>@media print{{body{{margin:0}}}} body{{font-family:Arial,sans-serif}}</style>
+          </head><body>{"".join(cartas)}</body></html>"""
+        registrar_log(session["user_id"], "mala_direta_impressao",
+                      f"{len(destinatarios)} cartas geradas")
+        return jsonify({"ok": True, "tipo": "impressao", "html": html_cartas,
+                        "total": len(destinatarios)})
+
+    # Modo email — envia via SMTP
+    smtp_host = cfg.get("smtp_host", "").strip()
+    smtp_porta = int(cfg.get("smtp_porta") or 587)
+    smtp_usuario = cfg.get("smtp_usuario", "").strip()
+    smtp_senha = cfg.get("smtp_senha", "").strip()
+    smtp_ssl = str(cfg.get("smtp_ssl", "")).lower() in ("1", "true", "sim", "yes")
+    email_rem = cfg.get("smtp_email_remetente") or smtp_usuario
+    nome_rem = cfg.get("smtp_nome_remetente") or empresa
+
+    if not smtp_host or not smtp_usuario or not smtp_senha:
+        return jsonify({"erro": "Configure o servidor SMTP em Configurações antes de enviar emails"}), 400
+
+    enviados, erros = 0, []
+    try:
+        if smtp_ssl:
+            srv = smtplib.SMTP_SSL(smtp_host, smtp_porta, timeout=15)
+        else:
+            srv = smtplib.SMTP(smtp_host, smtp_porta, timeout=15)
+            srv.starttls()
+        srv.login(smtp_usuario, smtp_senha)
+
+        for dest in destinatarios:
+            if not dest.get("email"):
+                erros.append(f"{dest.get('nome','?')} — sem email")
+                continue
+            try:
+                assunto_final = aplicar_variaveis(assunto_tpl, dest)
+                corpo_final = aplicar_variaveis(corpo_tpl, dest)
+                corpo_html = f"""<div style="font-family:Arial,sans-serif;max-width:620px;
+                    margin:0 auto;padding:24px;color:#222;line-height:1.7">
+                    {corpo_final.replace(chr(10),'<br>')}
+                </div>"""
+                msg = MIMEMultipart("alternative")
+                msg["Subject"] = assunto_final
+                msg["From"] = f"{nome_rem} <{email_rem}>"
+                msg["To"] = dest["email"]
+                msg.attach(MIMEText(corpo_html, "html", "utf-8"))
+                srv.sendmail(email_rem, [dest["email"]], msg.as_string())
+                enviados += 1
+            except Exception as e:
+                erros.append(f"{dest.get('nome','?')} — {e}")
+        srv.quit()
+    except Exception as e:
+        return jsonify({"erro": f"Falha ao conectar no SMTP: {e}"}), 500
+
+    registrar_log(session["user_id"], "mala_direta_email",
+                  f"enviados={enviados} erros={len(erros)}")
+    return jsonify({"ok": True, "tipo": "email",
+                    "enviados": enviados, "erros": erros, "total": len(destinatarios)})
