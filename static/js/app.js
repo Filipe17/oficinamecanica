@@ -303,7 +303,24 @@ const Layout = {
       </div>`;
   },
 
-  toggleSidebar() { document.getElementById("sidebar").classList.toggle("open"); },
+  toggleSidebar() {
+    const sb = document.getElementById("sidebar");
+    const aberto = sb.classList.toggle("open");
+    // Overlay para fechar ao clicar fora no mobile
+    let ov = document.getElementById("sidebar-overlay");
+    if (aberto) {
+      if (!ov) {
+        ov = document.createElement("div");
+        ov.id = "sidebar-overlay";
+        ov.style.cssText = "position:fixed;inset:0;z-index:149;background:rgba(0,0,0,.35)";
+        ov.onclick = () => Layout.toggleSidebar();
+        document.body.appendChild(ov);
+      }
+      ov.style.display = "block";
+    } else if (ov) {
+      ov.style.display = "none";
+    }
+  },
 
   menuUsuario() {
     Modal.abrir("Conta",
