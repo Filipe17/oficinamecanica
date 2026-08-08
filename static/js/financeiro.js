@@ -320,7 +320,9 @@
       } catch (e) { toast(e.message, "error"); }
     },
     async excluir(id) {
-      if (!confirm("Excluir este lançamento?")) return;
+      const lanc = _dados?.find?.(f => f.id === id);
+      const desc = lanc?.descricao ? `"${lanc.descricao}"` : `#${id}`;
+      if (!confirm(`⚠️ Excluir Lançamento\n\n${desc}\nValor: R$ ${Number(lanc?.valor||0).toFixed(2)}\n\nEsta ação não pode ser desfeita. Confirma a exclusão?`)) return;
       try { await API.del(`/api/financeiro/${id}`); toast("Excluído"); carregar(); }
       catch (e) { toast(e.message, "error"); }
     },

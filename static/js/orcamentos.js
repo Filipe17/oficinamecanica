@@ -813,7 +813,9 @@
   }
 
   async function excluir(id) {
-    if (!confirm("Excluir este orçamento?")) return;
+    const orc = _listaOrc?.find?.(o => o.id === id);
+    const num = orc?.numero ? `Orçamento ${orc.numero}` : `#${id}`;
+    if (!confirm(`⚠️ Excluir Orçamento\n\n${num}\nCliente: ${orc?.cliente_nome || "—"}\n\nEsta ação não pode ser desfeita. Confirma a exclusão?`)) return;
     try { await API.del(`/api/os/${id}`); toast("Orçamento excluído"); renderLista(); }
     catch (e) { toast(e.message, "error"); }
   }

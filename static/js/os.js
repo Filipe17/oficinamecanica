@@ -525,7 +525,7 @@
       } catch (e) { toast(e.message, "error"); }
     },
     async excluir(id) {
-      if (!confirm("Excluir este registro?")) return;
+      if (!confirm(`⚠️ Excluir OS\n\nTem certeza que deseja excluir este registro?\n\nEsta ação não pode ser desfeita.`)) return;
       try { await API.del(`/api/os/${id}`); toast("Excluído"); carregar(); }
       catch (e) { toast(e.message, "error"); }
     },

@@ -119,7 +119,7 @@
       } catch (e) { toast(e.message, "error"); }
     },
     async excluir(vid, prodId) {
-      if (!confirm("Excluir esta variação?")) return;
+      if (!confirm(`⚠️ Excluir Variação\n\nTem certeza que deseja excluir esta variação?\n\nEsta ação não pode ser desfeita.`)) return;
       try {
         await API.delete(`/api/produtos/variacoes/${vid}`);
         toast("Variação removida");

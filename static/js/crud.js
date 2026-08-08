@@ -125,6 +125,7 @@ class Crud {
     try {
       const r = await API.get(`${this.cfg.endpoint}?${params}`);
       const dados = this.cfg.paginado ? r.dados : (r.dados || r);
+      this._dados = dados;  // guarda para usar no confirm de exclusão
       this.render(dados, r);
     } catch (e) {
       document.getElementById("crud-tabela").innerHTML =
@@ -308,7 +309,8 @@ class Crud {
   }
 
   async excluir(id) {
-    if (!confirm("Confirma a exclusão deste registro?")) return;
+    const nomeReg = this._dados?.find?.(r => r.id === id)?.[this.cfg.colunas?.[0]?.chave || "nome"] || `#${id}`;
+    if (!confirm(`⚠️ Excluir registro\n\n"${nomeReg}"\n\nEsta ação não pode ser desfeita. Confirma a exclusão?`)) return;
     try {
       await API.del(`${this.cfg.endpoint}/${id}`);
       toast("Registro excluído");
