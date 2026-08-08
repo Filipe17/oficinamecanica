@@ -82,93 +82,107 @@ def salvar():
 
 
 # =========================================================================
-# BACKUP DO BANCO DE DADOS
+# BACKUP DO BANCO DE DADOS (via psycopg2 — sem pg_dump)
 # =========================================================================
-import os, subprocess, threading, time
+import os, threading, time
 from pathlib import Path
 from datetime import datetime
 
-# Pasta onde os backups ficam salvos no servidor
 BACKUP_DIR = Path("/app/backups")
 BACKUP_DIR.mkdir(exist_ok=True)
-# Mantém os últimos 7 backups (apaga os mais antigos)
 BACKUP_RETENCAO = 7
 
 
 def _gerar_backup():
     """
-    Executa pg_dump e salva o arquivo .sql na pasta de backups.
-    Retorna o caminho do arquivo gerado ou None em caso de erro.
+    Gera backup do PostgreSQL usando psycopg2 puro (sem pg_dump).
+    Exporta todas as tabelas como INSERT INTO statements.
     """
-    from database.database import DB_ENGINE
-    if DB_ENGINE != "postgres":
-        return None, "Backup automático disponível apenas para PostgreSQL"
-
     import urllib.parse as _up
+
     db_url = os.getenv("DATABASE_URL", "")
     if not db_url:
         return None, "DATABASE_URL não configurada"
 
-    # Parse da URL postgres://user:pass@host:port/dbname
-    p = _up.urlparse(db_url.replace("postgres://", "postgresql://"))
-    env = {
-        **os.environ,
-        "PGPASSWORD": p.password or "",
-        "PGCONNECT_TIMEOUT": "30",
-    }
+    try:
+        import psycopg2
+    except ImportError:
+        return None, "psycopg2 não instalado"
+
     agora = datetime.now().strftime("%Y%m%d_%H%M%S")
     arquivo = BACKUP_DIR / f"backup_{agora}.sql"
 
-    cmd = [
-        "pg_dump",
-        "-h", p.hostname,
-        "-p", str(p.port or 5432),
-        "-U", p.username,
-        "-d", p.path.lstrip("/"),
-        "-F", "p",          # formato plain SQL
-        "--no-password",
-        "-f", str(arquivo),
-    ]
     try:
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=120)
-        if result.returncode != 0:
-            return None, result.stderr.strip()
-        # Remove backups antigos (mantém os últimos BACKUP_RETENCAO)
+        p = _up.urlparse(db_url.replace("postgres://", "postgresql://"))
+        conn = psycopg2.connect(
+            host=p.hostname, port=p.port or 5432,
+            user=p.username, password=p.password,
+            dbname=p.path.lstrip("/"), connect_timeout=30,
+        )
+        cur = conn.cursor()
+
+        with open(arquivo, "w", encoding="utf-8") as f:
+            f.write(f"-- Backup DevSystem PRIME\n")
+            f.write(f"-- Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n")
+            f.write("SET client_encoding = 'UTF8';\n")
+            f.write("SET standard_conforming_strings = on;\n\n")
+
+            cur.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
+            tabelas = [r[0] for r in cur.fetchall()]
+
+            for tabela in tabelas:
+                cur.execute(f'SELECT COUNT(*) FROM "{tabela}"')
+                if cur.fetchone()[0] == 0:
+                    continue
+                cur.execute(f'SELECT * FROM "{tabela}"')
+                cols = [desc[0] for desc in cur.description]
+                cols_str = ", ".join(f'"{c}"' for c in cols)
+                f.write(f'\n-- {tabela}\nDELETE FROM "{tabela}";\n')
+                batch = cur.fetchmany(500)
+                while batch:
+                    for row in batch:
+                        vals = []
+                        for v in row:
+                            if v is None: vals.append("NULL")
+                            elif isinstance(v, bool): vals.append("TRUE" if v else "FALSE")
+                            elif isinstance(v, (int, float)): vals.append(str(v))
+                            else: vals.append("'" + str(v).replace("'", "''") + "'")
+                        f.write(f'INSERT INTO "{tabela}" ({cols_str}) VALUES ({", ".join(vals)});\n')
+                    batch = cur.fetchmany(500)
+
+            # Reseta sequências
+            cur.execute("SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema='public'")
+            f.write("\n-- Sequências\n")
+            for (seq,) in cur.fetchall():
+                cur.execute(f'SELECT last_value FROM "{seq}"')
+                lv = cur.fetchone()[0]
+                f.write(f"SELECT setval('{seq}', {lv}, true);\n")
+
+        cur.close(); conn.close()
+        # Remove backups antigos
         backups = sorted(BACKUP_DIR.glob("backup_*.sql"), key=lambda f: f.stat().st_mtime)
         for antigo in backups[:-BACKUP_RETENCAO]:
             antigo.unlink(missing_ok=True)
         return str(arquivo), None
-    except FileNotFoundError:
-        return None, "pg_dump não encontrado no servidor"
-    except subprocess.TimeoutExpired:
-        return None, "Timeout ao gerar backup"
+
     except Exception as e:
+        if arquivo.exists(): arquivo.unlink(missing_ok=True)
         return None, str(e)
 
 
 def _agendar_backup_diario():
-    """Thread que espera até 23h e gera o backup diariamente."""
     def _loop():
         while True:
+            from datetime import timedelta
             agora = datetime.now()
-            # Calcula segundos até às 23:00 de hoje (ou amanhã se já passou)
             alvo = agora.replace(hour=23, minute=0, second=0, microsecond=0)
             if agora >= alvo:
-                # Já passou das 23h — agenda para amanhã
-                from datetime import timedelta
-                alvo = alvo + timedelta(days=1)
-            espera = (alvo - agora).total_seconds()
-            time.sleep(espera)
+                alvo += timedelta(days=1)
+            time.sleep((alvo - agora).total_seconds())
             caminho, erro = _gerar_backup()
-            if caminho:
-                print(f"[BACKUP] Backup gerado: {caminho}")
-            else:
-                print(f"[BACKUP] Erro ao gerar backup: {erro}")
-    t = threading.Thread(target=_loop, daemon=True, name="backup-diario")
-    t.start()
+            print(f"[BACKUP] {'OK: ' + caminho if caminho else 'Erro: ' + erro}")
+    threading.Thread(target=_loop, daemon=True, name="backup-diario").start()
 
-
-# Inicia o agendador quando o módulo é carregado
 _agendar_backup_diario()
 
 
@@ -176,7 +190,6 @@ _agendar_backup_diario()
 @login_obrigatorio
 @perfil_permitido("administrador")
 def gerar_backup_manual():
-    """Gera um backup imediato (manual)."""
     caminho, erro = _gerar_backup()
     if erro:
         return jsonify({"erro": erro}), 500
@@ -184,8 +197,7 @@ def gerar_backup_manual():
     return jsonify({
         "ok": True,
         "arquivo": Path(caminho).name,
-        "tamanho_bytes": tamanho,
-        "tamanho": f"{tamanho / 1024 / 1024:.2f} MB" if tamanho > 1024*1024 else f"{tamanho / 1024:.1f} KB",
+        "tamanho": f"{tamanho/1024/1024:.2f} MB" if tamanho > 1024*1024 else f"{tamanho/1024:.1f} KB",
     })
 
 
@@ -193,27 +205,19 @@ def gerar_backup_manual():
 @login_obrigatorio
 @perfil_permitido("administrador")
 def listar_backups():
-    """Lista os backups disponíveis no servidor."""
-    backups = sorted(BACKUP_DIR.glob("backup_*.sql"),
-                     key=lambda f: f.stat().st_mtime, reverse=True)
-    return jsonify({
-        "backups": [{
-            "arquivo": f.name,
-            "tamanho": f"{f.stat().st_size / 1024 / 1024:.2f} MB" if f.stat().st_size > 1024*1024 else f"{f.stat().st_size / 1024:.1f} KB",
-            "tamanho_bytes": f.stat().st_size,
-            "criado_em": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d/%m/%Y %H:%M"),
-        } for f in backups],
-        "total": len(backups),
-    })
+    backups = sorted(BACKUP_DIR.glob("backup_*.sql"), key=lambda f: f.stat().st_mtime, reverse=True)
+    return jsonify({"backups": [{
+        "arquivo": f.name,
+        "tamanho": f"{f.stat().st_size/1024/1024:.2f} MB" if f.stat().st_size > 1024*1024 else f"{f.stat().st_size/1024:.1f} KB",
+        "criado_em": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d/%m/%Y %H:%M"),
+    } for f in backups], "total": len(backups)})
 
 
 @configuracoes_bp.route("/api/backup/baixar/<nome>", methods=["GET"])
 @login_obrigatorio
 @perfil_permitido("administrador")
 def baixar_backup(nome):
-    """Baixa um arquivo de backup específico."""
     from flask import send_file
-    # Segurança: só permite nomes no formato backup_YYYYMMDD_HHMMSS.sql
     import re
     if not re.match(r"^backup_\d{8}_\d{6}\.sql$", nome):
         return jsonify({"erro": "Arquivo inválido"}), 400
