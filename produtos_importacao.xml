@@ -1,0 +1,689 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<produtos>
+
+  <!-- ==================== FILTROS ==================== -->
+  <produto>
+    <codigo>FIL001</codigo>
+    <codigo_barras>7891234560001</codigo_barras>
+    <nome>Filtro de Óleo Tecfil</nome>
+    <categoria>Filtros</categoria>
+    <marca>Tecfil</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira A1</localizacao>
+    <preco_compra>12.50</preco_compra>
+    <preco_venda>25.00</preco_venda>
+    <estoque_atual>20</estoque_atual>
+    <estoque_minimo>5</estoque_minimo>
+    <estoque_maximo>50</estoque_maximo>
+    <comissao_percentual>5.00</comissao_percentual>
+    <ncm>84212300</ncm>
+    <cfop>5102</cfop>
+    <cest>0100100</cest>
+    <ean>7891234560001</ean>
+  </produto>
+
+  <produto>
+    <codigo>FIL002</codigo>
+    <codigo_barras>7891234560002</codigo_barras>
+    <nome>Filtro de Ar Mann</nome>
+    <categoria>Filtros</categoria>
+    <marca>Mann</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira A2</localizacao>
+    <preco_compra>18.00</preco_compra>
+    <preco_venda>35.00</preco_venda>
+    <estoque_atual>15</estoque_atual>
+    <estoque_minimo>5</estoque_minimo>
+    <estoque_maximo>40</estoque_maximo>
+    <comissao_percentual>5.00</comissao_percentual>
+    <ncm>84213100</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560002</ean>
+  </produto>
+
+  <produto>
+    <codigo>FIL003</codigo>
+    <codigo_barras>7891234560003</codigo_barras>
+    <nome>Filtro de Combustível Bosch</nome>
+    <categoria>Filtros</categoria>
+    <marca>Bosch</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira A3</localizacao>
+    <preco_compra>22.00</preco_compra>
+    <preco_venda>42.00</preco_venda>
+    <estoque_atual>12</estoque_atual>
+    <estoque_minimo>4</estoque_minimo>
+    <estoque_maximo>30</estoque_maximo>
+    <comissao_percentual>5.00</comissao_percentual>
+    <ncm>84213900</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560003</ean>
+  </produto>
+
+  <produto>
+    <codigo>FIL004</codigo>
+    <codigo_barras>7891234560004</codigo_barras>
+    <nome>Filtro de Cabine Fram</nome>
+    <categoria>Filtros</categoria>
+    <marca>Fram</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira A4</localizacao>
+    <preco_compra>28.00</preco_compra>
+    <preco_venda>55.00</preco_venda>
+    <estoque_atual>10</estoque_atual>
+    <estoque_minimo>3</estoque_minimo>
+    <estoque_maximo>25</estoque_maximo>
+    <comissao_percentual>5.00</comissao_percentual>
+    <ncm>84213100</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560004</ean>
+  </produto>
+
+  <!-- ==================== ÓLEOS E FLUIDOS (com grade) ==================== -->
+  <produto>
+    <codigo>OL001</codigo>
+    <nome>Óleo Motor Castrol GTX 15W40</nome>
+    <categoria>Óleos e Fluidos</categoria>
+    <marca>Castrol</marca>
+    <fornecedor>Distribuidora Lubrificantes SA</fornecedor>
+    <localizacao>Depósito B1</localizacao>
+    <preco_compra>18.00</preco_compra>
+    <preco_venda>28.00</preco_venda>
+    <estoque_atual>0</estoque_atual>
+    <estoque_minimo>3</estoque_minimo>
+    <estoque_maximo>100</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>27101259</ncm>
+    <cfop>5102</cfop>
+    <cest>0300100</cest>
+    <variacoes>
+      <variacao>
+        <atributo>1L</atributo>
+        <codigo>OL001-1L</codigo>
+        <codigo_barras>7891234560011</codigo_barras>
+        <preco_compra>18.00</preco_compra>
+        <preco_venda>28.00</preco_venda>
+        <estoque_atual>15</estoque_atual>
+        <estoque_minimo>5</estoque_minimo>
+        <estoque_maximo>60</estoque_maximo>
+        <comissao_percentual>3.00</comissao_percentual>
+      </variacao>
+      <variacao>
+        <atributo>4L</atributo>
+        <codigo>OL001-4L</codigo>
+        <codigo_barras>7891234560012</codigo_barras>
+        <preco_compra>65.00</preco_compra>
+        <preco_venda>89.00</preco_venda>
+        <estoque_atual>8</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>30</estoque_maximo>
+        <comissao_percentual>3.00</comissao_percentual>
+      </variacao>
+      <variacao>
+        <atributo>5L</atributo>
+        <codigo>OL001-5L</codigo>
+        <codigo_barras>7891234560013</codigo_barras>
+        <preco_compra>80.00</preco_compra>
+        <preco_venda>110.00</preco_venda>
+        <estoque_atual>5</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>20</estoque_maximo>
+        <comissao_percentual>3.00</comissao_percentual>
+      </variacao>
+    </variacoes>
+  </produto>
+
+  <produto>
+    <codigo>OL002</codigo>
+    <nome>Óleo Motor Mobil Super 10W40</nome>
+    <categoria>Óleos e Fluidos</categoria>
+    <marca>Mobil</marca>
+    <fornecedor>Distribuidora Lubrificantes SA</fornecedor>
+    <localizacao>Depósito B1</localizacao>
+    <preco_compra>20.00</preco_compra>
+    <preco_venda>32.00</preco_venda>
+    <estoque_atual>0</estoque_atual>
+    <estoque_minimo>3</estoque_minimo>
+    <estoque_maximo>80</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>27101259</ncm>
+    <cfop>5102</cfop>
+    <variacoes>
+      <variacao>
+        <atributo>1L</atributo>
+        <codigo>OL002-1L</codigo>
+        <preco_compra>20.00</preco_compra>
+        <preco_venda>32.00</preco_venda>
+        <estoque_atual>10</estoque_atual>
+        <estoque_minimo>4</estoque_minimo>
+        <estoque_maximo>40</estoque_maximo>
+        <comissao_percentual>3.00</comissao_percentual>
+      </variacao>
+      <variacao>
+        <atributo>4L</atributo>
+        <codigo>OL002-4L</codigo>
+        <preco_compra>72.00</preco_compra>
+        <preco_venda>98.00</preco_venda>
+        <estoque_atual>6</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>24</estoque_maximo>
+        <comissao_percentual>3.00</comissao_percentual>
+      </variacao>
+    </variacoes>
+  </produto>
+
+  <produto>
+    <codigo>FL001</codigo>
+    <codigo_barras>7891234560020</codigo_barras>
+    <nome>Fluido de Freio DOT 4 Bosch</nome>
+    <categoria>Óleos e Fluidos</categoria>
+    <marca>Bosch</marca>
+    <fornecedor>Distribuidora Lubrificantes SA</fornecedor>
+    <localizacao>Depósito B2</localizacao>
+    <preco_compra>15.00</preco_compra>
+    <preco_venda>28.00</preco_venda>
+    <estoque_atual>18</estoque_atual>
+    <estoque_minimo>5</estoque_minimo>
+    <estoque_maximo>40</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>38199000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560020</ean>
+  </produto>
+
+  <produto>
+    <codigo>FL002</codigo>
+    <nome>Aditivo Radiador Concentrado Texaco</nome>
+    <categoria>Óleos e Fluidos</categoria>
+    <marca>Texaco</marca>
+    <fornecedor>Distribuidora Lubrificantes SA</fornecedor>
+    <localizacao>Depósito B2</localizacao>
+    <preco_compra>22.00</preco_compra>
+    <preco_venda>40.00</preco_venda>
+    <estoque_atual>0</estoque_atual>
+    <estoque_minimo>3</estoque_minimo>
+    <estoque_maximo>30</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>38200000</ncm>
+    <cfop>5102</cfop>
+    <variacoes>
+      <variacao>
+        <atributo>1L</atributo>
+        <codigo>FL002-1L</codigo>
+        <preco_compra>22.00</preco_compra>
+        <preco_venda>40.00</preco_venda>
+        <estoque_atual>8</estoque_atual>
+        <estoque_minimo>3</estoque_minimo>
+        <estoque_maximo>20</estoque_maximo>
+        <comissao_percentual>3.00</comissao_percentual>
+      </variacao>
+      <variacao>
+        <atributo>5L</atributo>
+        <codigo>FL002-5L</codigo>
+        <preco_compra>95.00</preco_compra>
+        <preco_venda>165.00</preco_venda>
+        <estoque_atual>3</estoque_atual>
+        <estoque_minimo>1</estoque_minimo>
+        <estoque_maximo>10</estoque_maximo>
+        <comissao_percentual>3.00</comissao_percentual>
+      </variacao>
+    </variacoes>
+  </produto>
+
+  <!-- ==================== FREIOS ==================== -->
+  <produto>
+    <codigo>FR001</codigo>
+    <codigo_barras>7891234560030</codigo_barras>
+    <nome>Pastilha de Freio Dianteira Fremax</nome>
+    <categoria>Freios</categoria>
+    <marca>Fremax</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira C1</localizacao>
+    <preco_compra>35.00</preco_compra>
+    <preco_venda>68.00</preco_venda>
+    <estoque_atual>14</estoque_atual>
+    <estoque_minimo>4</estoque_minimo>
+    <estoque_maximo>30</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>68138100</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560030</ean>
+  </produto>
+
+  <produto>
+    <codigo>FR002</codigo>
+    <codigo_barras>7891234560031</codigo_barras>
+    <nome>Disco de Freio Dianteiro Fremax</nome>
+    <categoria>Freios</categoria>
+    <marca>Fremax</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira C2</localizacao>
+    <preco_compra>65.00</preco_compra>
+    <preco_venda>120.00</preco_venda>
+    <estoque_atual>8</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>16</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>87083000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560031</ean>
+  </produto>
+
+  <produto>
+    <codigo>FR003</codigo>
+    <codigo_barras>7891234560032</codigo_barras>
+    <nome>Tambor de Freio Traseiro Fras-le</nome>
+    <categoria>Freios</categoria>
+    <marca>Fras-le</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira C3</localizacao>
+    <preco_compra>80.00</preco_compra>
+    <preco_venda>145.00</preco_venda>
+    <estoque_atual>6</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>12</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>87083000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560032</ean>
+  </produto>
+
+  <!-- ==================== SUSPENSÃO ==================== -->
+  <produto>
+    <codigo>SU001</codigo>
+    <codigo_barras>7891234560040</codigo_barras>
+    <nome>Amortecedor Dianteiro Monroe</nome>
+    <categoria>Suspensão</categoria>
+    <marca>Monroe</marca>
+    <fornecedor>Suspensão Total Distribuidora</fornecedor>
+    <localizacao>Prateleira D1</localizacao>
+    <preco_compra>120.00</preco_compra>
+    <preco_venda>220.00</preco_venda>
+    <estoque_atual>6</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>12</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>87088000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560040</ean>
+  </produto>
+
+  <produto>
+    <codigo>SU002</codigo>
+    <codigo_barras>7891234560041</codigo_barras>
+    <nome>Bucha Bandeja Dianteira Axios</nome>
+    <categoria>Suspensão</categoria>
+    <marca>Axios</marca>
+    <fornecedor>Suspensão Total Distribuidora</fornecedor>
+    <localizacao>Prateleira D2</localizacao>
+    <preco_compra>18.00</preco_compra>
+    <preco_venda>35.00</preco_venda>
+    <estoque_atual>20</estoque_atual>
+    <estoque_minimo>6</estoque_minimo>
+    <estoque_maximo>40</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>40169300</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560041</ean>
+  </produto>
+
+  <produto>
+    <codigo>SU003</codigo>
+    <codigo_barras>7891234560042</codigo_barras>
+    <nome>Terminal de Direção Nakata</nome>
+    <categoria>Suspensão</categoria>
+    <marca>Nakata</marca>
+    <fornecedor>Suspensão Total Distribuidora</fornecedor>
+    <localizacao>Prateleira D3</localizacao>
+    <preco_compra>25.00</preco_compra>
+    <preco_venda>48.00</preco_venda>
+    <estoque_atual>12</estoque_atual>
+    <estoque_minimo>4</estoque_minimo>
+    <estoque_maximo>24</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>87087000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560042</ean>
+  </produto>
+
+  <produto>
+    <codigo>SU004</codigo>
+    <codigo_barras>7891234560043</codigo_barras>
+    <nome>Rolamento de Roda Dianteiro SKF</nome>
+    <categoria>Suspensão</categoria>
+    <marca>SKF</marca>
+    <fornecedor>Suspensão Total Distribuidora</fornecedor>
+    <localizacao>Prateleira D4</localizacao>
+    <preco_compra>55.00</preco_compra>
+    <preco_venda>98.00</preco_venda>
+    <estoque_atual>8</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>16</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>84821000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560043</ean>
+  </produto>
+
+  <!-- ==================== MOTOR ==================== -->
+  <produto>
+    <codigo>MT001</codigo>
+    <codigo_barras>7891234560050</codigo_barras>
+    <nome>Vela de Ignição NGK</nome>
+    <categoria>Motor</categoria>
+    <marca>NGK</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira E1</localizacao>
+    <preco_compra>12.00</preco_compra>
+    <preco_venda>22.00</preco_venda>
+    <estoque_atual>30</estoque_atual>
+    <estoque_minimo>8</estoque_minimo>
+    <estoque_maximo>60</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>85111000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560050</ean>
+  </produto>
+
+  <produto>
+    <codigo>MT002</codigo>
+    <codigo_barras>7891234560051</codigo_barras>
+    <nome>Correia Dentada Gates</nome>
+    <categoria>Motor</categoria>
+    <marca>Gates</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira E2</localizacao>
+    <preco_compra>45.00</preco_compra>
+    <preco_venda>85.00</preco_venda>
+    <estoque_atual>10</estoque_atual>
+    <estoque_minimo>3</estoque_minimo>
+    <estoque_maximo>20</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>40103900</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560051</ean>
+  </produto>
+
+  <produto>
+    <codigo>MT003</codigo>
+    <codigo_barras>7891234560052</codigo_barras>
+    <nome>Correia Alternador Gates</nome>
+    <categoria>Motor</categoria>
+    <marca>Gates</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira E2</localizacao>
+    <preco_compra>28.00</preco_compra>
+    <preco_venda>52.00</preco_venda>
+    <estoque_atual>8</estoque_atual>
+    <estoque_minimo>3</estoque_minimo>
+    <estoque_maximo>20</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>40103900</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560052</ean>
+  </produto>
+
+  <produto>
+    <codigo>MT004</codigo>
+    <codigo_barras>7891234560053</codigo_barras>
+    <nome>Junta do Cabeçote Payen</nome>
+    <categoria>Motor</categoria>
+    <marca>Payen</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira E3</localizacao>
+    <preco_compra>85.00</preco_compra>
+    <preco_venda>155.00</preco_venda>
+    <estoque_atual>4</estoque_atual>
+    <estoque_minimo>1</estoque_minimo>
+    <estoque_maximo>8</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>84841000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560053</ean>
+  </produto>
+
+  <produto>
+    <codigo>MT005</codigo>
+    <codigo_barras>7891234560054</codigo_barras>
+    <nome>Bomba D'água Hepu</nome>
+    <categoria>Motor</categoria>
+    <marca>Hepu</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira E4</localizacao>
+    <preco_compra>95.00</preco_compra>
+    <preco_venda>175.00</preco_venda>
+    <estoque_atual>5</estoque_atual>
+    <estoque_minimo>1</estoque_minimo>
+    <estoque_maximo>10</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>84133000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560054</ean>
+  </produto>
+
+  <!-- ==================== ELÉTRICA ==================== -->
+  <produto>
+    <codigo>EL001</codigo>
+    <codigo_barras>7891234560060</codigo_barras>
+    <nome>Bateria Moura 60Ah</nome>
+    <categoria>Elétrica</categoria>
+    <marca>Moura</marca>
+    <fornecedor>Distribuidora Elétrica Veicular</fornecedor>
+    <localizacao>Depósito F1</localizacao>
+    <preco_compra>280.00</preco_compra>
+    <preco_venda>420.00</preco_venda>
+    <estoque_atual>5</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>10</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>85071000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560060</ean>
+  </produto>
+
+  <produto>
+    <codigo>EL002</codigo>
+    <codigo_barras>7891234560061</codigo_barras>
+    <nome>Lâmpada H4 Philips 60/55W</nome>
+    <categoria>Elétrica</categoria>
+    <marca>Philips</marca>
+    <fornecedor>Distribuidora Elétrica Veicular</fornecedor>
+    <localizacao>Prateleira F2</localizacao>
+    <preco_compra>18.00</preco_compra>
+    <preco_venda>35.00</preco_venda>
+    <estoque_atual>20</estoque_atual>
+    <estoque_minimo>6</estoque_minimo>
+    <estoque_maximo>40</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>85392900</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560061</ean>
+  </produto>
+
+  <produto>
+    <codigo>EL003</codigo>
+    <codigo_barras>7891234560062</codigo_barras>
+    <nome>Sensor de Oxigênio Bosch</nome>
+    <categoria>Elétrica</categoria>
+    <marca>Bosch</marca>
+    <fornecedor>Distribuidora Elétrica Veicular</fornecedor>
+    <localizacao>Prateleira F3</localizacao>
+    <preco_compra>110.00</preco_compra>
+    <preco_venda>195.00</preco_venda>
+    <estoque_atual>4</estoque_atual>
+    <estoque_minimo>1</estoque_minimo>
+    <estoque_maximo>8</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>90271000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560062</ean>
+  </produto>
+
+  <!-- ==================== PNEUS (com grade) ==================== -->
+  <produto>
+    <codigo>PN001</codigo>
+    <nome>Pneu Michelin Energy XM2</nome>
+    <categoria>Pneus</categoria>
+    <marca>Michelin</marca>
+    <fornecedor>Pneus e Cia Distribuidora</fornecedor>
+    <localizacao>Depósito G1</localizacao>
+    <preco_compra>220.00</preco_compra>
+    <preco_venda>320.00</preco_venda>
+    <estoque_atual>0</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>20</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>40111000</ncm>
+    <cfop>5102</cfop>
+    <variacoes>
+      <variacao>
+        <atributo>175/65R14</atributo>
+        <codigo>PN001-17565R14</codigo>
+        <preco_compra>220.00</preco_compra>
+        <preco_venda>320.00</preco_venda>
+        <estoque_atual>4</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>16</estoque_maximo>
+        <comissao_percentual>4.00</comissao_percentual>
+      </variacao>
+      <variacao>
+        <atributo>185/65R15</atributo>
+        <codigo>PN001-18565R15</codigo>
+        <preco_compra>240.00</preco_compra>
+        <preco_venda>345.00</preco_venda>
+        <estoque_atual>4</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>16</estoque_maximo>
+        <comissao_percentual>4.00</comissao_percentual>
+      </variacao>
+      <variacao>
+        <atributo>195/55R16</atributo>
+        <codigo>PN001-19555R16</codigo>
+        <preco_compra>270.00</preco_compra>
+        <preco_venda>385.00</preco_venda>
+        <estoque_atual>2</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>12</estoque_maximo>
+        <comissao_percentual>4.00</comissao_percentual>
+      </variacao>
+    </variacoes>
+  </produto>
+
+  <produto>
+    <codigo>PN002</codigo>
+    <nome>Pneu Pirelli Cinturato P1</nome>
+    <categoria>Pneus</categoria>
+    <marca>Pirelli</marca>
+    <fornecedor>Pneus e Cia Distribuidora</fornecedor>
+    <localizacao>Depósito G1</localizacao>
+    <preco_compra>235.00</preco_compra>
+    <preco_venda>340.00</preco_venda>
+    <estoque_atual>0</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>16</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>40111000</ncm>
+    <cfop>5102</cfop>
+    <variacoes>
+      <variacao>
+        <atributo>175/70R13</atributo>
+        <codigo>PN002-17570R13</codigo>
+        <preco_compra>235.00</preco_compra>
+        <preco_venda>340.00</preco_venda>
+        <estoque_atual>4</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>12</estoque_maximo>
+        <comissao_percentual>4.00</comissao_percentual>
+      </variacao>
+      <variacao>
+        <atributo>185/70R14</atributo>
+        <codigo>PN002-18570R14</codigo>
+        <preco_compra>255.00</preco_compra>
+        <preco_venda>365.00</preco_venda>
+        <estoque_atual>4</estoque_atual>
+        <estoque_minimo>2</estoque_minimo>
+        <estoque_maximo>12</estoque_maximo>
+        <comissao_percentual>4.00</comissao_percentual>
+      </variacao>
+    </variacoes>
+  </produto>
+
+  <!-- ==================== TRANSMISSÃO ==================== -->
+  <produto>
+    <codigo>TR001</codigo>
+    <codigo_barras>7891234560070</codigo_barras>
+    <nome>Kit Embreagem LUK</nome>
+    <categoria>Transmissão</categoria>
+    <marca>LUK</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira H1</localizacao>
+    <preco_compra>320.00</preco_compra>
+    <preco_venda>560.00</preco_venda>
+    <estoque_atual>3</estoque_atual>
+    <estoque_minimo>1</estoque_minimo>
+    <estoque_maximo>6</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>16129100</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560070</ean>
+  </produto>
+
+  <produto>
+    <codigo>TR002</codigo>
+    <codigo_barras>7891234560071</codigo_barras>
+    <nome>Óleo Câmbio ATF Dexron III Texaco</nome>
+    <categoria>Transmissão</categoria>
+    <marca>Texaco</marca>
+    <fornecedor>Distribuidora Lubrificantes SA</fornecedor>
+    <localizacao>Depósito B3</localizacao>
+    <preco_compra>35.00</preco_compra>
+    <preco_venda>62.00</preco_venda>
+    <estoque_atual>10</estoque_atual>
+    <estoque_minimo>3</estoque_minimo>
+    <estoque_maximo>24</estoque_maximo>
+    <comissao_percentual>3.00</comissao_percentual>
+    <ncm>27101900</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560071</ean>
+  </produto>
+
+  <!-- ==================== ARREFECIMENTO ==================== -->
+  <produto>
+    <codigo>AR001</codigo>
+    <codigo_barras>7891234560080</codigo_barras>
+    <nome>Mangueira Radiador Superior Gates</nome>
+    <categoria>Arrefecimento</categoria>
+    <marca>Gates</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira I1</localizacao>
+    <preco_compra>28.00</preco_compra>
+    <preco_venda>52.00</preco_venda>
+    <estoque_atual>8</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>16</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>40093200</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560080</ean>
+  </produto>
+
+  <produto>
+    <codigo>AR002</codigo>
+    <codigo_barras>7891234560081</codigo_barras>
+    <nome>Termostato Motor Wahler</nome>
+    <categoria>Arrefecimento</categoria>
+    <marca>Wahler</marca>
+    <fornecedor>Auto Peças Brasil Ltda</fornecedor>
+    <localizacao>Prateleira I2</localizacao>
+    <preco_compra>32.00</preco_compra>
+    <preco_venda>58.00</preco_venda>
+    <estoque_atual>6</estoque_atual>
+    <estoque_minimo>2</estoque_minimo>
+    <estoque_maximo>12</estoque_maximo>
+    <comissao_percentual>4.00</comissao_percentual>
+    <ncm>84833000</ncm>
+    <cfop>5102</cfop>
+    <ean>7891234560081</ean>
+  </produto>
+
+</produtos>
