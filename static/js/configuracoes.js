@@ -197,6 +197,22 @@
         </div>
       </div>
 
+      <h3 style="margin:22px 0 4px;font-size:15px">Backup do Banco de Dados</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
+        O sistema gera um backup automático todos os dias às 23h e mantém os últimos 7 arquivos.
+        Baixe o backup e salve em um HD externo ou no Google Drive para segurança.
+      </p>
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem">
+        <button class="btn btn--outline" id="cfg-backup-gerar">
+          <i class="fa-solid fa-database"></i> Gerar backup agora
+        </button>
+        <button class="btn btn--ghost" id="cfg-backup-listar">
+          <i class="fa-solid fa-list"></i> Ver backups disponíveis
+        </button>
+        <span id="cfg-backup-status" style="font-size:.85rem;color:var(--text-muted)"></span>
+      </div>
+      <div id="cfg-backup-lista"></div>
+
       <div class="cfg-logo">
         <label>Logo da empresa</label>
         <div class="cfg-logo__box">
@@ -329,4 +345,64 @@
       setTimeout(() => location.reload(), 600);
     } catch (e) { toast(e.message, "error"); }
   };
+
+  // -----------------------------------------------------------------------
+  // Backup
+  // -----------------------------------------------------------------------
+  document.getElementById("cfg-backup-gerar")?.addEventListener("click", async () => {
+    const btn = document.getElementById("cfg-backup-gerar");
+    const status = document.getElementById("cfg-backup-status");
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Gerando…`;
+    status.textContent = "";
+    try {
+      const r = await API.post("/api/backup/gerar");
+      status.innerHTML = `<span style="color:#27ae60"><i class="fa-solid fa-check"></i> Backup gerado: <strong>${r.arquivo}</strong> (${r.tamanho})</span>`;
+      toast("Backup gerado com sucesso");
+      _carregarListaBackups();
+    } catch(e) {
+      status.innerHTML = `<span style="color:#e74c3c"><i class="fa-solid fa-triangle-exclamation"></i> ${e.message}</span>`;
+      toast(e.message, "error");
+    }
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fa-solid fa-database"></i> Gerar backup agora`;
+  });
+
+  document.getElementById("cfg-backup-listar")?.addEventListener("click", _carregarListaBackups);
+
+  async function _carregarListaBackups() {
+    const alvo = document.getElementById("cfg-backup-lista");
+    alvo.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
+    try {
+      const r = await API.get("/api/backup/listar");
+      if (!r.backups?.length) {
+        alvo.innerHTML = `<div class="empty" style="padding:.75rem 0">
+          <i class="fa-solid fa-inbox"></i> Nenhum backup disponível ainda</div>`;
+        return;
+      }
+      alvo.innerHTML = `
+        <div class="table-wrap"><table class="data">
+          <thead><tr><th>Arquivo</th><th>Tamanho</th><th>Data</th><th></th></tr></thead>
+          <tbody>${r.backups.map((b) => `<tr>
+            <td><i class="fa-solid fa-file-code" style="color:#0d9488;margin-right:6px"></i>${b.arquivo}</td>
+            <td>${b.tamanho}</td>
+            <td>${b.criado_em}</td>
+            <td>
+              <a class="btn btn--sm btn--primary" href="/api/backup/baixar/${b.arquivo}"
+                download="${b.arquivo}">
+                <i class="fa-solid fa-download"></i> Baixar
+              </a>
+            </td>
+          </tr>`).join("")}
+          </tbody>
+        </table></div>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-top:.5rem">
+          <i class="fa-solid fa-info-circle"></i>
+          Os últimos 7 backups são mantidos automaticamente. Salve em HD externo ou Google Drive.
+        </p>`;
+    } catch(e) {
+      alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>${e.message}</div>`;
+    }
+  }
+
 })();
