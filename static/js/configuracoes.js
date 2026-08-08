@@ -209,6 +209,10 @@
         <button class="btn btn--ghost" id="cfg-backup-listar">
           <i class="fa-solid fa-list"></i> Ver backups disponíveis
         </button>
+        <label class="btn btn--outline" style="cursor:pointer" title="Selecionar arquivo .sql do computador para restaurar">
+          <i class="fa-solid fa-folder-open"></i> Restaurar de arquivo
+          <input type="file" id="cfg-backup-upload" accept=".sql" style="display:none">
+        </label>
         <span id="cfg-backup-status" style="font-size:.85rem;color:var(--text-muted)"></span>
       </div>
       <div id="cfg-backup-lista"></div>
@@ -349,6 +353,40 @@
   // -----------------------------------------------------------------------
   // Backup
   // -----------------------------------------------------------------------
+
+  // Restaurar de arquivo local
+  document.getElementById("cfg-backup-upload")?.addEventListener("change", async (e) => {
+    const arquivo = e.target.files?.[0];
+    if (!arquivo) return;
+    e.target.value = "";
+    const conf1 = confirm(
+      `⚠️ ATENÇÃO — Restaurar backup de arquivo\n\nArquivo: ${arquivo.name}\n\n` +
+      `Esta operação irá SUBSTITUIR todos os dados atuais.\n` +
+      `Um backup de segurança será gerado automaticamente antes.\n\nConfirma?`
+    );
+    if (!conf1) return;
+    const conf2 = confirm(
+      `⚠️ CONFIRMAÇÃO FINAL\n\nVocê está prestes a restaurar:\n${arquivo.name}\n\n` +
+      `TODOS OS DADOS ATUAIS SERÃO SUBSTITUÍDOS.\n\nClique OK apenas se tiver certeza absoluta.`
+    );
+    if (!conf2) return;
+    const status = document.getElementById("cfg-backup-status");
+    status.innerHTML = `<span style="color:#f59e0b"><i class="fa-solid fa-spinner spin"></i> Enviando e restaurando… aguarde.</span>`;
+    const fd = new FormData();
+    fd.append("arquivo", arquivo);
+    try {
+      const r = await API.upload("/api/backup/restaurar-upload", fd);
+      status.innerHTML = `<span style="color:#27ae60"><i class="fa-solid fa-check"></i>
+        <strong>Restaurado com sucesso!</strong><br>
+        <small>Backup de segurança gerado: <strong>${r.backup_seguranca}</strong></small></span>`;
+      toast("Backup restaurado! Recarregando…");
+      setTimeout(() => location.reload(), 2500);
+    } catch(e) {
+      status.innerHTML = `<span style="color:#e74c3c"><i class="fa-solid fa-triangle-exclamation"></i> ${e.message}</span>`;
+      toast(e.message, "error");
+    }
+  });
+
   document.getElementById("cfg-backup-gerar")?.addEventListener("click", async () => {
     const btn = document.getElementById("cfg-backup-gerar");
     const status = document.getElementById("cfg-backup-status");
