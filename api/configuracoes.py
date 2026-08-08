@@ -326,3 +326,93 @@ def restaurar_backup(nome):
             "erro": f"Falha na restauração: {e}",
             "backup_seguranca": Path(backup_seguranca).name if backup_seguranca else None,
         }), 500
+
+
+@configuracoes_bp.route("/api/backup/restaurar-upload", methods=["POST"])
+@login_obrigatorio
+@perfil_permitido("administrador")
+def restaurar_backup_upload():
+    """
+    Restaura o banco a partir de um arquivo .sql enviado pelo usuário
+    (upload da máquina local). Igual ao restaurar_backup, mas recebe
+    o arquivo via multipart/form-data em vez de buscar no servidor.
+    """
+    import re, urllib.parse as _up
+
+    if "arquivo" not in request.files:
+        return jsonify({"erro": "Nenhum arquivo enviado"}), 400
+
+    arq = request.files["arquivo"]
+    if not arq.filename.endswith(".sql"):
+        return jsonify({"erro": "Apenas arquivos .sql são aceitos"}), 400
+
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        return jsonify({"erro": "DATABASE_URL não configurada"}), 500
+
+    try:
+        import psycopg2
+    except ImportError:
+        return jsonify({"erro": "psycopg2 não instalado"}), 500
+
+    # 1) Salva o arquivo enviado temporariamente
+    from datetime import datetime as _dt
+    agora = _dt.now().strftime("%Y%m%d_%H%M%S")
+    tmp = BACKUP_DIR / f"upload_{agora}.sql"
+    arq.save(str(tmp))
+
+    # 2) Gera backup de segurança antes de restaurar
+    backup_seguranca, erro_seg = _gerar_backup()
+    if not backup_seguranca:
+        tmp.unlink(missing_ok=True)
+        return jsonify({"erro": f"Falha ao gerar backup de segurança: {erro_seg}"}), 500
+
+    # 3) Lê e executa o SQL
+    try:
+        sql_content = tmp.read_text(encoding="utf-8")
+    except Exception as e:
+        tmp.unlink(missing_ok=True)
+        return jsonify({"erro": f"Erro ao ler arquivo: {e}"}), 500
+
+    try:
+        p = _up.urlparse(db_url.replace("postgres://", "postgresql://"))
+        conn = psycopg2.connect(
+            host=p.hostname, port=p.port or 5432,
+            user=p.username, password=p.password,
+            dbname=p.path.lstrip("/"), connect_timeout=30,
+        )
+        conn.autocommit = False
+        cur = conn.cursor()
+        cur.execute("SET session_replication_role = 'replica';")
+
+        import sqlparse
+        executados = 0
+        for stmt in sqlparse.split(sql_content):
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            try:
+                cur.execute(stmt)
+                executados += 1
+            except Exception:
+                pass  # ignora erros em SET / comentários
+
+        cur.execute("SET session_replication_role = 'origin';")
+        conn.commit()
+        cur.close(); conn.close()
+        tmp.unlink(missing_ok=True)
+
+        registrar_log(session["user_id"], "restaurar_backup_upload",
+                      f"arquivo={arq.filename} backup_seguranca={Path(backup_seguranca).name}")
+        return jsonify({
+            "ok": True,
+            "arquivo_restaurado": arq.filename,
+            "backup_seguranca": Path(backup_seguranca).name,
+            "statements_executados": executados,
+        })
+    except Exception as e:
+        tmp.unlink(missing_ok=True)
+        return jsonify({
+            "erro": f"Falha na restauração: {e}",
+            "backup_seguranca": Path(backup_seguranca).name if backup_seguranca else None,
+        }), 500
