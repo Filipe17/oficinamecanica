@@ -93,6 +93,28 @@ BACKUP_DIR.mkdir(exist_ok=True)
 BACKUP_RETENCAO = 7
 
 
+def _split_sql(sql):
+    """Divide SQL em statements sem depender do sqlparse."""
+    statements, current, in_string, string_char = [], [], False, None
+    for char in sql:
+        if in_string:
+            current.append(char)
+            if char == string_char: in_string = False
+        elif char in ("'", '"'):
+            in_string, string_char = True, char
+            current.append(char)
+        elif char == ';':
+            current.append(char)
+            stmt = ''.join(current).strip()
+            if stmt and not stmt.startswith('--'): statements.append(stmt)
+            current = []
+        else:
+            current.append(char)
+    stmt = ''.join(current).strip()
+    if stmt and not stmt.startswith('--'): statements.append(stmt)
+    return statements
+
+
 def _gerar_backup():
     """
     Gera backup do PostgreSQL usando psycopg2 puro (sem pg_dump).
@@ -281,12 +303,11 @@ def restaurar_backup(nome):
         # Desativa constraints temporariamente para restaurar sem erro de FK
         cur.execute("SET session_replication_role = 'replica';")
 
-        statements = _split_sql(sql_content)
+        # Executa cada statement do SQL
         executados = 0
-        for stmt in statements:
+        for stmt in _split_sql(sql_content):
             stmt = stmt.strip()
-            if not stmt or stmt.startswith("--"):
-                continue
+            if not stmt or stmt.startswith("--"): continue
             try:
                 cur.execute("SAVEPOINT sp;")
                 cur.execute(stmt)
@@ -295,6 +316,7 @@ def restaurar_backup(nome):
             except Exception:
                 cur.execute("ROLLBACK TO SAVEPOINT sp;")
 
+        # Reativa constraints
         cur.execute("SET session_replication_role = 'origin';")
         conn.commit()
         cur.close(); conn.close()
@@ -375,8 +397,7 @@ def restaurar_backup_upload():
         executados = 0
         for stmt in _split_sql(sql_content):
             stmt = stmt.strip()
-            if not stmt or stmt.startswith("--"):
-                continue
+            if not stmt or stmt.startswith("--"): continue
             try:
                 cur.execute("SAVEPOINT sp;")
                 cur.execute(stmt)
