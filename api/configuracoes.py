@@ -41,6 +41,36 @@ def obter_config():
     return {l["chave"]: l["valor"] for l in linhas}
 
 
+
+def _split_sql(sql):
+    """Divide o SQL em statements sem depender do sqlparse."""
+    statements = []
+    current = []
+    in_string = False
+    string_char = None
+    for char in sql:
+        if in_string:
+            current.append(char)
+            if char == string_char:
+                in_string = False
+        elif char in ("'", '"'):
+            in_string = True
+            string_char = char
+            current.append(char)
+        elif char == ';':
+            current.append(char)
+            stmt = ''.join(current).strip()
+            if stmt and not stmt.startswith('--'):
+                statements.append(stmt)
+            current = []
+        else:
+            current.append(char)
+    # último statement sem ;
+    stmt = ''.join(current).strip()
+    if stmt and not stmt.startswith('--'):
+        statements.append(stmt)
+    return statements
+
 @configuracoes_bp.route("/api/marca", methods=["GET"])
 def marca():
     """
@@ -282,8 +312,7 @@ def restaurar_backup(nome):
         cur.execute("SET session_replication_role = 'replica';")
 
         # Executa cada statement do SQL
-        import sqlparse
-        statements = sqlparse.split(sql_content)
+        statements = _split_sql(sql_content)
         executados = 0
         for stmt in statements:
             stmt = stmt.strip()
@@ -385,9 +414,8 @@ def restaurar_backup_upload():
         cur = conn.cursor()
         cur.execute("SET session_replication_role = 'replica';")
 
-        import sqlparse
         executados = 0
-        for stmt in sqlparse.split(sql_content):
+        for stmt in _split_sql(sql_content):
             stmt = stmt.strip()
             if not stmt or stmt.startswith("--"):
                 continue
