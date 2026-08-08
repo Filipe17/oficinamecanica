@@ -226,3 +226,103 @@ def baixar_backup(nome):
         return jsonify({"erro": "Arquivo não encontrado"}), 404
     return send_file(str(caminho), as_attachment=True, download_name=nome,
                      mimetype="application/octet-stream")
+
+
+@configuracoes_bp.route("/api/backup/restaurar/<nome>", methods=["POST"])
+@login_obrigatorio
+@perfil_permitido("administrador")
+def restaurar_backup(nome):
+    """
+    Restaura o banco a partir de um arquivo de backup.
+    ATENÇÃO: apaga os dados atuais e reinsere os do backup.
+    Antes de restaurar, gera automaticamente um backup dos dados atuais.
+    """
+    import re, urllib.parse as _up
+
+    # Valida nome do arquivo
+    if not re.match(r"^backup_\d{8}_\d{6}\.sql$", nome):
+        return jsonify({"erro": "Arquivo inválido"}), 400
+
+    caminho = BACKUP_DIR / nome
+    if not caminho.exists():
+        return jsonify({"erro": "Arquivo de backup não encontrado"}), 404
+
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        return jsonify({"erro": "DATABASE_URL não configurada"}), 500
+
+    try:
+        import psycopg2
+    except ImportError:
+        return jsonify({"erro": "psycopg2 não instalado"}), 500
+
+    # 1) Gera backup de segurança dos dados atuais ANTES de restaurar
+    backup_seguranca, erro_seg = _gerar_backup()
+    if not backup_seguranca:
+        return jsonify({"erro": f"Falha ao gerar backup de segurança antes de restaurar: {erro_seg}"}), 500
+
+    # 2) Lê o arquivo SQL
+    try:
+        sql_content = caminho.read_text(encoding="utf-8")
+    except Exception as e:
+        return jsonify({"erro": f"Erro ao ler arquivo de backup: {e}"}), 500
+
+    # 3) Executa o SQL no banco
+    try:
+        p = _up.urlparse(db_url.replace("postgres://", "postgresql://"))
+        conn = psycopg2.connect(
+            host=p.hostname, port=p.port or 5432,
+            user=p.username, password=p.password,
+            dbname=p.path.lstrip("/"), connect_timeout=30,
+        )
+        conn.autocommit = False
+        cur = conn.cursor()
+
+        # Desativa constraints temporariamente para restaurar sem erro de FK
+        cur.execute("SET session_replication_role = 'replica';")
+
+        # Executa cada statement do SQL
+        import sqlparse
+        statements = sqlparse.split(sql_content)
+        executados = 0
+        for stmt in statements:
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            try:
+                cur.execute(stmt)
+                executados += 1
+            except Exception as e:
+                # Ignora erros em linhas de comentário/configuração
+                if "SET " in stmt or "SELECT setval" in stmt:
+                    try:
+                        cur.execute(stmt)
+                    except Exception:
+                        pass
+                else:
+                    conn.rollback()
+                    cur.close(); conn.close()
+                    return jsonify({
+                        "erro": f"Erro ao executar restauração: {e}",
+                        "backup_seguranca": Path(backup_seguranca).name,
+                    }), 500
+
+        # Reativa constraints
+        cur.execute("SET session_replication_role = 'origin';")
+        conn.commit()
+        cur.close(); conn.close()
+
+        registrar_log(session["user_id"], "restaurar_backup",
+                      f"arquivo={nome} backup_seguranca={Path(backup_seguranca).name}")
+        return jsonify({
+            "ok": True,
+            "arquivo_restaurado": nome,
+            "backup_seguranca": Path(backup_seguranca).name,
+            "statements_executados": executados,
+        })
+
+    except Exception as e:
+        return jsonify({
+            "erro": f"Falha na restauração: {e}",
+            "backup_seguranca": Path(backup_seguranca).name if backup_seguranca else None,
+        }), 500
