@@ -370,6 +370,49 @@
 
   document.getElementById("cfg-backup-listar")?.addEventListener("click", _carregarListaBackups);
 
+  // Restauração de backup
+  window.__backupRestore = async function(arquivo) {
+    const conf1 = confirm(
+      `⚠️ ATENÇÃO — Restaurar backup\n\n` +
+      `Arquivo: ${arquivo}\n\n` +
+      `Esta operação irá SUBSTITUIR todos os dados atuais pelos dados deste backup.\n` +
+      `Os dados atuais serão perdidos (um backup de segurança será gerado automaticamente antes).\n\n` +
+      `Tem certeza que deseja continuar?`
+    );
+    if (!conf1) return;
+
+    const conf2 = confirm(
+      `⚠️ CONFIRMAÇÃO FINAL\n\n` +
+      `Você está prestes a restaurar o backup:\n${arquivo}\n\n` +
+      `TODOS OS DADOS ATUAIS SERÃO SUBSTITUÍDOS.\n\n` +
+      `Clique OK apenas se tiver certeza absoluta.`
+    );
+    if (!conf2) return;
+
+    const status = document.getElementById("cfg-backup-status");
+    status.innerHTML = `<span style="color:#f59e0b"><i class="fa-solid fa-spinner spin"></i> Restaurando backup… aguarde, isso pode levar alguns minutos.</span>`;
+
+    try {
+      const r = await API.post(`/api/backup/restaurar/${arquivo}`);
+      status.innerHTML = `
+        <span style="color:#27ae60">
+          <i class="fa-solid fa-check"></i>
+          <strong>Backup restaurado com sucesso!</strong><br>
+          <small>Backup de segurança gerado antes da restauração: <strong>${r.backup_seguranca}</strong></small>
+        </span>`;
+      toast("Backup restaurado! Recarregando sistema…");
+      setTimeout(() => location.reload(), 2500);
+    } catch(e) {
+      status.innerHTML = `
+        <span style="color:#e74c3c">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <strong>Erro na restauração:</strong> ${e.message}
+          ${e.backup_seguranca ? `<br><small>Backup de segurança salvo: ${e.backup_seguranca}</small>` : ""}
+        </span>`;
+      toast(e.message, "error");
+    }
+  };
+
   async function _carregarListaBackups() {
     const alvo = document.getElementById("cfg-backup-lista");
     alvo.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
@@ -387,11 +430,15 @@
             <td><i class="fa-solid fa-file-code" style="color:#0d9488;margin-right:6px"></i>${b.arquivo}</td>
             <td>${b.tamanho}</td>
             <td>${b.criado_em}</td>
-            <td>
+            <td style="white-space:nowrap;display:flex;gap:.4rem">
               <a class="btn btn--sm btn--primary" href="/api/backup/baixar/${b.arquivo}"
                 download="${b.arquivo}">
                 <i class="fa-solid fa-download"></i> Baixar
               </a>
+              <button class="btn btn--sm btn--danger" style="background:#e74c3c;color:#fff;border:none"
+                onclick="window.__backupRestore('${b.arquivo}')">
+                <i class="fa-solid fa-rotate-left"></i> Restaurar
+              </button>
             </td>
           </tr>`).join("")}
           </tbody>
