@@ -7,3 +7,5 @@ gunicorn==22.0.0
 
 # Driver PostgreSQL — usado automaticamente quando há DATABASE_URL (Railway)
 psycopg2-binary==2.9.9
+
+sqlparse
