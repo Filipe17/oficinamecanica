@@ -306,19 +306,20 @@ const Layout = {
   toggleSidebar() {
     const sb = document.getElementById("sidebar");
     const aberto = sb.classList.toggle("open");
-    // Overlay para fechar ao clicar fora no mobile
     let ov = document.getElementById("sidebar-overlay");
     if (aberto) {
       if (!ov) {
         ov = document.createElement("div");
         ov.id = "sidebar-overlay";
-        ov.style.cssText = "position:fixed;inset:0;z-index:149;background:rgba(0,0,0,.35)";
-        ov.onclick = () => Layout.toggleSidebar();
+        ov.style.cssText = "position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.35);cursor:pointer";
+        ov.addEventListener("click", (e) => { e.stopPropagation(); Layout.toggleSidebar(); });
         document.body.appendChild(ov);
       }
       ov.style.display = "block";
-    } else if (ov) {
-      ov.style.display = "none";
+      sb.style.zIndex = "200";
+    } else {
+      if (ov) ov.style.display = "none";
+      sb.style.zIndex = "";
     }
   },
 
