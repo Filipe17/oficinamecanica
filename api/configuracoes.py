@@ -41,36 +41,6 @@ def obter_config():
     return {l["chave"]: l["valor"] for l in linhas}
 
 
-
-def _split_sql(sql):
-    """Divide o SQL em statements sem depender do sqlparse."""
-    statements = []
-    current = []
-    in_string = False
-    string_char = None
-    for char in sql:
-        if in_string:
-            current.append(char)
-            if char == string_char:
-                in_string = False
-        elif char in ("'", '"'):
-            in_string = True
-            string_char = char
-            current.append(char)
-        elif char == ';':
-            current.append(char)
-            stmt = ''.join(current).strip()
-            if stmt and not stmt.startswith('--'):
-                statements.append(stmt)
-            current = []
-        else:
-            current.append(char)
-    # último statement sem ;
-    stmt = ''.join(current).strip()
-    if stmt and not stmt.startswith('--'):
-        statements.append(stmt)
-    return statements
-
 @configuracoes_bp.route("/api/marca", methods=["GET"])
 def marca():
     """
@@ -311,7 +281,6 @@ def restaurar_backup(nome):
         # Desativa constraints temporariamente para restaurar sem erro de FK
         cur.execute("SET session_replication_role = 'replica';")
 
-        # Executa cada statement do SQL
         statements = _split_sql(sql_content)
         executados = 0
         for stmt in statements:
@@ -319,24 +288,13 @@ def restaurar_backup(nome):
             if not stmt or stmt.startswith("--"):
                 continue
             try:
+                cur.execute("SAVEPOINT sp;")
                 cur.execute(stmt)
+                cur.execute("RELEASE SAVEPOINT sp;")
                 executados += 1
-            except Exception as e:
-                # Ignora erros em linhas de comentário/configuração
-                if "SET " in stmt or "SELECT setval" in stmt:
-                    try:
-                        cur.execute(stmt)
-                    except Exception:
-                        pass
-                else:
-                    conn.rollback()
-                    cur.close(); conn.close()
-                    return jsonify({
-                        "erro": f"Erro ao executar restauração: {e}",
-                        "backup_seguranca": Path(backup_seguranca).name,
-                    }), 500
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT sp;")
 
-        # Reativa constraints
         cur.execute("SET session_replication_role = 'origin';")
         conn.commit()
         cur.close(); conn.close()
@@ -420,10 +378,12 @@ def restaurar_backup_upload():
             if not stmt or stmt.startswith("--"):
                 continue
             try:
+                cur.execute("SAVEPOINT sp;")
                 cur.execute(stmt)
+                cur.execute("RELEASE SAVEPOINT sp;")
                 executados += 1
             except Exception:
-                pass  # ignora erros em SET / comentários
+                cur.execute("ROLLBACK TO SAVEPOINT sp;")
 
         cur.execute("SET session_replication_role = 'origin';")
         conn.commit()
