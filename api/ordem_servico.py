@@ -574,3 +574,46 @@ def salvar_checklist(oid):
     registrar_log(session["user_id"], "salvar_checklist",
                   f"os={oid} itens={len(itens)} avariados={avariados}")
     return jsonify({"ok": True, "itens": len(itens), "avariados": avariados})
+
+
+@os_bp.route("/api/os/<int:oid>/retorno", methods=["POST"])
+@login_obrigatorio
+def criar_os_retorno(oid):
+    """
+    Cria uma OS de retorno vinculada à OS original (garantia).
+    Copia cliente, veículo e mecânico da OS original.
+    Marca a garantia como acionada se informada.
+    """
+    os_orig = query("SELECT * FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
+    if not os_orig:
+        return jsonify({"erro": "OS de origem não encontrada"}), 404
+
+    d = request.get_json(force=True)
+    garantia_id = d.get("garantia_id")
+    problema = d.get("problema") or f"Retorno de garantia — OS {os_orig.get('numero')}"
+
+    novo_numero = _proximo_numero()
+    res = query(
+        "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
+        "data, status, problema, eh_orcamento, os_origem_id, garantia_id, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (novo_numero, os_orig["cliente_id"], os_orig.get("veiculo_id"),
+         os_orig.get("mecanico_id"), now()[:10], "aberta", problema,
+         0, oid, garantia_id, now()),
+        commit=True)
+
+    nova_id = res["_lastid"]
+
+    # Marca garantia como acionada
+    if garantia_id:
+        query("UPDATE garantias SET status='acionada', obs=? WHERE id=?",
+              (f"OS de retorno #{novo_numero} aberta", garantia_id), commit=True)
+
+    registrar_log(session["user_id"], "os_retorno",
+                  f"os_origem={oid} nova_os={nova_id} garantia={garantia_id}")
+    return jsonify({
+        "ok": True,
+        "os_id": nova_id,
+        "os_numero": novo_numero,
+        "os_origem": os_orig.get("numero"),
+    }), 201
