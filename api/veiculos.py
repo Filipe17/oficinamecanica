@@ -108,9 +108,10 @@ def historico_veiculo(vid):
         return jsonify({"erro": "Veículo não encontrado"}), 404
 
     # Todas as OS do veículo ordenadas por data
+    # Monta SELECT dinâmico — quilometragem pode não existir em OS antigas
     os_list = query(
         "SELECT o.id, o.numero, o.data, o.status, o.total, o.problema, "
-        "o.diagnostico, o.horas_trabalhadas, o.quilometragem, o.garantia, "
+        "o.diagnostico, o.horas_trabalhadas, o.garantia, "
         "o.obs_finais, o.mecanico_id, o.eh_orcamento, "
         "u.nome AS mecanico_nome "
         "FROM ordens_servico o "
@@ -118,6 +119,10 @@ def historico_veiculo(vid):
         "WHERE o.veiculo_id=? AND o.eh_orcamento=0 "
         "ORDER BY o.data DESC, o.id DESC",
         (vid,))
+    # Adiciona quilometragem=None para compatibilidade
+    for os in os_list:
+        if "quilometragem" not in os:
+            os["quilometragem"] = None
 
     # Para cada OS, carrega os itens (peças e serviços)
     for os in os_list:
