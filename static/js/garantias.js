@@ -95,6 +95,10 @@
                 <button class="icon-btn btn--sm" title="Registrar acionamento"
                   onclick="window.__gar.acionar(${g.id})">
                   <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b"></i>
+                </button>
+                <button class="icon-btn btn--sm" title="Abrir OS de Retorno"
+                  onclick="window.__gar.abrirOsRetorno(${g.os_id}, '${g.os_numero||''}', ${g.id})">
+                  <i class="fa-solid fa-rotate-left" style="color:#0d9488"></i>
                 </button>` : ""}
               <button class="icon-btn btn--sm" title="Excluir"
                 onclick="window.__gar.excluir(${g.id})">
@@ -144,6 +148,18 @@
           carregar();
         } catch(e) { toast(e.message, "error"); }
       };
+    },
+
+    async abrirOsRetorno(osId, osNumero, garantiaId) {
+      if (!confirm(`Criar OS de Retorno vinculada à OS ${osNumero}?\n\nCliente, veículo e mecânico serão copiados automaticamente.`)) return;
+      try {
+        const r = await API.post(`/api/os/${osId}/retorno`, {
+          problema: `Retorno de garantia — OS ${osNumero}`,
+          garantia_id: garantiaId,
+        });
+        toast(`OS de retorno ${r.os_numero} criada!`);
+        carregar();
+      } catch(e) { toast(e.message, "error"); }
     },
 
     async excluir(id) {

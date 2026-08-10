@@ -120,7 +120,10 @@
           <td><b>${EH_ORC ? semPrefixo(o.numero) : (o.numero || "-")}</b></td>
           <td>${o.cliente_nome || "-"}</td>
           <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
-          <td><span class="badge badge--${STATUS_TOM[o.status] || ""}">${STATUS_LABEL[o.status] || o.status}</span></td>
+          <td>
+            <span class="badge badge--${STATUS_TOM[o.status] || ""}">${STATUS_LABEL[o.status] || o.status}</span>
+            ${o.os_origem_id ? `<span class="badge" style="background:#f59e0b20;color:#f59e0b;margin-left:4px;font-size:.7rem">retorno</span>` : ""}
+          </td>
           <td>${o.mecanico_nome || "-"}</td>
           <td class="text-right">
             <button class="icon-btn btn--sm" title="Abrir" onclick="window.__os.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
@@ -303,6 +306,7 @@
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
       ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirChecklist(${o.id})"><i class="fa-solid fa-clipboard-check"></i> Checklist</button>` : ""}
       ${ed && !EH_ORC && o.status === "finalizada" ? `<button class="btn btn--outline" onclick="window.__nps?.abrirEnvio(${o.id},${o.cliente_id},'${(o.cliente_nome||'').replace(/'/g,"\'")}','${o.cliente_email||''}','${o.cliente_whatsapp||o.cliente_telefone||''}')"><i class="fa-solid fa-star"></i> NPS</button>` : ""}
+      ${ed && !EH_ORC && ["finalizada","finalizada_mecanico"].includes(o.status) ? `<button class="btn btn--outline" onclick="window.__os.abrirRetorno(${o.id},'${(o.numero||'').replace(/'/g,"\'")}')"><i class="fa-solid fa-rotate-left"></i> OS Retorno</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
       ${!soLeitura && ed && !EH_ORC && o.status === "aguardando_aprovacao" && Layout.usuario?.perfil !== "mecanico"
         ? `<button class="btn btn--primary" onclick="window.__os.gerarOrcamento(${o.id})"><i class="fa-solid fa-file-invoice-dollar"></i> Gerar Orçamento</button>`
@@ -893,6 +897,65 @@
   // -----------------------------------------------------------------------
   // Checklist de Inspeção Veicular
   // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // OS de Retorno por Garantia
+  // -----------------------------------------------------------------------
+  api.abrirRetorno = async function(osId, osNumero) {
+    // Busca garantias vigentes/acionadas desta OS
+    let garantias = [];
+    try {
+      const r = await API.get(`/api/garantias?status=vigente`);
+      garantias = (r.dados || []).filter((g) => g.os_id === osId || String(g.os_numero) === String(osNumero));
+    } catch(_) {}
+
+    const optsGar = garantias.length
+      ? garantias.map((g) => `<option value="${g.id}">${g.descricao} — vence ${fmt.data(g.data_fim)}</option>`).join("")
+      : `<option value="">Sem garantia vinculada</option>`;
+
+    Modal.abrir(
+      `<i class="fa-solid fa-rotate-left"></i> OS de Retorno — ${osNumero}`,
+      `<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem">
+        Será criada uma nova OS vinculada à OS <strong>${osNumero}</strong> como retorno de garantia.
+        Cliente, veículo e mecânico serão copiados automaticamente.
+      </p>
+      <div class="form-grid" id="retorno-form">
+        <div class="field col-2"><label>Garantia acionada</label>
+          <select id="ret-garantia">${optsGar}</select>
+        </div>
+        <div class="field col-2"><label>Problema relatado *</label>
+          <input id="ret-problema" placeholder="Descreva o motivo do retorno…"
+            value="Retorno de garantia — OS ${osNumero}">
+        </div>
+      </div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--primary" id="ret-confirmar">
+         <i class="fa-solid fa-check"></i> Criar OS de Retorno
+       </button>`
+    );
+
+    document.getElementById("ret-confirmar").onclick = async () => {
+      const problema = document.getElementById("ret-problema")?.value.trim();
+      if (!problema) { toast("Descreva o problema", "warning"); return; }
+      const garantia_id = document.getElementById("ret-garantia")?.value || null;
+      const btn = document.getElementById("ret-confirmar");
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Criando…`;
+      try {
+        const r = await API.post(`/api/os/${osId}/retorno`, {
+          problema,
+          garantia_id: garantia_id ? parseInt(garantia_id) : null,
+        });
+        toast(`OS de retorno ${r.os_numero} criada com sucesso`);
+        Modal.fechar();
+        carregar();
+      } catch(e) {
+        toast(e.message, "error");
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-check"></i> Criar OS de Retorno`;
+      }
+    };
+  };
+
   api.abrirChecklist = async function(osId) {
     Modal.abrir(
       `<i class="fa-solid fa-clipboard-check"></i> Checklist de Inspeção — OS ${osId}`,
