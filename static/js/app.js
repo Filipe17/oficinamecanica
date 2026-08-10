@@ -129,6 +129,7 @@ const MENU = [
     { id: "orcamentos", nome: "Orçamentos", icone: "fa-file-invoice-dollar" },
     { id: "agendamentos", nome: "Agendamentos", icone: "fa-calendar-days" },
     { id: "lembretes", nome: "Lembretes de Revisão", icone: "fa-bell" },
+    { id: "garantias", nome: "Garantias", icone: "fa-shield-halved" },
     { id: "nps", nome: "NPS / Avaliações", icone: "fa-star" },
   ]},
   { grupo: "Cadastros", itens: [
@@ -161,7 +162,7 @@ const MENU = [
 const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
   ordem_servico: "ordem_servico", orcamentos: "orcamentos",
-  agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps",
+  agendamentos: "agendamentos", lembretes: "lembretes", garantias: "agendamentos", nps: "nps",
   servicos: "servicos", produtos: "produtos", fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
   financeiro: "financeiro", cobrancas: "cobrancas", mala_direta: "mala_direta", caixa: "caixa",
   relatorios: "relatorios", notas_fiscais: "notas_fiscais", cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
@@ -224,7 +225,7 @@ const Layout = {
       const MODULO_PAGINA = {
         dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
         ordem_servico: "ordem_servico", orcamentos: "orcamentos",
-        agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps", servicos: "servicos", produtos: "produtos",
+        agendamentos: "agendamentos", lembretes: "lembretes", garantias: "agendamentos", nps: "nps", servicos: "servicos", produtos: "produtos",
         fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
         financeiro: "financeiro", cobrancas: "financeiro", mala_direta: "financeiro",
         relatorios: "relatorios", notas_fiscais: "notas_fiscais",
