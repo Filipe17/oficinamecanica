@@ -90,3 +90,65 @@ def excluir(vid):
     query("DELETE FROM veiculos WHERE id=?", (vid,), commit=True)
     registrar_log(session["user_id"], "excluir_veiculo", str(vid))
     return jsonify({"ok": True})
+
+
+@veiculos_bp.route("/api/veiculos/<int:vid>/historico", methods=["GET"])
+@login_obrigatorio
+def historico_veiculo(vid):
+    """
+    Retorna o histórico completo do veículo:
+    - Todas as OS (abertas e finalizadas)
+    - Peças trocadas por OS
+    - Serviços realizados por OS
+    - Quilometragem registrada em cada OS
+    - Evolução de quilometragem
+    """
+    veiculo = query("SELECT * FROM veiculos WHERE id=?", (vid,), fetchone=True)
+    if not veiculo:
+        return jsonify({"erro": "Veículo não encontrado"}), 404
+
+    # Todas as OS do veículo ordenadas por data
+    os_list = query(
+        "SELECT o.id, o.numero, o.data, o.status, o.total, o.problema, "
+        "o.diagnostico, o.horas_trabalhadas, o.quilometragem, o.garantia, "
+        "o.obs_finais, o.mecanico_id, o.eh_orcamento, "
+        "u.nome AS mecanico_nome "
+        "FROM ordens_servico o "
+        "LEFT JOIN usuarios u ON u.id = o.mecanico_id "
+        "WHERE o.veiculo_id=? AND o.eh_orcamento=0 "
+        "ORDER BY o.data DESC, o.id DESC",
+        (vid,))
+
+    # Para cada OS, carrega os itens (peças e serviços)
+    for os in os_list:
+        itens = query(
+            "SELECT tipo, descricao, quantidade, valor_unitario, subtotal, codigo "
+            "FROM os_itens WHERE os_id=? ORDER BY tipo, descricao",
+            (os["id"],))
+        os["pecas"]   = [i for i in itens if i["tipo"] == "produto"]
+        os["servicos_realizados"] = [i for i in itens if i["tipo"] == "servico"]
+
+    # Estatísticas gerais
+    total_os       = len(os_list)
+    total_gasto    = sum(float(o.get("total") or 0) for o in os_list)
+    total_pecas    = sum(len(o["pecas"]) for o in os_list)
+    total_servicos = sum(len(o["servicos_realizados"]) for o in os_list)
+
+    # Evolução de quilometragem (só OS com km registrado)
+    kms = [{"data": o["data"], "km": o["quilometragem"], "os": o["numero"]}
+           for o in os_list if o.get("quilometragem")]
+    kms.sort(key=lambda x: x["data"] or "")
+
+    return jsonify({
+        "veiculo": veiculo,
+        "os_list": os_list,
+        "stats": {
+            "total_os": total_os,
+            "total_gasto": round(total_gasto, 2),
+            "total_pecas": total_pecas,
+            "total_servicos": total_servicos,
+            "primeira_os": os_list[-1]["data"] if os_list else None,
+            "ultima_os": os_list[0]["data"] if os_list else None,
+        },
+        "evolucao_km": kms,
+    })
