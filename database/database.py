@@ -412,20 +412,6 @@ def init_db():
             criado_em TEXT
         )""",
 
-        f"""CREATE TABLE IF NOT EXISTS garantias (
-            id {pk},
-            os_id INTEGER REFERENCES ordens_servico(id),
-            cliente_id INTEGER REFERENCES clientes(id),
-            veiculo_id INTEGER REFERENCES veiculos(id),
-            descricao TEXT,              -- texto da garantia (ex: "3 meses em mão de obra")
-            data_inicio TEXT,            -- data de finalização da OS
-            data_fim TEXT,               -- data calculada de vencimento
-            dias_garantia INTEGER,       -- prazo em dias
-            status TEXT DEFAULT 'vigente', -- vigente | vencida | acionada
-            obs TEXT,
-            criado_em TEXT
-        )""",
-
         f"""CREATE TABLE IF NOT EXISTS lembretes_revisao (
             id {pk},
             cliente_id INTEGER REFERENCES clientes(id),
@@ -588,6 +574,9 @@ def _migrar_colunas():
     _garantir_coluna("financeiro", "cartao_parcelas", "INTEGER DEFAULT 1")
     _garantir_coluna("financeiro", "cartao_taxa", "REAL DEFAULT 0")       # % aplicada
     _garantir_coluna("financeiro", "cartao_valor_liquido", "REAL DEFAULT 0")
+    # OS de retorno por garantia
+    _garantir_coluna("ordens_servico", "os_origem_id", "INTEGER")
+    _garantir_coluna("ordens_servico", "garantia_id", "INTEGER")
     # Carnê / parcelamento
     _garantir_coluna("financeiro", "carne_id",        "TEXT")   # UUID do grupo de parcelas
     _garantir_coluna("financeiro", "num_parcela",     "INTEGER DEFAULT 1")
