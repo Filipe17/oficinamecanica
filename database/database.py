@@ -412,6 +412,20 @@ def init_db():
             criado_em TEXT
         )""",
 
+        f"""CREATE TABLE IF NOT EXISTS garantias (
+            id {pk},
+            os_id INTEGER REFERENCES ordens_servico(id),
+            cliente_id INTEGER REFERENCES clientes(id),
+            veiculo_id INTEGER REFERENCES veiculos(id),
+            descricao TEXT,              -- texto da garantia (ex: "3 meses em mão de obra")
+            data_inicio TEXT,            -- data de finalização da OS
+            data_fim TEXT,               -- data calculada de vencimento
+            dias_garantia INTEGER,       -- prazo em dias
+            status TEXT DEFAULT 'vigente', -- vigente | vencida | acionada
+            obs TEXT,
+            criado_em TEXT
+        )""",
+
         f"""CREATE TABLE IF NOT EXISTS lembretes_revisao (
             id {pk},
             cliente_id INTEGER REFERENCES clientes(id),
