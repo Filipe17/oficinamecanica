@@ -308,6 +308,38 @@ def finalizar(oid):
                 gerar_boleto_interno(fin_id)
             except Exception:
                 pass
+    # Gera registro de garantia se a OS tiver prazo de garantia informado
+    garantia_texto = (o.get("garantia") or "").strip()
+    if garantia_texto and o.get("cliente_id"):
+        import re as _re
+        from datetime import date as _date, timedelta as _td
+        # Tenta extrair número de dias/meses do texto (ex: "3 meses", "90 dias", "6 meses")
+        dias_gar = None
+        m = _re.search(r"(\d+)\s*(mes|mês|meses)", garantia_texto, _re.IGNORECASE)
+        if m:
+            dias_gar = int(m.group(1)) * 30
+        else:
+            m = _re.search(r"(\d+)\s*(dia|dias)", garantia_texto, _re.IGNORECASE)
+            if m:
+                dias_gar = int(m.group(1))
+            else:
+                m = _re.search(r"(\d+)\s*(ano|anos)", garantia_texto, _re.IGNORECASE)
+                if m:
+                    dias_gar = int(m.group(1)) * 365
+        if dias_gar:
+            hoje = _date.today()
+            data_fim = (hoje + _td(days=dias_gar)).isoformat()
+            # Evita duplicata para a mesma OS
+            existe = query("SELECT id FROM garantias WHERE os_id=?", (oid,), fetchone=True)
+            if not existe:
+                query(
+                    "INSERT INTO garantias (os_id, cliente_id, veiculo_id, descricao, "
+                    "data_inicio, data_fim, dias_garantia, status, criado_em) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (oid, o["cliente_id"], o.get("veiculo_id"), garantia_texto,
+                     hoje.isoformat(), data_fim, dias_gar, "vigente", now()),
+                    commit=True)
+
     registrar_log(session["user_id"], "finalizar_os", str(oid))
     return jsonify({"ok": True})
 
