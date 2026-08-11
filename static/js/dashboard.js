@@ -157,4 +157,67 @@
       });
     } else semDados("g-fluxo");
   } catch (_) { semDados("g-fluxo"); }
+
+  // Card de aniversariantes
+  try {
+    const r = await API.get("/api/clientes/aniversariantes?dias=7");
+    const lista = r.dados || [];
+    if (lista.length) {
+      const cfg = Layout.config || {};
+      const empresa = cfg.empresa_nome || "Oficina";
+      const hoje = lista.filter((c) => c.dias_para_aniversario === 0);
+      const proximos = lista.filter((c) => c.dias_para_aniversario > 0);
+
+      const renderLinha = (c) => {
+        const zap = c.whatsapp || c.telefone;
+        const msgWpp = encodeURIComponent(
+          `Olá ${c.nome.split(" ")[0]}! 🎂 Feliz Aniversário! A equipe da ${empresa} deseja muita saúde e alegria nesse dia especial! 🎉`
+        );
+        return `<div style="display:flex;justify-content:space-between;align-items:center;
+          padding:.45rem 0;border-bottom:1px solid var(--border,#eee)">
+          <div>
+            <span style="font-size:1rem">${c.dias_para_aniversario === 0 ? "🎂" : "🎁"}</span>
+            <strong style="margin-left:4px">${c.nome}</strong>
+            <span style="font-size:.75rem;color:var(--text-muted);margin-left:6px">
+              ${c.idade} anos${c.dias_para_aniversario > 0 ? ` · em ${c.dias_para_aniversario} dia(s)` : " · HOJE!"}
+            </span>
+          </div>
+          <div style="display:flex;gap:.3rem">
+            ${zap ? `<a class="icon-btn btn--sm" href="https://wa.me/55${String(zap).replace(/\D/g,"")}?text=${msgWpp}" target="_blank">
+              <i class="fa-brands fa-whatsapp" style="color:#25d366"></i></a>` : ""}
+            ${c.email ? `<button class="icon-btn btn--sm"
+              onclick="window.__dashEnviarParabens(${c.id},'${c.email}','${c.nome.split(' ')[0]}')">
+              <i class="fa-solid fa-envelope"></i></button>` : ""}
+          </div>
+        </div>`;
+      };
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.cssText = "border-left:4px solid #f59e0b;margin-bottom:1rem";
+      card.innerHTML = `
+        <div class="card__head" style="display:flex;align-items:center;gap:.5rem">
+          <i class="fa-solid fa-cake-candles" style="color:#f59e0b"></i>
+          Aniversariantes
+          ${hoje.length ? `<span class="badge badge--warning" style="margin-left:auto">${hoje.length} hoje</span>` : ""}
+        </div>
+        <div class="card__body">
+          ${hoje.length ? `<p style="font-size:.78rem;font-weight:700;color:#f59e0b;margin-bottom:.25rem">HOJE</p>${hoje.map(renderLinha).join("")}` : ""}
+          ${proximos.length ? `<p style="font-size:.78rem;font-weight:700;color:var(--text-muted);margin:.6rem 0 .25rem">PRÓXIMOS 7 DIAS</p>${proximos.map(renderLinha).join("")}` : ""}
+        </div>`;
+
+      // Insere antes do primeiro card de gráfico
+      const grids = document.querySelectorAll(".card");
+      if (grids.length) grids[0].parentElement.insertBefore(card, grids[0]);
+
+      window.__dashEnviarParabens = async (cid, email, nome) => {
+        if (!confirm(`Enviar email de parabéns para ${nome}?`)) return;
+        try {
+          await API.post(`/api/clientes/${cid}/parabens`, { email });
+          toast(`🎂 Email enviado para ${nome}!`);
+        } catch(e) { toast(e.message, "error"); }
+      };
+    }
+  } catch(_) {}
+
 })();
