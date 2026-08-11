@@ -474,28 +474,43 @@
     },
   };
 
-  crud.montar();
-
   // -----------------------------------------------------------------------
-  // Campo de foto no modal de produto
+  // Campo de foto — usa o gancho aoAbrirForm do Crud
   // -----------------------------------------------------------------------
-  const _origAbrirForm = window.__crud.abrirForm.bind(window.__crud);
-  window.__crud.abrirForm = function(registro) {
-    _origAbrirForm(registro);
-    setTimeout(() => _injetarCampoFoto(registro || {}), 80);
+  crud.cfg.aoAbrirForm = function(registro) {
+    function tentar(n) {
+      const form = document.getElementById("crud-form");
+      if (form) { _injetarCampoFoto(registro || {}); return; }
+      if (n > 0) setTimeout(() => tentar(n - 1), 60);
+    }
+    tentar(8); // tenta por até 480ms
   };
 
+  // Patch no _coletar para incluir foto nos dados ao salvar
+  const _origColetar = crud._coletar.bind(crud);
+  crud._coletar = function() {
+    const dados = _origColetar();
+    const fotoDados = document.getElementById("prod-foto-dados")?.value;
+    if (fotoDados === "__remover__") dados.foto = "";
+    else if (fotoDados && fotoDados.startsWith("data:")) dados.foto = fotoDados;
+    return dados;
+  };
+
+  crud.montar();
+
   function _injetarCampoFoto(registro) {
-    if (document.getElementById("prod-foto-wrap")) return; // já injetado
+    if (document.getElementById("prod-foto-wrap")) return;
     const form = document.getElementById("crud-form");
     if (!form) return;
 
     const fotoAtual = registro?.foto || "";
     const wrap = document.createElement("div");
     wrap.id = "prod-foto-wrap";
-    wrap.style.cssText = "grid-column:1/-1;display:flex;flex-direction:column;gap:.5rem;margin-top:.25rem";
+    wrap.style.cssText = "grid-column:1/-1;margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--border,#eee)";
     wrap.innerHTML = `
-      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted)">FOTO DO PRODUTO</label>
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.5rem">
+        FOTO DO PRODUTO
+      </label>
       <div style="display:flex;gap:.75rem;align-items:center">
         <div id="prod-foto-preview" style="width:80px;height:80px;border-radius:8px;
           border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;
@@ -510,14 +525,14 @@
             <input type="file" id="prod-foto-input" accept="image/*" style="display:none">
           </label>
           <button class="btn btn--ghost btn--sm" id="prod-foto-remover" type="button">
-            <i class="fa-solid fa-trash"></i> Remover foto
+            <i class="fa-solid fa-trash"></i> Remover
           </button>
         </div>
       </div>
       <input type="hidden" id="prod-foto-dados" value="">`;
     form.appendChild(wrap);
 
-    document.getElementById("prod-foto-input")?.addEventListener("change", async (e) => {
+    document.getElementById("prod-foto-input").addEventListener("change", async (e) => {
       const file = e.target.files?.[0]; if (!file) return;
       const base64 = await new Promise((res) => {
         const canvas = document.createElement("canvas");
@@ -538,21 +553,11 @@
       document.getElementById("prod-foto-dados").value = base64;
     });
 
-    document.getElementById("prod-foto-remover")?.addEventListener("click", () => {
+    document.getElementById("prod-foto-remover").addEventListener("click", () => {
       document.getElementById("prod-foto-preview").innerHTML =
         `<i class="fa-solid fa-image" style="color:#ccc;font-size:1.5rem"></i>`;
       document.getElementById("prod-foto-dados").value = "__remover__";
     });
   }
-
-  // Intercepta _coletar para incluir a foto nos dados enviados
-  const _origColetar = window.__crud._coletar.bind(window.__crud);
-  window.__crud._coletar = function() {
-    const dados = _origColetar();
-    const fotoDados = document.getElementById("prod-foto-dados")?.value;
-    if (fotoDados === "__remover__") dados.foto = "";
-    else if (fotoDados && fotoDados.startsWith("data:")) dados.foto = fotoDados;
-    return dados;
-  };
 
 })();
