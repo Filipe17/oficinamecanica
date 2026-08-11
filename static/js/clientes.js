@@ -55,6 +55,7 @@
       { nome: "bairro", label: "Bairro" },
       { nome: "cidade", label: "Cidade" },
       { nome: "estado", label: "Estado (UF)" },
+      { nome: "data_nascimento", label: "Data de Nascimento", tipo: "date" },
       { nome: "limite_credito", label: "Limite de Crédito (R$)", tipo: "number", placeholder: "0 = sem limite" },
       { nome: "observacoes", label: "Observações", tipo: "textarea", larguraTotal: true },
     ],
