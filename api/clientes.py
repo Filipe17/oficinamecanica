@@ -276,3 +276,41 @@ def enviar_parabens(cid):
 
     registrar_log(session["user_id"], "parabens_email", f"cliente={cid}")
     return jsonify({"ok": True, "enviado_para": email_dest})
+
+
+# =========================================================================
+# HISTÓRICO DE COMUNICAÇÕES
+# =========================================================================
+
+@clientes_bp.route("/api/clientes/<int:cid>/comunicacoes", methods=["GET"])
+@login_obrigatorio
+def listar_comunicacoes(cid):
+    lista = query(
+        "SELECT cc.*, u.nome AS usuario_nome "
+        "FROM clientes_comunicacoes cc "
+        "LEFT JOIN usuarios u ON u.id=cc.usuario_id "
+        "WHERE cc.cliente_id=? ORDER BY cc.id DESC", (cid,))
+    return jsonify({"dados": lista, "total": len(lista)})
+
+
+@clientes_bp.route("/api/clientes/<int:cid>/comunicacoes", methods=["POST"])
+@login_obrigatorio
+def registrar_comunicacao(cid):
+    d = request.get_json(force=True)
+    canal = d.get("canal", "outro")
+    if not d.get("descricao"):
+        return jsonify({"erro": "Descrição é obrigatória"}), 400
+    query(
+        "INSERT INTO clientes_comunicacoes (cliente_id, canal, assunto, descricao, usuario_id, criado_em) "
+        "VALUES (?,?,?,?,?,?)",
+        (cid, canal, d.get("assunto",""), d.get("descricao"), session["user_id"], now()),
+        commit=True)
+    registrar_log(session["user_id"], "comunicacao_cliente", f"cliente={cid} canal={canal}")
+    return jsonify({"ok": True}), 201
+
+
+@clientes_bp.route("/api/clientes/comunicacoes/<int:mid>", methods=["DELETE"])
+@login_obrigatorio
+def excluir_comunicacao(mid):
+    query("DELETE FROM clientes_comunicacoes WHERE id=?", (mid,), commit=True)
+    return jsonify({"ok": True})
