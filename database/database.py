@@ -420,6 +420,16 @@ def init_db():
             criado_em TEXT
         )""",
 
+        f"""CREATE TABLE IF NOT EXISTS clientes_comunicacoes (
+            id {pk},
+            cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+            canal TEXT NOT NULL,   -- ligacao | whatsapp | email | visita | outro
+            assunto TEXT,
+            descricao TEXT,
+            usuario_id INTEGER REFERENCES usuarios(id),
+            criado_em TEXT
+        )""",
+
         f"""CREATE TABLE IF NOT EXISTS lembretes_revisao (
             id {pk},
             cliente_id INTEGER REFERENCES clientes(id),
