@@ -305,6 +305,7 @@
       <button class="btn btn--ghost" onclick="Modal.fechar()">${soLeitura ? "Fechar" : "Cancelar"}</button>
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
       ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirChecklist(${o.id})"><i class="fa-solid fa-clipboard-check"></i> Checklist</button>` : ""}
+      ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirFotos(${o.id})"><i class="fa-solid fa-camera"></i> Fotos</button>` : ""}
       ${ed && !EH_ORC && o.status === "finalizada" ? `<button class="btn btn--outline" onclick="window.__nps?.abrirEnvio(${o.id},${o.cliente_id},'${(o.cliente_nome||'').replace(/'/g,"\'")}','${o.cliente_email||''}','${o.cliente_whatsapp||o.cliente_telefone||''}')"><i class="fa-solid fa-star"></i> NPS</button>` : ""}
       ${ed && !EH_ORC && ["finalizada","finalizada_mecanico"].includes(o.status) ? `<button class="btn btn--outline" onclick="window.__os.abrirRetorno(${o.id},'${(o.numero||'').replace(/'/g,"\'")}')"><i class="fa-solid fa-rotate-left"></i> OS Retorno</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
@@ -900,6 +901,143 @@
   // -----------------------------------------------------------------------
   // OS de Retorno por Garantia
   // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Fotos do veículo na entrada
+  // -----------------------------------------------------------------------
+  api.abrirFotos = async function(osId) {
+    Modal.abrir(
+      `<i class="fa-solid fa-camera"></i> Fotos do Veículo — OS ${osId}`,
+      `<div id="fotos-body"><div class="loading"><i class="fa-solid fa-spinner spin"></i></div></div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>
+       <button class="btn btn--primary" id="fotos-add-btn">
+         <i class="fa-solid fa-camera"></i> Adicionar foto
+       </button>`,
+      true
+    );
+
+    // Input de arquivo oculto
+    let inputFile = document.createElement("input");
+    inputFile.type = "file";
+    inputFile.accept = "image/*";
+    inputFile.capture = "environment"; // câmera traseira no celular
+    inputFile.multiple = true;
+    inputFile.style.display = "none";
+    document.body.appendChild(inputFile);
+
+    async function carregarFotos() {
+      const r = await API.get(`/api/os/${osId}/fotos`);
+      const fotos = r.fotos || [];
+      const alvo = document.getElementById("fotos-body");
+      if (!alvo) return;
+
+      if (!fotos.length) {
+        alvo.innerHTML = `<div class="empty">
+          <i class="fa-solid fa-camera" style="font-size:2rem;color:var(--text-muted);margin-bottom:.5rem"></i>
+          <div>Nenhuma foto registrada</div>
+          <small style="color:var(--text-muted)">Adicione fotos dos danos e arranhões do veículo na entrada</small>
+        </div>`;
+        return;
+      }
+
+      // Grid de miniaturas — carrega os dados de cada foto
+      alvo.innerHTML = `
+        <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:.75rem">
+          ${fotos.length}/10 foto(s) — clique para ampliar
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.6rem"
+          id="fotos-grid"></div>`;
+
+      for (const foto of fotos) {
+        try {
+          const rd = await API.get(`/api/os/${osId}/fotos/${foto.id}/dados`);
+          const card = document.createElement("div");
+          card.style.cssText = "position:relative;border-radius:8px;overflow:hidden;aspect-ratio:4/3;background:#f0f0f0";
+          card.innerHTML = `
+            <img src="${rd.dados}" style="width:100%;height:100%;object-fit:cover;cursor:pointer"
+              onclick="window.__fotos.ampliar('${rd.dados}','${(foto.descricao||'').replace(/'/g,"\'")}')">
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.5);
+              color:#fff;font-size:.7rem;padding:3px 6px;display:flex;justify-content:space-between;align-items:center">
+              <span>${foto.descricao || fmt.data(foto.criado_em)}</span>
+              <button onclick="window.__fotos.excluir(${foto.id})"
+                style="background:none;border:none;color:#fff;cursor:pointer;padding:0;font-size:.75rem">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>`;
+          document.getElementById("fotos-grid")?.appendChild(card);
+        } catch(_) {}
+      }
+    }
+
+    // Adicionar foto
+    document.getElementById("fotos-add-btn").onclick = () => inputFile.click();
+
+    inputFile.onchange = async () => {
+      const files = Array.from(inputFile.files);
+      if (!files.length) return;
+      const btn = document.getElementById("fotos-add-btn");
+      if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Enviando…`; }
+
+      for (const file of files) {
+        // Comprime a imagem antes de enviar
+        const base64 = await new Promise((res) => {
+          const canvas = document.createElement("canvas");
+          const img = new Image();
+          img.onload = () => {
+            const MAX = 1200;
+            let w = img.width, h = img.height;
+            if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+            if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+            res(canvas.toDataURL("image/jpeg", 0.75));
+          };
+          img.src = URL.createObjectURL(file);
+        });
+        try {
+          await API.post(`/api/os/${osId}/fotos`, { dados: base64, descricao: file.name.split(".")[0] });
+        } catch(e) { toast(e.message, "error"); }
+      }
+      inputFile.value = "";
+      if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-camera"></i> Adicionar foto`; }
+      await carregarFotos();
+      toast("Foto(s) salva(s)");
+    };
+
+    window.__fotos = {
+      ampliar(src, desc) {
+        const ov = document.createElement("div");
+        ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:zoom-out";
+        ov.onclick = () => ov.remove();
+        ov.innerHTML = `
+          <img src="${src}" style="max-width:95vw;max-height:88vh;object-fit:contain;border-radius:6px">
+          ${desc ? `<p style="color:#fff;margin-top:.75rem;font-size:.9rem">${desc}</p>` : ""}
+          <button onclick="event.stopPropagation();window.__fotos.baixar('${src}','${desc||'foto'}')"
+            style="margin-top:.5rem;background:#0d9488;color:#fff;border:none;padding:.5rem 1.25rem;
+              border-radius:8px;cursor:pointer;font-size:.9rem">
+            <i class="fa-solid fa-download"></i> Baixar
+          </button>`;
+        document.body.appendChild(ov);
+      },
+      baixar(src, nome) {
+        const a = document.createElement("a");
+        a.href = src; a.download = `${nome}.jpg`; a.click();
+      },
+      async excluir(fid) {
+        if (!confirm("⚠️ Excluir foto\n\nEsta ação não pode ser desfeita.")) return;
+        try {
+          await API.delete(`/api/os/${osId}/fotos/${fid}`);
+          toast("Foto excluída");
+          carregarFotos();
+        } catch(e) { toast(e.message, "error"); }
+      },
+    };
+
+    // Remove o input ao fechar o modal
+    const origFechar = Modal.fechar.bind(Modal);
+
+    carregarFotos();
+  };
+
   api.abrirRetorno = async function(osId, osNumero) {
     // Busca garantias vigentes/acionadas desta OS
     let garantias = [];
