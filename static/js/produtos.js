@@ -487,8 +487,7 @@
 
   function _injetarCampoFoto(registro) {
     if (document.getElementById("prod-foto-wrap")) return; // já injetado
-    const form = document.querySelector("#crud-modal .form-grid") ||
-                 document.querySelector(".modal .form-grid");
+    const form = document.getElementById("crud-form");
     if (!form) return;
 
     const fotoAtual = registro?.foto || "";
