@@ -482,12 +482,14 @@
   // Campo de foto — usa o gancho aoAbrirForm do Crud
   // -----------------------------------------------------------------------
   crud.cfg.aoAbrirForm = function(registro) {
+    // Não mostra campo de foto para variações de grade
+    if (registro?.produto_pai_id) return;
     function tentar(n) {
       const form = document.getElementById("crud-form");
       if (form) { _injetarCampoFoto(registro || {}); return; }
       if (n > 0) setTimeout(() => tentar(n - 1), 60);
     }
-    tentar(8); // tenta por até 480ms
+    tentar(8);
   };
 
   // Patch no _coletar para incluir foto nos dados ao salvar
