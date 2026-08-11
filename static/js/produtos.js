@@ -140,6 +140,10 @@
     ordemPadrao: "nome",
     modalGrande: true,
     colunas: [
+      { chave: "foto", titulo: "", render: (v) =>
+          v ? `<img src="${v}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block">` :
+              `<div style="width:38px;height:38px;border-radius:6px;border:1px dashed #ddd;background:#f8f9fa;display:flex;align-items:center;justify-content:center">
+                <i class="fa-solid fa-image" style="color:#ddd;font-size:.85rem"></i></div>` },
       { chave: "codigo", titulo: "Código" },
       { chave: "nome", titulo: "Nome", render: (v, row) => {
           const tag = row.produto_pai_id
