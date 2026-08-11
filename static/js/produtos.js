@@ -170,12 +170,7 @@
           return badge + btn;
         }},
       { chave: "_margem", titulo: "Margem", render: (v) => (v != null ? `${v}%` : "-") },
-      { chave: "_grade", titulo: "Grade", render: (v, row) => {
-          if (row.produto_pai_id) return "—";
-          return `<button class="btn btn--sm btn--outline" onclick="event.stopPropagation();window.__grade.abrir(${row.id},'${(row.nome||'').replace(/'/g,"\\'")}')">
-            <i class="fa-solid fa-layer-group"></i> Grade
-          </button>`;
-        }},
+
       { chave: "_etiqueta", titulo: "Etiqueta", render: (v, row) => {
           // Guarda os dados no map global e passa só o id — evita problema de aspas no onclick
           window.__etqCache = window.__etqCache || {};
@@ -491,7 +486,9 @@
     if (registro?.produto_pai_id) return;
     function tentar(n) {
       const form = document.getElementById("crud-form");
-      if (form) { _injetarCampoFoto(registro || {}); return; }
+      if (!form) { if (n > 0) setTimeout(() => tentar(n - 1), 60); return; }
+      _injetarCampoFoto(registro || {});
+      _injetarBotaoGrade(registro || {});
       if (n > 0) setTimeout(() => tentar(n - 1), 60);
     }
     tentar(8);
@@ -508,6 +505,30 @@
   };
 
   crud.montar();
+
+  function _injetarBotaoGrade(registro) {
+    if (document.getElementById("prod-grade-wrap")) return;
+    const form = document.getElementById("crud-form");
+    if (!form) return;
+    const wrap = document.createElement("div");
+    wrap.id = "prod-grade-wrap";
+    wrap.style.cssText = "grid-column:1/-1;padding-top:.75rem;border-top:1px solid var(--border,#eee);margin-top:.25rem";
+    const temGrade = registro?.tem_variacoes;
+    wrap.innerHTML = `
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.4rem">
+        GRADE / VARIAÇÕES
+      </label>
+      <div style="display:flex;align-items:center;gap:.75rem">
+        ${temGrade
+          ? `<span style="font-size:.85rem;color:var(--text-muted)">Este produto possui variações cadastradas.</span>`
+          : `<span style="font-size:.85rem;color:var(--text-muted)">Nenhuma variação cadastrada.</span>`}
+        ${registro?.id ? `<button class="btn btn--outline btn--sm" type="button"
+          onclick="Modal.fechar();setTimeout(()=>window.__grade.abrir(${registro.id},'${(registro.nome||'').replace(/'/g,"\'")}'),200)">
+          <i class="fa-solid fa-layer-group"></i> ${temGrade ? "Gerenciar Grade" : "Adicionar Grade"}
+        </button>` : `<span style="font-size:.82rem;color:#aaa">Salve o produto primeiro para adicionar variações.</span>`}
+      </div>`;
+    form.appendChild(wrap);
+  }
 
   function _injetarCampoFoto(registro) {
     if (document.getElementById("prod-foto-wrap")) return;
