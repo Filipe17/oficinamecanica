@@ -141,10 +141,13 @@
     modalGrande: true,
     colunas: [
       { chave: "foto", titulo: "", render: (v, row) => {
-          // Só mostra foto para variações (produto_pai_id) ou produtos simples sem grade
-          // Produtos pai (sem produto_pai_id) só mostram se tiverem foto
-          if (!v) return "";
-          return `<img src="${v}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block">`;
+          if (v) return `<img src="${v}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block">`;
+          // Produto pai com grade — sem ícone
+          if (row.tem_variacoes && !row.produto_pai_id) return "";
+          // Produto simples ou variação sem foto — mostra placeholder
+          return `<div style="width:38px;height:38px;border-radius:6px;border:1px dashed #ddd;
+            background:#f8f9fa;display:flex;align-items:center;justify-content:center">
+            <i class="fa-solid fa-image" style="color:#ddd;font-size:.85rem"></i></div>`;
         }},
       { chave: "codigo", titulo: "Código" },
       { chave: "nome", titulo: "Nome", render: (v, row) => {
