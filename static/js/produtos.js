@@ -141,8 +141,6 @@
     modalGrande: true,
     colunas: [
       { chave: "codigo", titulo: "Código" },
-      { chave: "foto", titulo: "", render: (v) =>
-          v ? `<img src="${v}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;border:1px solid #eee">` : "" },
       { chave: "nome", titulo: "Nome", render: (v, row) => {
           const tag = row.produto_pai_id
             ? `<span style="font-size:.7rem;background:var(--primary-light,#e8f4fd);color:var(--primary);padding:1px 6px;border-radius:99px;margin-left:4px">variação</span>`
@@ -476,23 +474,27 @@
     },
   };
 
-  // Intercepta abertura do modal para injetar o campo de foto
-  const _origAbrir = crud.abrirModal?.bind(crud);
-  if (crud.abrirModal) {
-    crud.abrirModal = function(registro) {
-      _origAbrir(registro);
-      setTimeout(() => _injetarCampoFoto(registro), 50);
-    };
-  }
+  crud.montar();
+
+  // -----------------------------------------------------------------------
+  // Campo de foto no modal de produto
+  // -----------------------------------------------------------------------
+  const _origAbrirForm = window.__crud.abrirForm.bind(window.__crud);
+  window.__crud.abrirForm = function(registro) {
+    _origAbrirForm(registro);
+    setTimeout(() => _injetarCampoFoto(registro || {}), 80);
+  };
 
   function _injetarCampoFoto(registro) {
-    const form = document.getElementById("crud-modal-form") || document.querySelector(".modal .form-grid");
-    if (!form || document.getElementById("prod-foto-wrap")) return;
+    if (document.getElementById("prod-foto-wrap")) return; // já injetado
+    const form = document.querySelector("#crud-modal .form-grid") ||
+                 document.querySelector(".modal .form-grid");
+    if (!form) return;
 
     const fotoAtual = registro?.foto || "";
     const wrap = document.createElement("div");
     wrap.id = "prod-foto-wrap";
-    wrap.style.cssText = "grid-column:1/-1;display:flex;flex-direction:column;gap:.5rem";
+    wrap.style.cssText = "grid-column:1/-1;display:flex;flex-direction:column;gap:.5rem;margin-top:.25rem";
     wrap.innerHTML = `
       <label style="font-size:.82rem;font-weight:600;color:var(--text-muted)">FOTO DO PRODUTO</label>
       <div style="display:flex;gap:.75rem;align-items:center">
@@ -504,19 +506,18 @@
             : `<i class="fa-solid fa-image" style="color:#ccc;font-size:1.5rem"></i>`}
         </div>
         <div style="display:flex;flex-direction:column;gap:.4rem">
-          <label class="btn btn--outline btn--sm" style="cursor:pointer">
+          <label class="btn btn--outline btn--sm" style="cursor:pointer;margin:0">
             <i class="fa-solid fa-upload"></i> Escolher foto
             <input type="file" id="prod-foto-input" accept="image/*" style="display:none">
           </label>
-          ${fotoAtual ? `<button class="btn btn--ghost btn--sm" id="prod-foto-remover">
-            <i class="fa-solid fa-trash"></i> Remover
-          </button>` : ""}
+          <button class="btn btn--ghost btn--sm" id="prod-foto-remover" type="button">
+            <i class="fa-solid fa-trash"></i> Remover foto
+          </button>
         </div>
       </div>
-      <input type="hidden" id="prod-foto-dados" value="${fotoAtual ? '1' : ''}">`;
+      <input type="hidden" id="prod-foto-dados" value="">`;
     form.appendChild(wrap);
 
-    // Preview ao selecionar arquivo
     document.getElementById("prod-foto-input")?.addEventListener("change", async (e) => {
       const file = e.target.files?.[0]; if (!file) return;
       const base64 = await new Promise((res) => {
@@ -529,7 +530,7 @@
           if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
           canvas.width = w; canvas.height = h;
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-          res(canvas.toDataURL("image/jpeg", 0.80));
+          res(canvas.toDataURL("image/jpeg", 0.82));
         };
         img.src = URL.createObjectURL(file);
       });
@@ -545,31 +546,14 @@
     });
   }
 
-  // Intercepta o salvar para incluir a foto
-  const _origSalvar = crud.salvar?.bind(crud);
-  if (crud.salvar) {
-    crud.salvar = async function() {
-      const fotoDados = document.getElementById("prod-foto-dados")?.value;
-      if (fotoDados !== undefined) {
-        this._fotoInjecao = fotoDados === "__remover__" ? "" :
-                            (fotoDados && fotoDados.startsWith("data:") ? fotoDados : undefined);
-      }
-      return _origSalvar();
-    };
-  }
+  // Intercepta _coletar para incluir a foto nos dados enviados
+  const _origColetar = window.__crud._coletar.bind(window.__crud);
+  window.__crud._coletar = function() {
+    const dados = _origColetar();
+    const fotoDados = document.getElementById("prod-foto-dados")?.value;
+    if (fotoDados === "__remover__") dados.foto = "";
+    else if (fotoDados && fotoDados.startsWith("data:")) dados.foto = fotoDados;
+    return dados;
+  };
 
-  // Patch no coletar dados para incluir foto
-  const _origColetar = crud._coletar?.bind(crud);
-  if (crud._coletar) {
-    crud._coletar = function() {
-      const dados = _origColetar();
-      if (this._fotoInjecao !== undefined) {
-        dados.foto = this._fotoInjecao;
-        this._fotoInjecao = undefined;
-      }
-      return dados;
-    };
-  }
-
-  crud.montar();
 })();
