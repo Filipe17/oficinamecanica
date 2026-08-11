@@ -84,13 +84,13 @@ def criar_produto():
     res = query(
         "INSERT INTO produtos (codigo, codigo_barras, nome, categoria, marca, "
         "fornecedor_id, localizacao, preco_compra, preco_venda, estoque_atual, "
-        "estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, comissao_percentual, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, comissao_percentual, foto, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get("codigo"), d.get("codigo_barras"), d.get("nome"), d.get("categoria"),
          d.get("marca"), d.get("fornecedor_id"), d.get("localizacao"),
          d.get("preco_compra", 0), d.get("preco_venda", 0), d.get("estoque_atual", 0),
          d.get("estoque_minimo", 0), d.get("estoque_maximo", 0), d.get("ncm"),
-         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), now()),
+         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), d.get("foto") or None, now()),
         commit=True,
     )
     registrar_log(session["user_id"], "criar_produto", d.get("nome"))
@@ -105,12 +105,12 @@ def editar_produto(pid):
         "UPDATE produtos SET codigo=?, codigo_barras=?, nome=?, categoria=?, marca=?, "
         "fornecedor_id=?, localizacao=?, preco_compra=?, preco_venda=?, "
         "estoque_minimo=?, estoque_maximo=?, ncm=?, cfop=?, cest=?, ean=?, "
-        "comissao_percentual=? WHERE id=?",
+        "comissao_percentual=?, foto=? WHERE id=?",
         (d.get("codigo"), d.get("codigo_barras"), d.get("nome"), d.get("categoria"),
          d.get("marca"), d.get("fornecedor_id"), d.get("localizacao"),
          d.get("preco_compra", 0), d.get("preco_venda", 0),
          d.get("estoque_minimo", 0), d.get("estoque_maximo", 0), d.get("ncm"),
-         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), pid),
+         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), d.get("foto") or None, pid),
         commit=True,
     )
     registrar_log(session["user_id"], "editar_produto", str(pid))
