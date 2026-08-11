@@ -617,3 +617,62 @@ def criar_os_retorno(oid):
         "os_numero": novo_numero,
         "os_origem": os_orig.get("numero"),
     }), 201
+
+
+# =========================================================================
+# FOTOS DO VEÍCULO NA ENTRADA
+# =========================================================================
+
+@os_bp.route("/api/os/<int:oid>/fotos", methods=["GET"])
+@login_obrigatorio
+def listar_fotos(oid):
+    fotos = query("SELECT id, descricao, criado_em FROM os_fotos WHERE os_id=? ORDER BY id",
+                  (oid,))
+    return jsonify({"fotos": fotos, "total": len(fotos)})
+
+
+@os_bp.route("/api/os/<int:oid>/fotos/<int:fid>/dados", methods=["GET"])
+@login_obrigatorio
+def obter_foto(oid, fid):
+    """Retorna o base64 de uma foto específica."""
+    foto = query("SELECT dados FROM os_fotos WHERE id=? AND os_id=?",
+                 (fid, oid), fetchone=True)
+    if not foto:
+        return jsonify({"erro": "Foto não encontrada"}), 404
+    return jsonify({"dados": foto["dados"]})
+
+
+@os_bp.route("/api/os/<int:oid>/fotos", methods=["POST"])
+@login_obrigatorio
+def salvar_foto(oid):
+    """Salva uma foto em base64. Limita a 10 fotos por OS e ~2MB por foto."""
+    o = query("SELECT id FROM ordens_servico WHERE id=?", (oid,), fetchone=True)
+    if not o:
+        return jsonify({"erro": "OS não encontrada"}), 404
+
+    total = query("SELECT COUNT(*) AS n FROM os_fotos WHERE os_id=?",
+                  (oid,), fetchone=True)["n"]
+    if total >= 10:
+        return jsonify({"erro": "Limite de 10 fotos por OS atingido"}), 400
+
+    d = request.get_json(force=True)
+    dados = d.get("dados", "")
+    if not dados or not dados.startswith("data:image"):
+        return jsonify({"erro": "Imagem inválida"}), 400
+
+    # Limita tamanho (~2MB em base64 = ~1.5MB real)
+    if len(dados) > 2_800_000:
+        return jsonify({"erro": "Imagem muito grande. Máximo 2MB."}), 400
+
+    res = query(
+        "INSERT INTO os_fotos (os_id, dados, descricao, criado_em) VALUES (?,?,?,?)",
+        (oid, dados, d.get("descricao", ""), now()), commit=True)
+    registrar_log(session["user_id"], "foto_os", f"os={oid}")
+    return jsonify({"ok": True, "id": res["_lastid"]}), 201
+
+
+@os_bp.route("/api/os/<int:oid>/fotos/<int:fid>", methods=["DELETE"])
+@login_obrigatorio
+def excluir_foto(oid, fid):
+    query("DELETE FROM os_fotos WHERE id=? AND os_id=?", (fid, oid), commit=True)
+    return jsonify({"ok": True})
