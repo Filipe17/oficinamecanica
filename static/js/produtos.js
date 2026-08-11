@@ -169,6 +169,7 @@
       { chave: "_margem", titulo: "Margem", render: (v) => (v != null ? `${v}%` : "-") },
       { chave: "_grade", titulo: "Grade", render: (v, row) => {
           if (row.produto_pai_id) return "—";
+          if (!row.tem_variacoes) return "";
           return `<button class="btn btn--sm btn--outline" onclick="event.stopPropagation();window.__grade.abrir(${row.id},'${(row.nome||'').replace(/'/g,"\\'")}')">
             <i class="fa-solid fa-layer-group"></i> Grade
           </button>`;
