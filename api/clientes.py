@@ -158,3 +158,121 @@ def situacao_credito(cid):
         "limite_atingido": limite > 0 and saldo >= limite,
         "limite_proximo": limite > 0 and saldo >= (limite * 0.8),  # >= 80% usado
     })
+
+
+# =========================================================================
+# ANIVERSARIANTES
+# =========================================================================
+
+@clientes_bp.route("/api/clientes/aniversariantes", methods=["GET"])
+@login_obrigatorio
+def aniversariantes():
+    """
+    Retorna clientes que fazem aniversário hoje ou nos próximos N dias.
+    Requer campo data_nascimento preenchido.
+    """
+    dias = int(request.args.get("dias", 0))  # 0 = só hoje, 7 = próximos 7 dias
+    from datetime import date, timedelta
+
+    hoje = date.today()
+    lista = query(
+        "SELECT id, nome, telefone, whatsapp, email, data_nascimento "
+        "FROM clientes WHERE data_nascimento IS NOT NULL AND data_nascimento != '' "
+        "ORDER BY nome")
+
+    aniversariantes = []
+    for c in lista:
+        try:
+            dn = c["data_nascimento"][:10]  # YYYY-MM-DD
+            mes_dia = dn[5:]  # MM-DD
+            # Compara só mês e dia
+            for delta in range(dias + 1):
+                alvo = hoje + timedelta(days=delta)
+                alvo_str = alvo.strftime("%m-%d")
+                if mes_dia == alvo_str:
+                    ano_nasc = int(dn[:4])
+                    idade = alvo.year - ano_nasc
+                    c["idade"] = idade
+                    c["dias_para_aniversario"] = delta
+                    c["data_aniversario"] = alvo.isoformat()
+                    aniversariantes.append(c)
+                    break
+        except Exception:
+            continue
+
+    aniversariantes.sort(key=lambda x: x["dias_para_aniversario"])
+    return jsonify({"dados": aniversariantes, "total": len(aniversariantes)})
+
+
+@clientes_bp.route("/api/clientes/<int:cid>/parabens", methods=["POST"])
+@login_obrigatorio
+def enviar_parabens(cid):
+    """Envia email de parabéns via SMTP para o cliente."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from api.configuracoes import obter_config
+    from datetime import date
+
+    c = query("SELECT * FROM clientes WHERE id=?", (cid,), fetchone=True)
+    if not c:
+        return jsonify({"erro": "Cliente não encontrado"}), 404
+
+    email_dest = (request.get_json(force=True).get("email") or c.get("email") or "").strip()
+    if not email_dest:
+        return jsonify({"erro": "Cliente sem email cadastrado"}), 400
+
+    cfg = obter_config()
+    smtp_host = cfg.get("smtp_host","").strip()
+    smtp_porta = int(cfg.get("smtp_porta") or 587)
+    smtp_user  = cfg.get("smtp_usuario","").strip()
+    smtp_pass  = cfg.get("smtp_senha","").strip()
+    smtp_ssl   = str(cfg.get("smtp_ssl","")).lower() in ("1","true","sim")
+    email_rem  = cfg.get("smtp_email_remetente") or smtp_user
+    nome_rem   = cfg.get("smtp_nome_remetente") or cfg.get("empresa_nome") or "Oficina"
+    empresa    = cfg.get("empresa_nome") or "Oficina"
+    tel        = cfg.get("empresa_telefone") or ""
+
+    if not smtp_host or not smtp_user or not smtp_pass:
+        return jsonify({"erro": "Configure o SMTP em Configurações"}), 400
+
+    nome = c.get("nome","").split()[0]  # primeiro nome
+    hoje = date.today().strftime("%d/%m/%Y")
+
+    html = f"""<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+      <div style="background:linear-gradient(135deg,#0d9488,#0f766e);padding:30px 24px;
+        border-radius:12px 12px 0 0;text-align:center">
+        <div style="font-size:3rem;margin-bottom:8px">🎂</div>
+        <h2 style="color:#fff;margin:0;font-size:1.4rem">Feliz Aniversário, {nome}!</h2>
+        <p style="color:#ccfbf1;margin:6px 0 0">De toda a equipe da {empresa}</p>
+      </div>
+      <div style="background:#fff;padding:28px 24px;border:1px solid #e0e0e0;
+        border-top:none;border-radius:0 0 12px 12px;text-align:center">
+        <p style="font-size:1.05rem;color:#333;line-height:1.7">
+          Neste dia especial, gostaríamos de desejar muito saúde, alegria e prosperidade!<br>
+          Obrigado por confiar em nossos serviços. É sempre um prazer atendê-lo(a)! 🚗✨
+        </p>
+        {f'<p style="margin-top:16px;color:#555">Qualquer necessidade, estamos à disposição:<br><strong>{tel}</strong></p>' if tel else ""}
+        <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+        <p style="font-size:11px;color:#aaa">{empresa} — {hoje}</p>
+      </div>
+    </div>"""
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"🎂 Feliz Aniversário, {nome}! — {empresa}"
+    msg["From"] = f"{nome_rem} <{email_rem}>"
+    msg["To"] = email_dest
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        srv = smtplib.SMTP_SSL(smtp_host, smtp_porta, timeout=15) if smtp_ssl \
+              else smtplib.SMTP(smtp_host, smtp_porta, timeout=15)
+        if not smtp_ssl: srv.starttls()
+        srv.login(smtp_user, smtp_pass)
+        srv.sendmail(email_rem, [email_dest], msg.as_string())
+        srv.quit()
+    except Exception as e:
+        return jsonify({"erro": f"Falha ao enviar email: {e}"}), 500
+
+    registrar_log(session["user_id"], "parabens_email", f"cliente={cid}")
+    return jsonify({"ok": True, "enviado_para": email_dest})
