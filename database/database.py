@@ -412,6 +412,14 @@ def init_db():
             criado_em TEXT
         )""",
 
+        f"""CREATE TABLE IF NOT EXISTS os_fotos (
+            id {pk},
+            os_id INTEGER NOT NULL REFERENCES ordens_servico(id),
+            dados TEXT NOT NULL,       -- imagem em base64 (data:image/jpeg;base64,...)
+            descricao TEXT,            -- ex: "Para-choque dianteiro", "Lateral esquerda"
+            criado_em TEXT
+        )""",
+
         f"""CREATE TABLE IF NOT EXISTS lembretes_revisao (
             id {pk},
             cliente_id INTEGER REFERENCES clientes(id),
