@@ -582,6 +582,7 @@ def _migrar_colunas():
     _garantir_coluna("financeiro", "cartao_parcelas", "INTEGER DEFAULT 1")
     _garantir_coluna("financeiro", "cartao_taxa", "REAL DEFAULT 0")       # % aplicada
     _garantir_coluna("financeiro", "cartao_valor_liquido", "REAL DEFAULT 0")
+    _garantir_coluna("clientes", "data_nascimento", "TEXT")
     # OS de retorno por garantia
     _garantir_coluna("ordens_servico", "os_origem_id", "INTEGER")
     _garantir_coluna("ordens_servico", "garantia_id", "INTEGER")
