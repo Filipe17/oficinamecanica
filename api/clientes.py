@@ -314,3 +314,127 @@ def registrar_comunicacao(cid):
 def excluir_comunicacao(mid):
     query("DELETE FROM clientes_comunicacoes WHERE id=?", (mid,), commit=True)
     return jsonify({"ok": True})
+
+
+# =========================================================================
+# ENVIO AUTOMÁTICO DE PARABÉNS — thread diária às 9h
+# =========================================================================
+
+def _enviar_parabens_automatico():
+    """
+    Roda todo dia às 9h, verifica aniversariantes do dia
+    e envia email automaticamente para cada um com email cadastrado.
+    """
+    import smtplib, time, threading
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from datetime import date, datetime, timedelta
+
+    def _loop():
+        while True:
+            agora = datetime.now()
+            alvo = agora.replace(hour=9, minute=0, second=0, microsecond=0)
+            if agora >= alvo:
+                alvo += timedelta(days=1)
+            time.sleep((alvo - agora).total_seconds())
+
+            try:
+                _disparar_parabens()
+            except Exception as e:
+                print(f"[PARABÉNS] Erro: {e}")
+
+    threading.Thread(target=_loop, daemon=True, name="parabens-diario").start()
+
+
+def _disparar_parabens():
+    """Busca aniversariantes do dia e envia email para cada um."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from datetime import date
+
+    # Importa obter_config dentro da função para evitar import circular
+    from api.configuracoes import obter_config
+    cfg = obter_config()
+
+    smtp_host = cfg.get("smtp_host", "").strip()
+    smtp_porta = int(cfg.get("smtp_porta") or 587)
+    smtp_user  = cfg.get("smtp_usuario", "").strip()
+    smtp_pass  = cfg.get("smtp_senha", "").strip()
+    smtp_ssl   = str(cfg.get("smtp_ssl", "")).lower() in ("1", "true", "sim")
+    email_rem  = cfg.get("smtp_email_remetente") or smtp_user
+    nome_rem   = cfg.get("smtp_nome_remetente") or cfg.get("empresa_nome") or "Oficina"
+    empresa    = cfg.get("empresa_nome") or "Oficina"
+    tel        = cfg.get("empresa_telefone") or ""
+
+    if not smtp_host or not smtp_user or not smtp_pass:
+        print("[PARABÉNS] SMTP não configurado — pulando envio automático")
+        return
+
+    hoje = date.today()
+    mes_dia = hoje.strftime("%m-%d")
+
+    # Busca clientes com aniversário hoje e email cadastrado
+    aniversariantes = query(
+        "SELECT id, nome, email, data_nascimento FROM clientes "
+        "WHERE email IS NOT NULL AND email != '' "
+        "AND data_nascimento IS NOT NULL AND data_nascimento != '' "
+        "AND SUBSTR(data_nascimento, 6, 5) = ?",
+        (mes_dia,))
+
+    if not aniversariantes:
+        print(f"[PARABÉNS] {hoje} — nenhum aniversariante com email")
+        return
+
+    print(f"[PARABÉNS] {hoje} — {len(aniversariantes)} aniversariante(s)")
+
+    try:
+        srv = smtplib.SMTP_SSL(smtp_host, smtp_porta, timeout=15) if smtp_ssl \
+              else smtplib.SMTP(smtp_host, smtp_porta, timeout=15)
+        if not smtp_ssl: srv.starttls()
+        srv.login(smtp_user, smtp_pass)
+
+        for c in aniversariantes:
+            try:
+                nome = (c["nome"] or "").split()[0]
+                ano_nasc = int(c["data_nascimento"][:4])
+                idade = hoje.year - ano_nasc
+                hoje_fmt = hoje.strftime("%d/%m/%Y")
+
+                html = f"""<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+                  <div style="background:linear-gradient(135deg,#0d9488,#0f766e);padding:30px 24px;
+                    border-radius:12px 12px 0 0;text-align:center">
+                    <div style="font-size:3rem;margin-bottom:8px">🎂</div>
+                    <h2 style="color:#fff;margin:0;font-size:1.4rem">Feliz Aniversário, {nome}!</h2>
+                    <p style="color:#ccfbf1;margin:6px 0 0">De toda a equipe da {empresa}</p>
+                  </div>
+                  <div style="background:#fff;padding:28px 24px;border:1px solid #e0e0e0;
+                    border-top:none;border-radius:0 0 12px 12px;text-align:center">
+                    <p style="font-size:1.05rem;color:#333;line-height:1.7">
+                      Neste dia especial em que você completa <strong>{idade} anos</strong>,<br>
+                      gostaríamos de desejar muito saúde, alegria e prosperidade!<br>
+                      Obrigado por confiar em nossos serviços. É sempre um prazer atendê-lo(a)! 🚗✨
+                    </p>
+                    {f'<p style="margin-top:16px;color:#555">Qualquer necessidade, estamos à disposição:<br><strong>{tel}</strong></p>' if tel else ""}
+                    <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+                    <p style="font-size:11px;color:#aaa">{empresa} — {hoje_fmt}</p>
+                  </div>
+                </div>"""
+
+                msg = MIMEMultipart("alternative")
+                msg["Subject"] = f"🎂 Feliz Aniversário, {nome}! — {empresa}"
+                msg["From"] = f"{nome_rem} <{email_rem}>"
+                msg["To"] = c["email"]
+                msg.attach(MIMEText(html, "html", "utf-8"))
+                srv.sendmail(email_rem, [c["email"]], msg.as_string())
+                print(f"[PARABÉNS] Email enviado para {c['nome']} <{c['email']}>")
+            except Exception as e:
+                print(f"[PARABÉNS] Erro ao enviar para {c.get('nome')}: {e}")
+
+        srv.quit()
+    except Exception as e:
+        print(f"[PARABÉNS] Erro SMTP: {e}")
+
+
+# Inicia o agendador automático junto com o módulo
+_enviar_parabens_automatico()
