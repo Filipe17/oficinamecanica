@@ -89,6 +89,44 @@
           <input name="empresa_inscricao_municipal" value="${c.empresa_inscricao_municipal || ""}" placeholder="Número da inscrição na prefeitura"></div>
       </div>
 
+      <h3 style="margin:22px 0 4px;font-size:15px">NFC-e — Cupom Fiscal Eletrônico (PDV/Caixa)</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
+        Configurações para emissão de NFC-e no Caixa. Usa o mesmo provedor da NF-e configurado acima.
+        O CSC (Código de Segurança do Contribuinte) é fornecido pela SEFAZ do seu estado.
+      </p>
+      <div class="form-grid" id="cfg-form-nfce">
+        <div class="field">
+          <label>NFC-e ativa?</label>
+          <select name="nfce_ativo">
+            <option value="0" ${(c.nfce_ativo||"0")==="0"?"selected":""}>Não (desativada)</option>
+            <option value="1" ${(c.nfce_ativo||"")==="1"?"selected":""}>Sim — emitir NFC-e no caixa</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Série da NFC-e</label>
+          <input name="nfce_serie" value="${c.nfce_serie||"1"}" placeholder="Geralmente 1">
+        </div>
+        <div class="field">
+          <label>Número inicial</label>
+          <input type="number" name="nfce_numero_inicial" value="${c.nfce_numero_inicial||"1"}" min="1">
+        </div>
+        <div class="field">
+          <label>CSC ID</label>
+          <input name="nfce_csc_id" value="${c.nfce_csc_id||""}" placeholder="ID do CSC (ex: 1)">
+        </div>
+        <div class="field col-2">
+          <label>CSC (Código de Segurança do Contribuinte)</label>
+          <input name="nfce_csc" value="${c.nfce_csc||""}" placeholder="Código fornecido pela SEFAZ do seu estado" autocomplete="off">
+        </div>
+        <div class="field col-2">
+          <p style="font-size:.8rem;color:var(--text-muted);margin:0">
+            <i class="fa-solid fa-circle-info"></i>
+            O token/chave da API do provedor é o mesmo configurado na seção NF-e acima.
+            Após configurar, o botão "Emitir NFC-e" aparecerá no Caixa.
+          </p>
+        </div>
+      </div>
+
       <h3 style="margin:22px 0 4px;font-size:15px">Boleto Bancário</h3>
       <p class="text-muted" style="margin:0 0 12px;font-size:13px">Escolha como os boletos serão emitidos. Preencha após contratar/habilitar.</p>
       <div class="form-grid" id="cfg-form-boleto">
@@ -301,7 +339,7 @@
 
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
-    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"], #cfg-form-etiqueta [name="${n}"]`)?.value || "").trim();
+    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-nfce [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"], #cfg-form-etiqueta [name="${n}"]`)?.value || "").trim();
     const dados = {
       empresa_nome: val("empresa_nome"),
       empresa_cnpj: val("empresa_cnpj"),
@@ -318,6 +356,11 @@
       nfe_provedor: val("nfe_provedor"),
       nfe_ambiente: val("nfe_ambiente"),
       nfe_token: val("nfe_token"),
+      nfce_ativo: val("nfce_ativo"),
+      nfce_serie: val("nfce_serie"),
+      nfce_numero_inicial: val("nfce_numero_inicial"),
+      nfce_csc: val("nfce_csc"),
+      nfce_csc_id: val("nfce_csc_id"),
       boleto_metodo: val("boleto_metodo"),
       boleto_provedor: val("boleto_provedor"),
       boleto_ambiente: val("boleto_ambiente"),

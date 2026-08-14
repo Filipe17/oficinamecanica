@@ -207,6 +207,8 @@
         <div class="cx-cob__valor">${money(c.valor)}</div>
         <button class="btn btn--success btn--sm" onclick="window.__cx.receber(${c.id}, ${c.valor})">
           <i class="fa-solid fa-hand-holding-dollar"></i> Receber</button>
+        ${(Layout.config?.nfce_ativo === "1") ? `<button class="btn btn--outline btn--sm" onclick="window.__cx.emitirNFCe(${c.id})" title="Emitir NFC-e">
+          <i class="fa-solid fa-receipt"></i> NFC-e</button>` : ""}
       </div>`).join("") : `<div class="cx-vazio-min">Nenhuma cobrança em aberto. 🎉</div>`;
   }
 
@@ -401,6 +403,74 @@
     };
   }
 
-  const api = { receber, recarregar: boot };
+  /* ----------------------------------------------------------- NFC-e */
+  async function emitirNFCe(financeiro_id) {
+    const cfg = Layout.config || {};
+    if (cfg.nfce_ativo !== "1") {
+      toast("NFC-e não está ativa. Configure em Configurações → NFC-e.", "warning"); return;
+    }
+    if (!cfg.nfe_provedor || !cfg.nfe_token) {
+      toast("Configure o provedor e token da NF-e em Configurações.", "warning"); return;
+    }
+
+    Modal.abrir(
+      `<i class="fa-solid fa-receipt"></i> Emitir NFC-e`,
+      `<div style="padding:.5rem 0">
+        <p style="margin-bottom:1rem;color:var(--text-muted);font-size:.85rem">
+          Confirme os dados antes de emitir o cupom fiscal eletrônico.
+        </p>
+        <div class="form-grid">
+          <div class="field col-2"><label>CPF/CNPJ do consumidor (opcional)</label>
+            <input id="nfce-cpf" placeholder="Deixe vazio para consumidor não identificado"
+              maxlength="18">
+          </div>
+          <div class="field col-2">
+            <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.75rem;font-size:.83rem">
+              <strong>⚠️ Atenção:</strong> A emissão de NFC-e é irreversível e tem validade fiscal.
+              Certifique-se de que os dados estão corretos antes de emitir.
+            </div>
+          </div>
+          <div class="field col-2">
+            <div style="background:#e0f2fe;border:1px solid #0d9488;border-radius:8px;padding:.75rem;font-size:.83rem">
+              <strong>Provedor:</strong> ${cfg.nfe_provedor} &nbsp;|&nbsp;
+              <strong>Ambiente:</strong> ${cfg.nfe_ambiente === "producao" ? "🟢 Produção" : "🟡 Homologação (teste)"}
+            </div>
+          </div>
+        </div>
+      </div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--primary" id="nfce-emitir-btn">
+         <i class="fa-solid fa-paper-plane"></i> Emitir NFC-e
+       </button>`
+    );
+
+    document.getElementById("nfce-emitir-btn").onclick = async () => {
+      const btn = document.getElementById("nfce-emitir-btn");
+      const cpf = document.getElementById("nfce-cpf")?.value.trim() || "";
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Emitindo…`;
+      try {
+        const r = await API.post("/api/nfce/emitir", {
+          financeiro_id,
+          cpf_cnpj_consumidor: cpf,
+        });
+        Modal.fechar();
+        if (r.danfe_url) {
+          window.open(r.danfe_url, "_blank");
+          toast("NFC-e emitida! DANFE aberto em nova aba.");
+        } else if (r.xml) {
+          toast("NFC-e emitida com sucesso!");
+        } else {
+          toast("NFC-e emitida! Consulte o provedor para o DANFE.");
+        }
+      } catch(e) {
+        toast(e.message || "Erro ao emitir NFC-e", "error");
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Emitir NFC-e`;
+      }
+    };
+  }
+
+  const api = { receber, recarregar: boot, emitirNFCe };
   await boot();
 })();
