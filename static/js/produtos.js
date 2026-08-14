@@ -468,10 +468,10 @@
   // Campo de foto — usa o gancho aoAbrirForm do Crud
   // -----------------------------------------------------------------------
   crud.cfg.aoAbrirForm = function(registro) {
-    if (registro?.produto_pai_id) return;
-    // crud-form já existe quando aoAbrirForm é chamado — injeta direto
+    // Todos os produtos têm campo de foto
+    // Produto pai: também mostra botão de grade
     _injetarCampoFoto(registro || {});
-    _injetarBotaoGrade(registro || {});
+    if (!registro?.produto_pai_id) _injetarBotaoGrade(registro || {});
   };
 
   // Patch no _coletar para incluir foto nos dados ao salvar
