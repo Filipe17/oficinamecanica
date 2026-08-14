@@ -237,3 +237,110 @@ def fechar():
     relatorio.update({"esperado": t["saldo"], "informado": informado, "diferenca": diferenca,
                       "qtd_recebimentos": qtd_receb, "aberto_em": caixa["aberto_em"], "fechado_em": now()})
     return jsonify({"ok": True, "relatorio": relatorio})
+
+
+# =========================================================================
+# NFC-e — Cupom Fiscal Eletrônico (esqueleto dual-mode)
+# =========================================================================
+
+@caixa_bp.route("/api/nfce/emitir", methods=["POST"])
+@login_obrigatorio
+@perfil_permitido("administrador", "gerente", "caixa")
+def emitir_nfce():
+    from api.configuracoes import obter_config
+    d = request.get_json(force=True)
+    financeiro_id = d.get("financeiro_id")
+    cpf_cnpj = d.get("cpf_cnpj_consumidor", "")
+
+    if not financeiro_id:
+        return jsonify({"erro": "financeiro_id é obrigatório"}), 400
+
+    cfg = obter_config()
+    modo     = cfg.get("nfe_modo", "")
+    provedor = cfg.get("nfe_provedor", "")
+    token    = cfg.get("nfe_token", "")
+    ambiente = cfg.get("nfe_ambiente", "homologacao")
+
+    if cfg.get("nfce_ativo") != "1":
+        return jsonify({"erro": "NFC-e não está ativa nas configurações"}), 400
+
+    fin = query("SELECT * FROM financeiro WHERE id=?", (financeiro_id,), fetchone=True)
+    if not fin:
+        return jsonify({"erro": "Lançamento não encontrado"}), 404
+
+    # ================================================================
+    # MODO 1: VIA PROVEDOR (Focus NFe, PlugNotas, NFe.io, eNotas...)
+    # ================================================================
+    if modo == "provedor":
+        if not provedor or not token:
+            return jsonify({"erro": "Configure o provedor e token em Configurações"}), 400
+
+        # TODO: descomentar e adaptar conforme o provedor do cliente
+        #
+        # if provedor == "focus":
+        #     import requests
+        #     base = "homologacao" if ambiente == "homologacao" else "api"
+        #     url = f"https://{base}.focusnfe.com.br/v2/nfce"
+        #     payload = {
+        #         "cnpj_emitente": cfg.get("empresa_cnpj","").replace(".","").replace("/","").replace("-",""),
+        #         "ref": f"nfce_{financeiro_id}",
+        #         "consumidor": {"cpf": cpf_cnpj} if cpf_cnpj else {},
+        #         "items": [],  # montar com os itens da venda
+        #     }
+        #     resp = requests.post(url, json=payload, auth=(token, ""))
+        #     data = resp.json()
+        #     return jsonify({"ok": True, "danfe_url": data.get("danfe_url")})
+        #
+        # elif provedor == "plugnotas":
+        #     import requests
+        #     url = "https://api.plugnotas.com.br/nfce"
+        #     headers = {"x-api-key": token, "Content-Type": "application/json"}
+        #     resp = requests.post(url, json={}, headers=headers)
+        #     return jsonify(resp.json())
+        #
+        # elif provedor == "nfeio":
+        #     import requests
+        #     url = f"https://api.nfe.io/v1/companies/{cfg.get('empresa_cnpj','')}/consumernotes"
+        #     resp = requests.post(url, json={}, headers={"Authorization": token})
+        #     return jsonify(resp.json())
+
+        registrar_log(session["user_id"], "nfce_tentativa", f"financeiro={financeiro_id} modo=provedor")
+        return jsonify({
+            "ok": False,
+            "erro": f"Provedor '{provedor}' — implemente em api/caixa.py → emitir_nfce() → MODO 1.",
+            "modo": "provedor", "provedor": provedor,
+        }), 501
+
+    # ================================================================
+    # MODO 2: CERTIFICADO PRÓPRIO A1 — DIRETO COM SEFAZ
+    # ================================================================
+    elif modo == "certificado":
+        cert_b64  = cfg.get("nfe_certificado_pfx", "")
+        cert_pass = cfg.get("nfe_certificado_senha", "")
+
+        if not cert_b64:
+            return jsonify({"erro": "Certificado A1 não carregado nas configurações"}), 400
+        if not cert_pass:
+            return jsonify({"erro": "Senha do certificado não configurada"}), 400
+
+        # TODO: implementar emissão direta com SEFAZ
+        # Passos:
+        # 1. cert_bytes = base64.b64decode(cert_b64.split(",")[1])
+        # 2. pfx = load_pkcs12(cert_bytes, cert_pass.encode())  # cryptography
+        # 3. xml = _gerar_xml_nfce(fin, cfg, cpf_cnpj)          # layout 4.00
+        # 4. signed = XMLSigner().sign(xml, key=pfx.key, ...)   # signxml
+        # 5. resp = requests.post(url_sefaz_uf, data=signed)
+        # 6. Parsear retorno e gerar DANFE
+        #
+        # Libs necessárias no requirements.txt:
+        #   cryptography, signxml, lxml, requests
+
+        registrar_log(session["user_id"], "nfce_tentativa", f"financeiro={financeiro_id} modo=certificado")
+        return jsonify({
+            "ok": False,
+            "erro": "Certificado A1 configurado — implemente em api/caixa.py → emitir_nfce() → MODO 2.",
+            "modo": "certificado",
+            "dica": "Libs: cryptography, signxml, lxml",
+        }), 501
+
+    return jsonify({"erro": "Configure o modo NF-e em Configurações → Nota Fiscal"}), 400
