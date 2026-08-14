@@ -469,11 +469,9 @@
   // -----------------------------------------------------------------------
   crud.cfg.aoAbrirForm = function(registro) {
     if (registro?.produto_pai_id) return;
-    // Dois frames garantem que o modal já está no DOM
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      _injetarCampoFoto(registro || {});
-      _injetarBotaoGrade(registro || {});
-    }));
+    // crud-form já existe quando aoAbrirForm é chamado — injeta direto
+    _injetarCampoFoto(registro || {});
+    _injetarBotaoGrade(registro || {});
   };
 
   // Patch no _coletar para incluir foto nos dados ao salvar
