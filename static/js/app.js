@@ -75,6 +75,24 @@ function toast(msg, tipo = "success") {
 }
 
 /* ---------------------- Modal reutilizável ---------------------- */
+// Aplica maiúsculas em todos os inputs de texto de um container
+function aplicarMaiusculas(container) {
+  const el_list = (container || document).querySelectorAll(
+    'input:not([type=email]):not([type=password]):not([type=number]):not([type=date]):not([type=file]):not([type=checkbox]):not([type=radio]):not([type=hidden]), textarea');
+  el_list.forEach((el) => {
+    if (el.dataset.maiuscula === "nao") return; // campo com data-maiuscula="nao" fica livre
+    if (el.value) el.value = el.value.toUpperCase();
+    if (!el._maiusculaOk) {
+      el._maiusculaOk = true;
+      el.addEventListener("input", () => {
+        const ini = el.selectionStart, fim = el.selectionEnd;
+        const up = el.value.toUpperCase();
+        if (el.value !== up) { el.value = up; try { el.setSelectionRange(ini, fim); } catch(_) {} }
+      });
+    }
+  });
+}
+
 const Modal = {
   abrir(titulo, htmlCorpo, htmlRodape = "", grande = false) {
     this.fechar();
@@ -91,7 +109,10 @@ const Modal = {
         ${htmlRodape ? `<div class="modal__foot">${htmlRodape}</div>` : ""}
       </div>`;
     document.body.appendChild(bd);
-    requestAnimationFrame(() => bd.classList.add("open"));
+    requestAnimationFrame(() => {
+      bd.classList.add("open");
+      aplicarMaiusculas(bd);
+    });
     // Clicar fora (no fundo) NÃO fecha o modal — evita perder o que está sendo
     // preenchido. O modal só fecha pelo X ou pelos botões do rodapé.
     return bd;
@@ -134,7 +155,6 @@ const MENU = [
   { grupo: "Cadastros", itens: [
     { id: "servicos", nome: "Serviços", icone: "fa-list-check" },
     { id: "produtos", nome: "Produtos", icone: "fa-box" },
-    { id: "etiquetas", nome: "Etiquetas", icone: "fa-tags" },
     { id: "fornecedores", nome: "Fornecedores", icone: "fa-truck" },
     { id: "estoque", nome: "Estoque", icone: "fa-warehouse" },
     { id: "xml", nome: "Importação XML", icone: "fa-file-code" },
@@ -163,7 +183,7 @@ const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
   ordem_servico: "ordem_servico", orcamentos: "orcamentos",
   agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps",
-  servicos: "servicos", produtos: "produtos", etiquetas: "produtos", fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
+  servicos: "servicos", produtos: "produtos", fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
   financeiro: "financeiro", cobrancas: "cobrancas", mala_direta: "mala_direta", caixa: "caixa",
   relatorios: "relatorios", notas_fiscais: "notas_fiscais", cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
 };
