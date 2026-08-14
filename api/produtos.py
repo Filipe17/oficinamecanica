@@ -181,10 +181,10 @@ def excluir_servico(sid):
 @produtos_bp.route("/api/fornecedores", methods=["GET"])
 @login_obrigatorio
 def listar_fornecedores():
-    q = request.args.get("q", "").strip()
+    q = request.args.get("q", "").strip().upper()
     where, params = "", []
     if q:
-        where = "WHERE nome LIKE ? OR nome_fantasia LIKE ? OR cnpj LIKE ? OR cidade LIKE ?"
+        where = "WHERE UPPER(nome) LIKE ? OR UPPER(nome_fantasia) LIKE ? OR UPPER(cnpj) LIKE ? OR UPPER(cidade) LIKE ?"
         params = [f"%{q}%"] * 4
     lista = query(f"SELECT * FROM fornecedores {where} ORDER BY nome", params)
     # Conta produtos vinculados a cada fornecedor
