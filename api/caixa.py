@@ -11,7 +11,8 @@ outro), mas os dois conversam com o MESMO banco de dados.
 from flask import Blueprint, request, jsonify, current_app
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from database.database import query, now, registrar_log
-from api.usuarios import _autenticar
+from api.usuarios import _autenticar, login_obrigatorio, perfil_permitido
+from flask import session
 from api.configuracoes import obter_config
 
 caixa_bp = Blueprint("caixa", __name__)
@@ -236,79 +237,3 @@ def fechar():
     relatorio.update({"esperado": t["saldo"], "informado": informado, "diferenca": diferenca,
                       "qtd_recebimentos": qtd_receb, "aberto_em": caixa["aberto_em"], "fechado_em": now()})
     return jsonify({"ok": True, "relatorio": relatorio})
-
-
-# =========================================================================
-# NFC-e — Cupom Fiscal Eletrônico (esqueleto para integração futura)
-# =========================================================================
-
-@caixa_bp.route("/api/nfce/emitir", methods=["POST"])
-@login_obrigatorio
-@perfil_permitido("administrador", "gerente", "caixa")
-def emitir_nfce():
-    """
-    Esqueleto de emissão de NFC-e.
-    A integração real depende do provedor escolhido pelo cliente
-    (Focus NFe, PlugNotas, NFe.io, eNotas, WebmaniaBR etc).
-
-    Para integrar:
-    1. Configure o provedor e token em Configurações → NFC-e
-    2. Implemente a chamada à API do provedor aqui
-    3. Retorne danfe_url ou xml conforme o provedor
-
-    Exemplo Focus NFe:
-      POST https://homologacao.focusnfe.com.br/v2/nfce
-      Authorization: Token <token>
-      Body: { cnpj_emitente, ... }
-    """
-    from api.configuracoes import obter_config
-
-    d = request.get_json(force=True)
-    financeiro_id = d.get("financeiro_id")
-    cpf_cnpj = d.get("cpf_cnpj_consumidor", "")
-
-    if not financeiro_id:
-        return jsonify({"erro": "financeiro_id é obrigatório"}), 400
-
-    cfg = obter_config()
-    provedor = cfg.get("nfe_provedor", "")
-    token = cfg.get("nfe_token", "")
-    ambiente = cfg.get("nfe_ambiente", "homologacao")
-    nfce_ativo = cfg.get("nfce_ativo", "0")
-
-    if nfce_ativo != "1":
-        return jsonify({"erro": "NFC-e não está ativa nas configurações"}), 400
-    if not provedor or not token:
-        return jsonify({"erro": "Configure o provedor e token da NF-e em Configurações"}), 400
-
-    # Busca dados do lançamento financeiro
-    fin = query("SELECT * FROM financeiro WHERE id=?", (financeiro_id,), fetchone=True)
-    if not fin:
-        return jsonify({"erro": "Lançamento não encontrado"}), 404
-
-    # ----------------------------------------------------------------
-    # TODO: implementar chamada ao provedor escolhido
-    # Descomentar e adaptar conforme o provedor do cliente:
-    #
-    # if provedor == "focus":
-    #     import requests
-    #     url = f"https://{'homologacao' if ambiente=='homologacao' else 'api'}.focusnfe.com.br/v2/nfce"
-    #     payload = { ... }
-    #     resp = requests.post(url, json=payload, auth=(token, ""))
-    #     return jsonify(resp.json())
-    #
-    # elif provedor == "plugnotas":
-    #     ...
-    # ----------------------------------------------------------------
-
-    registrar_log(session["user_id"], "nfce_tentativa",
-                  f"financeiro={financeiro_id} provedor={provedor} ambiente={ambiente}")
-
-    return jsonify({
-        "ok": False,
-        "erro": f"Provedor '{provedor}' ainda não integrado. "
-                f"Configure a integração em caixa.py → emitir_nfce().",
-        "provedor": provedor,
-        "ambiente": ambiente,
-        "financeiro_id": financeiro_id,
-    }), 501
