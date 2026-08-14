@@ -29,14 +29,14 @@ def _margem(compra, venda):
 @produtos_bp.route("/api/produtos", methods=["GET"])
 @login_obrigatorio
 def listar_produtos():
-    q = request.args.get("q", "").strip()
+    q = request.args.get("q", "").strip().upper()
     pagina = max(int(request.args.get("pagina", 1)), 1)
     por_pagina = min(int(request.args.get("por_pagina", 20)), 100)
 
     where, params = "", []
     if q:
-        where = ("WHERE nome LIKE ? OR codigo LIKE ? OR codigo_barras LIKE ? "
-                 "OR ean LIKE ? OR categoria LIKE ?")
+        where = ("WHERE UPPER(nome) LIKE ? OR UPPER(codigo) LIKE ? OR UPPER(codigo_barras) LIKE ? "
+                 "OR UPPER(ean) LIKE ? OR UPPER(categoria) LIKE ?")
         termo = f"%{q}%"
         params = [termo] * 5
 

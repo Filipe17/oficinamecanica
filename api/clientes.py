@@ -22,7 +22,7 @@ ORDENAVEIS = {"nome", "cidade", "criado_em", "id"}
 @clientes_bp.route("/api/clientes", methods=["GET"])
 @login_obrigatorio
 def listar():
-    q = request.args.get("q", "").strip()
+    q = request.args.get("q", "").strip().upper()
     pagina = max(int(request.args.get("pagina", 1)), 1)
     por_pagina = min(int(request.args.get("por_pagina", 20)), 100)
     ordem = request.args.get("ordem", "nome")
@@ -30,7 +30,7 @@ def listar():
 
     where, params = "", []
     if q:
-        where = "WHERE nome LIKE ? OR cpf_cnpj LIKE ? OR telefone LIKE ? OR cidade LIKE ?"
+        where = "WHERE UPPER(nome) LIKE ? OR UPPER(cpf_cnpj) LIKE ? OR UPPER(telefone) LIKE ? OR UPPER(cidade) LIKE ?"
         termo = f"%{q}%"
         params = [termo, termo, termo, termo]
 

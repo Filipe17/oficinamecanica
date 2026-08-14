@@ -71,7 +71,7 @@ def listar():
     # eh_orcamento=1 filtra orçamentos; padrão lista ordens de serviço
     eh_orc = request.args.get("orcamento", "0")
     status = request.args.get("status", "").strip()
-    q = request.args.get("q", "").strip()
+    q = request.args.get("q", "").strip().upper()
 
     where = ["o.eh_orcamento = ?"]
     params = [1 if eh_orc == "1" else 0]
@@ -79,7 +79,7 @@ def listar():
         where.append("o.status = ?")
         params.append(status)
     if q:
-        where.append("(o.numero LIKE ? OR c.nome LIKE ? OR v.placa LIKE ?)")
+        where.append("(UPPER(o.numero) LIKE ? OR UPPER(c.nome) LIKE ? OR UPPER(v.placa) LIKE ?)")
         params += [f"%{q}%"] * 3
 
     # Mecânico só enxerga as OS em que ele é o responsável (não as dos colegas).

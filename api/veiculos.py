@@ -13,7 +13,7 @@ veiculos_bp = Blueprint("veiculos", __name__)
 @veiculos_bp.route("/api/veiculos", methods=["GET"])
 @login_obrigatorio
 def listar():
-    q = request.args.get("q", "").strip()
+    q = request.args.get("q", "").strip().upper()
     pagina = max(int(request.args.get("pagina", 1)), 1)
     por_pagina = min(int(request.args.get("por_pagina", 20)), 100)
 
@@ -22,7 +22,7 @@ def listar():
             "LEFT JOIN clientes c ON c.id = v.cliente_id")
     where, params = "", []
     if q:
-        where = "WHERE v.placa LIKE ? OR v.modelo LIKE ? OR v.marca LIKE ? OR c.nome LIKE ?"
+        where = "WHERE UPPER(v.placa) LIKE ? OR UPPER(v.modelo) LIKE ? OR UPPER(v.marca) LIKE ? OR UPPER(c.nome) LIKE ?"
         termo = f"%{q}%"
         params = [termo, termo, termo, termo]
 
