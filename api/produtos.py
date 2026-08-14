@@ -42,15 +42,9 @@ def listar_produtos():
 
     total = query(f"SELECT COUNT(*) AS n FROM produtos {where}",
                   params, fetchone=True)["n"]
-    # Quando há busca, retorna todos os resultados sem paginar
-    if q:
-        lista = query(f"SELECT * FROM produtos {where} ORDER BY nome", params)
-        pagina = 1
-        por_pagina = total or 1
-    else:
-        offset = (pagina - 1) * por_pagina
-        lista = query(f"SELECT * FROM produtos {where} ORDER BY nome LIMIT ? OFFSET ?",
-                      params + [por_pagina, offset])
+    offset = (pagina - 1) * por_pagina
+    lista = query(f"SELECT * FROM produtos {where} ORDER BY nome LIMIT ? OFFSET ?",
+                  params + [por_pagina, offset])
     # Marca produtos pai que têm variações (para o front mostrar "—" no estoque)
     ids = [p["id"] for p in lista]
     variacoes_ids = set()
@@ -349,3 +343,18 @@ def excluir_variacao(vid):
     query("DELETE FROM produtos WHERE id=?", (vid,), commit=True)
     registrar_log(session["user_id"], "excluir_variacao", str(vid))
     return jsonify({"ok": True})
+
+
+@produtos_bp.route("/api/produtos/etiquetas/marcar", methods=["POST"])
+@login_obrigatorio
+def marcar_etiquetas_impressas():
+    """Marca uma lista de produtos como etiqueta impressa agora."""
+    d = request.get_json(force=True)
+    ids = d.get("ids", [])
+    if not ids:
+        return jsonify({"erro": "Nenhum produto informado"}), 400
+    placeholders = ",".join("?" * len(ids))
+    query(f"UPDATE produtos SET etiqueta_impressa_em=? WHERE id IN ({placeholders})",
+          [now()] + list(ids), commit=True)
+    registrar_log(session["user_id"], "etiquetas_impressas", f"{len(ids)} produto(s)")
+    return jsonify({"ok": True, "total": len(ids)})
