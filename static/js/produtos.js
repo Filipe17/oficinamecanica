@@ -468,9 +468,8 @@
   // Campo de foto — usa o gancho aoAbrirForm do Crud
   // -----------------------------------------------------------------------
   crud.cfg.aoAbrirForm = function(registro) {
-    // Todos os produtos têm campo de foto
-    // Produto pai: também mostra botão de grade
-    _injetarCampoFoto(registro || {});
+    const ePai = !registro?.produto_pai_id && registro?.tem_variacoes;
+    if (!ePai) _injetarCampoFoto(registro || {}); // pai com grade não tem foto
     if (!registro?.produto_pai_id) _injetarBotaoGrade(registro || {});
   };
 
