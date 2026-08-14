@@ -134,6 +134,7 @@ const MENU = [
   { grupo: "Cadastros", itens: [
     { id: "servicos", nome: "Serviços", icone: "fa-list-check" },
     { id: "produtos", nome: "Produtos", icone: "fa-box" },
+    { id: "etiquetas", nome: "Etiquetas", icone: "fa-tags" },
     { id: "fornecedores", nome: "Fornecedores", icone: "fa-truck" },
     { id: "estoque", nome: "Estoque", icone: "fa-warehouse" },
     { id: "xml", nome: "Importação XML", icone: "fa-file-code" },
