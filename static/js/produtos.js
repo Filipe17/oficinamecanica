@@ -140,11 +140,10 @@
     ordemPadrao: "nome",
     modalGrande: true,
     colunas: [
+
       { chave: "foto", titulo: "", render: (v, row) => {
           if (v) return `<img src="${v}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block">`;
-          // Produto pai com grade — sem ícone
           if (row.tem_variacoes && !row.produto_pai_id) return "";
-          // Produto simples ou variação sem foto — mostra placeholder
           return `<div style="width:38px;height:38px;border-radius:6px;border:1px dashed #ddd;
             background:#f8f9fa;display:flex;align-items:center;justify-content:center">
             <i class="fa-solid fa-image" style="color:#ddd;font-size:.85rem"></i></div>`;
@@ -171,20 +170,7 @@
         }},
       { chave: "_margem", titulo: "Margem", render: (v) => (v != null ? `${v}%` : "-") },
 
-      { chave: "_etiqueta", titulo: "Etiqueta", render: (v, row) => {
-          // Guarda os dados no map global e passa só o id — evita problema de aspas no onclick
-          window.__etqCache = window.__etqCache || {};
-          window.__etqCache[row.id] = {
-            id: row.id, nome: row.nome, codigo: row.codigo,
-            codigo_barras: row.codigo_barras || row.ean || "",
-            preco_venda: row.preco_venda, localizacao: row.localizacao || "",
-            marca: row.marca || "", categoria: row.categoria || "",
-          };
-          return `<button class="icon-btn btn--sm" title="Imprimir etiqueta"
-            onclick="event.stopPropagation();window.__etiqueta.abrirPorId(${row.id})">
-            <i class="fa-solid fa-tag"></i>
-          </button>`;
-        }},
+
     ],
     campos: [
       { nome: "nome", label: "Nome", obrigatorio: true, larguraTotal: true },
