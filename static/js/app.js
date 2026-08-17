@@ -298,6 +298,10 @@ const Layout = {
             <button class="topbar__toggle" onclick="Layout.toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
             <div class="topbar__title">${titulo}</div>
             <div class="topbar__spacer"></div>
+            ${this.usuario.perfil === "mecanico" ? `<button class="icon-btn notif-bell" id="btn-notif-orc" title="Orçamentos aprovados" style="display:none;position:relative" onclick="Layout.abrirNotifOrc()">
+              <i class="fa-solid fa-bell" style="color:#ef4444"></i>
+              <span id="notif-orc-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:piscar 1s infinite"></span>
+            </button>` : ""}
             <button class="icon-btn" id="btn-tema" onclick="Tema.alternar()" title="Alternar tema">
               <i class="fa-solid ${temaEscuro ? "fa-sun" : "fa-moon"}"></i>
             </button>
@@ -356,3 +360,66 @@ const Layout = {
 function debounce(fn, ms = 350) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
+
+/* =========================================================================
+   Notificação de orçamento aprovado pelo cliente (somente mecânico)
+   Polling a cada 30s — acende um sininho vermelho piscando na topbar.
+   ========================================================================= */
+
+// Injeta o CSS da animação piscar uma única vez
+(function () {
+  if (document.getElementById("_piscar_css")) return;
+  const s = document.createElement("style");
+  s.id = "_piscar_css";
+  s.textContent = `@keyframes piscar { 0%,100%{opacity:1} 50%{opacity:0} }`;
+  document.head.appendChild(s);
+})();
+
+// Estado global dos orçamentos aprovados pendentes
+window._orcsAprovados = [];
+
+Layout.abrirNotifOrc = function () {
+  const lista = window._orcsAprovados || [];
+  if (!lista.length) return;
+  const linhas = lista.map((o) =>
+    `<div style="padding:.75rem;border:1.5px solid #0d9488;border-radius:10px;margin-bottom:.5rem;background:#f0fdf4">
+       <div style="font-weight:700;color:#0d9488"><i class="fa-solid fa-circle-check"></i> Orçamento Nº ${o.numero || o.id}</div>
+       <div style="font-size:.9rem;color:#444;margin-top:.25rem">Cliente: <b>${o.cliente_nome || "—"}</b></div>
+       <div style="font-size:.85rem;color:#666">Total: <b>R$ ${(parseFloat(o.total) || 0).toFixed(2).replace(".", ",")}</b></div>
+     </div>`
+  ).join("");
+  Modal.abrir(
+    "✅ Cliente aprovou o orçamento!",
+    `<div style="margin-bottom:.75rem;color:#555">O(s) seguinte(s) orçamento(s) foram aprovados pelo cliente e aguardam sua execução:</div>
+     ${linhas}`,
+    `<button class="btn btn--primary" onclick="Modal.fechar()">Entendido</button>`
+  );
+};
+
+Layout._iniciarPollingOrc = function () {
+  if (this.usuario?.perfil !== "mecanico") return;
+
+  const verificar = async () => {
+    try {
+      const mecanico_id = Layout.usuario?.id;
+      const r = await API.get(`/api/os?orcamento=1&status=cliente_aprovou&mecanico_id=${mecanico_id}&por_pagina=50`);
+      const dados = (r.dados || []).filter((o) =>
+        (!o.mecanico_id || o.mecanico_id === mecanico_id)
+      );
+      window._orcsAprovados = dados;
+      const btn = document.getElementById("btn-notif-orc");
+      if (btn) btn.style.display = dados.length ? "inline-flex" : "none";
+    } catch (_) {}
+  };
+
+  verificar(); // imediato ao carregar
+  setInterval(verificar, 30000); // a cada 30s
+};
+
+// Hook: dispara o polling logo após o Layout.iniciar
+const _iniciarOriginal = Layout.iniciar.bind(Layout);
+Layout.iniciar = async function (...args) {
+  const r = await _iniciarOriginal(...args);
+  Layout._iniciarPollingOrc();
+  return r;
+};
