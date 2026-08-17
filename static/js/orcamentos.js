@@ -241,8 +241,7 @@
           <h1>Orçamento</h1>
           <div class="orc-topbar__acoes">
             ${editando && !jaFinalizado ? `<button class="btn btn--ghost" id="orc-imprimir"><i class="fa-solid fa-print"></i> Imprimir</button>
-            <button class="btn btn--ghost" id="orc-pdf"><i class="fa-solid fa-file-pdf"></i> Gerar PDF</button>
-            <button class="btn btn--zap" id="orc-whats"><i class="fa-brands fa-whatsapp"></i> Enviar WhatsApp</button>` : ""}
+            <button class="btn btn--ghost" id="orc-pdf"><i class="fa-solid fa-file-pdf"></i> Gerar PDF</button>` : ""}
           </div>
         </div>
 
