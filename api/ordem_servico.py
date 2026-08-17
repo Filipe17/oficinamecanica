@@ -33,7 +33,6 @@ def listar_mecanicos():
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
     "em_execucao", "finalizada_mecanico", "finalizada", "cancelada",
-    "cliente_aprovou",
 }
 
 
@@ -84,7 +83,10 @@ def listar():
         params += [f"%{q}%"] * 3
 
     # Mecânico só enxerga as OS em que ele é o responsável (não as dos colegas).
-    if session.get("perfil") == "mecanico":
+    # Exceção: notif=1 é usado pelo polling de notificação — mostra todos os
+    # orçamentos com cliente_aprovou independente de mecânico atribuído.
+    notif = request.args.get("notif", "0") == "1"
+    if session.get("perfil") == "mecanico" and not notif:
         where.append("o.mecanico_id = ?")
         params.append(session.get("user_id"))
 
