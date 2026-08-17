@@ -144,13 +144,16 @@ def listar_servicos():
 @login_obrigatorio
 def criar_servico():
     d = request.get_json(force=True)
+    def num(v, default=None):
+        try: return float(v) if v not in (None, "", "null") else default
+        except (TypeError, ValueError): return default
     res = query(
         "INSERT INTO servicos (descricao, tempo_medio, valor, garantia, categoria, "
         "comissao_percentual, codigo_servico, iss_percentual, criado_em) "
         "VALUES (?,?,?,?,?,?,?,?,?)",
-        (d.get("descricao"), d.get("tempo_medio"), d.get("valor", 0),
-         d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0),
-         d.get("codigo_servico"), d.get("iss_percentual", 0), now()),
+        (d.get("descricao"), d.get("tempo_medio"), num(d.get("valor"), 0),
+         d.get("garantia"), d.get("categoria"), num(d.get("comissao_percentual"), 0),
+         d.get("codigo_servico"), num(d.get("iss_percentual")), now()),
         commit=True,
     )
     return jsonify({"ok": True, "id": res["_lastid"]}), 201
@@ -160,11 +163,14 @@ def criar_servico():
 @login_obrigatorio
 def editar_servico(sid):
     d = request.get_json(force=True)
+    def num(v, default=None):
+        try: return float(v) if v not in (None, "", "null") else default
+        except (TypeError, ValueError): return default
     query("UPDATE servicos SET descricao=?, tempo_medio=?, valor=?, garantia=?, categoria=?, "
           "comissao_percentual=?, codigo_servico=?, iss_percentual=? WHERE id=?",
-          (d.get("descricao"), d.get("tempo_medio"), d.get("valor", 0),
-           d.get("garantia"), d.get("categoria"), d.get("comissao_percentual", 0),
-           d.get("codigo_servico"), d.get("iss_percentual", 0), sid), commit=True)
+          (d.get("descricao"), d.get("tempo_medio"), num(d.get("valor"), 0),
+           d.get("garantia"), d.get("categoria"), num(d.get("comissao_percentual"), 0),
+           d.get("codigo_servico"), num(d.get("iss_percentual")), sid), commit=True)
     return jsonify({"ok": True})
 
 
