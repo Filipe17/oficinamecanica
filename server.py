@@ -45,6 +45,7 @@ from api.cheques import cheques_bp
 from api.permissoes import permissoes_bp, nivel_de
 from api.configuracoes import configuracoes_bp
 from api.caixa import caixa_bp
+from api.servicos import servicos_bp
 
 # Diretórios base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -64,7 +65,7 @@ app.permanent_session_lifetime = timedelta(days=30)   # "lembrar acesso"
 # Registro dos Blueprints (cada módulo cuida de um domínio)
 for bp in (usuarios_bp, clientes_bp, veiculos_bp, produtos_bp, estoque_bp,
            os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, dre_bp, nfe_bp, agendamentos_bp, boletos_bp, cartao_bp, cheques_bp, permissoes_bp, nps_bp,
-           configuracoes_bp, caixa_bp):
+           configuracoes_bp, caixa_bp, servicos_bp):
     app.register_blueprint(bp)
 
 
