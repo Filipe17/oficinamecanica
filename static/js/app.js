@@ -128,16 +128,20 @@ const MENU = [
     { id: "ordem_servico", nome: "Ordem de Serviço", icone: "fa-screwdriver-wrench" },
     { id: "orcamentos", nome: "Orçamentos", icone: "fa-file-invoice-dollar" },
     { id: "agendamentos", nome: "Agendamentos", icone: "fa-calendar-days" },
+    { id: "lembretes", nome: "Lembretes de Revisão", icone: "fa-bell" },
+    { id: "nps", nome: "NPS / Avaliações", icone: "fa-star" },
   ]},
   { grupo: "Cadastros", itens: [
     { id: "servicos", nome: "Serviços", icone: "fa-list-check" },
     { id: "produtos", nome: "Produtos", icone: "fa-box" },
+    { id: "fornecedores", nome: "Fornecedores", icone: "fa-truck" },
     { id: "estoque", nome: "Estoque", icone: "fa-warehouse" },
     { id: "xml", nome: "Importação XML", icone: "fa-file-code" },
   ]},
   { grupo: "Financeiro", itens: [
     { id: "financeiro", nome: "Financeiro", icone: "fa-wallet" },
     { id: "cobrancas", nome: "Cobranças", icone: "fa-hand-holding-dollar" },
+    { id: "mala_direta", nome: "Mala Direta", icone: "fa-envelope-open-text" },
     { id: "caixa", nome: "Caixa", icone: "fa-cash-register", novaAba: true },
   ]},
   { grupo: "Sistema", itens: [
@@ -156,9 +160,10 @@ const MENU = [
    (ex.: orcamentos→ordem_servico, cobrancas→financeiro) seguem o mesmo nível. */
 const MODULO_DO_ITEM = {
   dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
-  ordem_servico: "ordem_servico", orcamentos: "orcamentos", agendamentos: "agendamentos",
-  servicos: "servicos", produtos: "produtos", estoque: "estoque", xml: "xml",
-  financeiro: "financeiro", cobrancas: "financeiro", caixa: "caixa",
+  ordem_servico: "ordem_servico", orcamentos: "orcamentos",
+  agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps",
+  servicos: "servicos", produtos: "produtos", fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
+  financeiro: "financeiro", cobrancas: "cobrancas", mala_direta: "mala_direta", caixa: "caixa",
   relatorios: "relatorios", notas_fiscais: "notas_fiscais", cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
 };
 
@@ -179,6 +184,28 @@ const Layout = {
     return [l1, l2].filter(Boolean);
   },
 
+  // Retorna a primeira página que o usuário tem permissão de acessar
+  _primeiraPaginaPermitida(permissoes, perfil) {
+    if (perfil === "administrador") return "/dashboard";
+    const candidatos = [
+      ["dashboard",     "dashboard"],
+      ["ordem_servico", "ordem_servico"],
+      ["agendamentos",  "agendamentos"],
+      ["clientes",      "clientes"],
+      ["veiculos",      "veiculos"],
+      ["produtos",      "produtos"],
+      ["servicos",      "servicos"],
+      ["estoque",       "estoque"],
+      ["financeiro",    "financeiro"],
+      ["relatorios",    "relatorios"],
+      ["orcamentos",    "orcamentos"],
+    ];
+    for (const [pagina, modulo] of candidatos) {
+      if ((permissoes[modulo] || 0) > 0) return `/${pagina}`;
+    }
+    return "/login";
+  },
+
   // Protege a página, carrega o usuário e injeta sidebar/topbar
   async iniciar(paginaAtiva, titulo) {
     try {
@@ -190,6 +217,35 @@ const Layout = {
       return null;
     }
     try { this.config = await API.get("/api/configuracoes"); } catch (_) { this.config = {}; }
+
+    // Verifica se o usuário tem permissão para a página atual
+    const perfil = this.usuario.perfil;
+    if (perfil !== "administrador") {
+      const MODULO_PAGINA = {
+        dashboard: "dashboard", clientes: "clientes", veiculos: "veiculos",
+        ordem_servico: "ordem_servico", orcamentos: "orcamentos",
+        agendamentos: "agendamentos", lembretes: "lembretes", nps: "nps", servicos: "servicos", produtos: "produtos",
+        fornecedores: "fornecedores", estoque: "estoque", xml: "xml",
+        financeiro: "financeiro", cobrancas: "financeiro", mala_direta: "financeiro",
+        relatorios: "relatorios", notas_fiscais: "notas_fiscais",
+        cartao: "cartao", cheques: "cheques", usuarios: "usuarios", logs: "logs",
+      };
+      const modulo = MODULO_PAGINA[paginaAtiva];
+      if (modulo && (this.permissoes[modulo] || 0) === 0) {
+        // Sem permissão — redireciona para primeira página permitida
+        location.href = this._primeiraPaginaPermitida(this.permissoes, perfil);
+        return null;
+      }
+    }
+
+    // Oculta Caixa/PDV se modo_financeiro = sem_caixa
+    if ((this.config?.modo_financeiro || "completo") === "sem_caixa") {
+      this._menuItens = this._menuItens || null;
+      // Marca os itens a ocultar
+      window.__semCaixa = true;
+    } else {
+      window.__semCaixa = false;
+    }
     this._render(paginaAtiva, titulo);
     return this.usuario;
   },
@@ -206,7 +262,12 @@ const Layout = {
       return !mod || (this.permissoes[mod] || 0) > 0;   // nível > 0 = visível
     };
     const nav = MENU.map((g) => {
-      const itens = g.itens.filter((i) => podeVer(i.id));
+      const itens = g.itens.filter((i) => {
+        if (!podeVer(i.id)) return false;
+        // Oculta Caixa e PDV no modo sem_caixa
+        if (window.__semCaixa && ["caixa", "pdv"].includes(i.id)) return false;
+        return true;
+      });
       if (!itens.length) return "";   // não mostra grupo sem itens
       return `
       <div class="sidebar__group">
@@ -255,7 +316,25 @@ const Layout = {
       </div>`;
   },
 
-  toggleSidebar() { document.getElementById("sidebar").classList.toggle("open"); },
+  toggleSidebar() {
+    const sb = document.getElementById("sidebar");
+    const aberto = sb.classList.toggle("open");
+    let ov = document.getElementById("sidebar-overlay");
+    if (aberto) {
+      if (!ov) {
+        ov = document.createElement("div");
+        ov.id = "sidebar-overlay";
+        ov.style.cssText = "position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.35);cursor:pointer";
+        ov.addEventListener("click", (e) => { e.stopPropagation(); Layout.toggleSidebar(); });
+        document.body.appendChild(ov);
+      }
+      ov.style.display = "block";
+      sb.style.zIndex = "200";
+    } else {
+      if (ov) ov.style.display = "none";
+      sb.style.zIndex = "";
+    }
+  },
 
   menuUsuario() {
     Modal.abrir("Conta",
