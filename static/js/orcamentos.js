@@ -45,6 +45,7 @@
   function badgeStatus(status) {
     if (status === "finalizada") return `<span class="badge badge--success">Finalizado</span>`;
     if (status === "cancelada") return `<span class="badge badge--danger">Cancelado</span>`;
+    if (status === "cliente_aprovou") return `<span class="badge badge--success" style="background:#0d9488">Cliente aprovou</span>`;
     return `<span class="badge badge--warning">Em andamento</span>`;
   }
 
@@ -103,9 +104,10 @@
 
     function _renderKanban(dados) {
       const COLUNAS = [
-        { status: "aberta",     label: "Em Andamento", cor: "#3b82f6", icone: "fa-clock" },
-        { status: "finalizada", label: "Finalizado",   cor: "#10b981", icone: "fa-circle-check" },
-        { status: "cancelada",  label: "Cancelado",    cor: "#ef4444", icone: "fa-circle-xmark" },
+        { status: "aberta",           label: "Em Andamento",    cor: "#3b82f6", icone: "fa-clock" },
+        { status: "cliente_aprovou",  label: "Cliente aprovou", cor: "#0d9488", icone: "fa-circle-check" },
+        { status: "finalizada",       label: "Finalizado",      cor: "#10b981", icone: "fa-flag-checkered" },
+        { status: "cancelada",        label: "Cancelado",       cor: "#ef4444", icone: "fa-circle-xmark" },
       ];
       const grupos = {};
       COLUNAS.forEach((c) => { grupos[c.status] = []; });
@@ -337,7 +339,9 @@
             ? `<span class="orc-finalizado-tag"><i class="fa-solid fa-circle-check"></i> Orçamento finalizado</span>
                <button class="btn btn--primary" id="orc-ver-nota"><i class="fa-solid fa-file-invoice"></i> Ver / Imprimir nota</button>`
             : (soLeitura ? "" : (editando
-              ? `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>
+              ? `${orc?.status === "cliente_aprovou"
+                  ? '<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>'
+                  : '<button class="btn btn--primary" id="orc-enviar-cliente"><i class="fa-solid fa-paper-plane"></i> Enviar para cliente</button>'}
                  <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
               : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>`))}
           <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${(jaFinalizado || soLeitura) ? "Voltar" : "Cancelar"}</button>
@@ -501,6 +505,7 @@
     });
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
+    on("orc-enviar-cliente", "click", enviarParaCliente);
     on("orc-limpar", "click", () => abrirEditor(null));
     on("orc-imprimir", "click", imprimir);
     on("orc-pdf", "click", gerarPDF);
@@ -1072,6 +1077,86 @@
     const url = URL.createObjectURL(blob);
     const w = window.open(url, "_blank");
     if (w) setTimeout(() => { try { w.print(); } catch (_) {} }, 700);
+  }
+
+  /* ---- Enviar orçamento para cliente (modal escolha email/whatsapp) ---- */
+  async function enviarParaCliente() {
+    if (!editando) { toast("Salve o orçamento primeiro", "warning"); return; }
+    const cid = Number(document.getElementById("orc-cliente")?.value);
+    const c = clientes.find((x) => x.id === cid) || {};
+    const fone = (c.whatsapp || c.telefone || "").replace(/\D/g, "");
+    const sub = itens.reduce((s, it) => s + ((it.quantidade * it.valor_unitario) - it.desconto), 0);
+    const desc = parseFloat(document.getElementById("orc-desc")?.value) || 0;
+    const total = money(sub - desc);
+    const nomeCliente = c.nome || "";
+    const empresa = cfg.empresa_nome || "Oficina";
+    const numOrc = editando.numero || "";
+    const msgWpp = `Olá ${nomeCliente}! Segue o orçamento Nº ${numOrc} da ${empresa} no valor de ${total}. Por favor, confirme sua aprovação respondendo esta mensagem.`;
+
+    Modal.abrir("Enviar orçamento para cliente",
+      `<div style="display:flex;flex-direction:column;gap:1rem;padding:.5rem 0">
+         <p style="margin:0;color:#555">Escolha como deseja enviar o orçamento <b>Nº ${numOrc}</b> para <b>${nomeCliente}</b>:</p>
+         <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+           ${fone ? `<button class="btn btn--zap" style="flex:1" id="env-whats-btn">
+             <i class="fa-brands fa-whatsapp"></i> WhatsApp
+           </button>` : `<span style="color:#aaa;font-size:.85rem">WhatsApp não disponível (cliente sem telefone)</span>`}
+           ${c.email ? `<button class="btn btn--primary" style="flex:1" id="env-email-btn">
+             <i class="fa-solid fa-envelope"></i> E-mail
+           </button>` : `<span style="color:#aaa;font-size:.85rem">E-mail não disponível (cliente sem e-mail)</span>`}
+         </div>
+         <hr style="border:none;border-top:1px solid #eee">
+         <p style="margin:0;font-size:.85rem;color:#888">Após enviar, marque o orçamento como <b>Cliente aprovou</b> para liberar a finalização.</p>
+         <div style="display:flex;align-items:center;gap:.5rem">
+           <label style="font-size:.9rem;font-weight:600">Status do orçamento:</label>
+           <select id="env-status-sel" style="flex:1;padding:.4rem;border:1.5px solid #e2e8f0;border-radius:8px">
+             <option value="">— manter atual —</option>
+             <option value="cliente_aprovou">✅ Cliente aprovou</option>
+             <option value="cancelada">❌ Cancelado</option>
+           </select>
+         </div>
+       </div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>
+       <button class="btn btn--primary" id="env-salvar-status"><i class="fa-solid fa-check"></i> Salvar status</button>`
+    );
+
+    // WhatsApp
+    const btnWpp = document.getElementById("env-whats-btn");
+    if (btnWpp) btnWpp.onclick = () => {
+      const blob = gerarPDFBlob({ ocultarPagamento: true });
+      if (blob) {
+        const file = new File([blob], nomePDF(), { type: "application/pdf" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: "Orçamento", text: msgWpp }).catch(() => {});
+          return;
+        }
+        baixarBlob(blob, nomePDF());
+      }
+      const url = `https://wa.me/55${fone}?text=${encodeURIComponent(msgWpp)}`;
+      window.open(url, "_blank");
+    };
+
+    // E-mail
+    const btnEmail = document.getElementById("env-email-btn");
+    if (btnEmail) btnEmail.onclick = async () => {
+      try {
+        await API.post(`/api/os/${editando.id}/enviar-orcamento`, { canal: "email" });
+        toast("E-mail enviado para " + c.email);
+      } catch (e) { toast(e.message || "Erro ao enviar e-mail", "error"); }
+    };
+
+    // Salvar status
+    const btnStatus = document.getElementById("env-salvar-status");
+    if (btnStatus) btnStatus.onclick = async () => {
+      const novoStatus = document.getElementById("env-status-sel")?.value;
+      if (!novoStatus) { Modal.fechar(); return; }
+      try {
+        await API.put(`/api/os/${editando.id}`, { ...coletar(), status: novoStatus });
+        editando.status = novoStatus;
+        toast("Status atualizado");
+        Modal.fechar();
+        abrirEditor(editando.id); // reabre para atualizar botões
+      } catch (e) { toast(e.message || "Erro ao salvar status", "error"); }
+    };
   }
 
   async function enviarWhats() {
