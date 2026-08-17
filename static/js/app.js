@@ -401,11 +401,9 @@ Layout._iniciarPollingOrc = function () {
 
   const verificar = async () => {
     try {
-      const mecanico_id = Layout.usuario?.id;
-      const r = await API.get(`/api/os?orcamento=1&status=cliente_aprovou&mecanico_id=${mecanico_id}&por_pagina=50`);
-      const dados = (r.dados || []).filter((o) =>
-        (!o.mecanico_id || o.mecanico_id === mecanico_id)
-      );
+      // O backend já filtra pela sessão do mecânico; busca status cliente_aprovou
+      const r = await API.get("/api/os?orcamento=1&status=cliente_aprovou&notif=1&por_pagina=100");
+      const dados = r.dados || [];
       window._orcsAprovados = dados;
       const btn = document.getElementById("btn-notif-orc");
       if (btn) btn.style.display = dados.length ? "inline-flex" : "none";
