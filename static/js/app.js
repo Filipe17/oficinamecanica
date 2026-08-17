@@ -75,24 +75,6 @@ function toast(msg, tipo = "success") {
 }
 
 /* ---------------------- Modal reutilizável ---------------------- */
-// Aplica maiúsculas em todos os inputs de texto de um container
-function aplicarMaiusculas(container) {
-  const el_list = (container || document).querySelectorAll(
-    'input:not([type=email]):not([type=password]):not([type=number]):not([type=date]):not([type=file]):not([type=checkbox]):not([type=radio]):not([type=hidden]), textarea');
-  el_list.forEach((el) => {
-    if (el.dataset.maiuscula === "nao") return; // campo com data-maiuscula="nao" fica livre
-    if (el.value) el.value = el.value.toUpperCase();
-    if (!el._maiusculaOk) {
-      el._maiusculaOk = true;
-      el.addEventListener("input", () => {
-        const ini = el.selectionStart, fim = el.selectionEnd;
-        const up = el.value.toUpperCase();
-        if (el.value !== up) { el.value = up; try { el.setSelectionRange(ini, fim); } catch(_) {} }
-      });
-    }
-  });
-}
-
 const Modal = {
   abrir(titulo, htmlCorpo, htmlRodape = "", grande = false) {
     this.fechar();
@@ -109,10 +91,7 @@ const Modal = {
         ${htmlRodape ? `<div class="modal__foot">${htmlRodape}</div>` : ""}
       </div>`;
     document.body.appendChild(bd);
-    requestAnimationFrame(() => {
-      bd.classList.add("open");
-      aplicarMaiusculas(bd);
-    });
+    requestAnimationFrame(() => bd.classList.add("open"));
     // Clicar fora (no fundo) NÃO fecha o modal — evita perder o que está sendo
     // preenchido. O modal só fecha pelo X ou pelos botões do rodapé.
     return bd;
@@ -259,6 +238,14 @@ const Layout = {
       }
     }
 
+    // Oculta Caixa/PDV se modo_financeiro = sem_caixa
+    if ((this.config?.modo_financeiro || "completo") === "sem_caixa") {
+      this._menuItens = this._menuItens || null;
+      // Marca os itens a ocultar
+      window.__semCaixa = true;
+    } else {
+      window.__semCaixa = false;
+    }
     this._render(paginaAtiva, titulo);
     return this.usuario;
   },
@@ -275,7 +262,12 @@ const Layout = {
       return !mod || (this.permissoes[mod] || 0) > 0;   // nível > 0 = visível
     };
     const nav = MENU.map((g) => {
-      const itens = g.itens.filter((i) => podeVer(i.id));
+      const itens = g.itens.filter((i) => {
+        if (!podeVer(i.id)) return false;
+        // Oculta Caixa e PDV no modo sem_caixa
+        if (window.__semCaixa && ["caixa", "pdv"].includes(i.id)) return false;
+        return true;
+      });
       if (!itens.length) return "";   // não mostra grupo sem itens
       return `
       <div class="sidebar__group">

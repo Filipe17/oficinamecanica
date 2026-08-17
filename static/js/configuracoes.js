@@ -280,6 +280,32 @@
         </div>
       </div>
 
+      <h3 style="margin:22px 0 4px;font-size:15px">Modo de Operação</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
+        Configure como o sistema integra com o financeiro/caixa. Útil para clientes
+        que ainda usam outro sistema de caixa/fiscal em paralelo.
+      </p>
+      <div class="form-grid" id="cfg-form-modo">
+        <div class="field col-2"><label>Módulo financeiro / caixa</label>
+          <select name="modo_financeiro">
+            <option value="completo" ${(c.modo_financeiro||"completo")==="completo"?"selected":""}>
+              Completo — gera lançamentos e usa o caixa do sistema
+            </option>
+            <option value="sem_caixa" ${(c.modo_financeiro||"")==="sem_caixa"?"selected":""}>
+              Sem caixa — não gera lançamentos ao finalizar OS/orçamento (caixa externo)
+            </option>
+          </select>
+        </div>
+        <div class="field col-2">
+          <p style="font-size:.82rem;color:var(--text-muted);margin:0">
+            <i class="fa-solid fa-circle-info"></i>
+            No modo <strong>Sem caixa</strong>: o menu Caixa/PDV é ocultado e ao finalizar
+            uma OS ou orçamento nenhum lançamento financeiro é gerado automaticamente.
+            Ideal para quem usa outro sistema de caixa/fiscal em paralelo.
+          </p>
+        </div>
+      </div>
+
       <h3 style="margin:22px 0 4px;font-size:15px">Backup do Banco de Dados</h3>
       <p class="text-muted" style="margin:0 0 12px;font-size:13px">
         O sistema gera um backup automático todos os dias às 23h e mantém os últimos 7 arquivos.
@@ -384,7 +410,7 @@
 
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
-    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-nfce [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"], #cfg-form-etiqueta [name="${n}"]`)?.value || "").trim();
+    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-modo [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-nfce [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"], #cfg-form-etiqueta [name="${n}"]`)?.value || "").trim();
     const dados = {
       empresa_nome: val("empresa_nome"),
       empresa_cnpj: val("empresa_cnpj"),
@@ -404,6 +430,7 @@
       nfe_token: val("nfe_token"),
       nfe_certificado_pfx: document.getElementById("cfg-cert-dados")?.value || undefined,
       nfe_certificado_senha: val("nfe_certificado_senha"),
+      modo_financeiro: val("modo_financeiro"),
       nfce_ativo: val("nfce_ativo"),
       nfce_serie: val("nfce_serie"),
       nfce_numero_inicial: val("nfce_numero_inicial"),
