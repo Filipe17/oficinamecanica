@@ -128,7 +128,7 @@
           <td>${o.mecanico_nome || "-"}</td>
           <td class="text-right">
             <button class="icon-btn btn--sm" title="Abrir" onclick="window.__os.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
-            ${soLeitura ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
+            ${soLeitura || isMecanico ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
           </td></tr>`).join("")}
         </tbody></table></div>`;
     } catch (e) {
