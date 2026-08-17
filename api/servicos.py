@@ -1,42 +1,19 @@
 """
 servicos.py — CRUD do catálogo de serviços (mão de obra) da oficina.
 
-Tabela: servicos
-Campos: id, descricao, valor, garantia, codigo_servico, iss_percentual, criado_em
+Tabela: servicos (criada pelo init_db em database.py)
+Colunas extras adicionadas via _garantir_coluna: codigo_servico, iss_percentual
 """
 
 from flask import Blueprint, request, jsonify, session
-from database.database import query, now, registrar_log
+from database.database import query, now, registrar_log, _garantir_coluna
 from api.usuarios import login_obrigatorio
 
 servicos_bp = Blueprint("servicos", __name__)
 
-
-def _garantir_tabela():
-    """Garante que a tabela e colunas extras existem (migração não-destrutiva)."""
-    query("""
-        CREATE TABLE IF NOT EXISTS servicos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            descricao TEXT NOT NULL,
-            valor REAL,
-            garantia TEXT,
-            codigo_servico TEXT,
-            iss_percentual REAL,
-            criado_em TEXT
-        )
-    """, commit=True)
-    # Colunas adicionadas posteriormente (seguro rodar sempre)
-    for col, tipo in [
-        ("codigo_servico", "TEXT"),
-        ("iss_percentual", "REAL"),
-    ]:
-        try:
-            query(f"ALTER TABLE servicos ADD COLUMN {col} {tipo}", commit=True)
-        except Exception:
-            pass  # coluna já existe
-
-
-_garantir_tabela()
+# Colunas adicionadas após a criação inicial da tabela (não-destrutivo)
+_garantir_coluna("servicos", "codigo_servico", "TEXT")
+_garantir_coluna("servicos", "iss_percentual", "REAL")
 
 
 @servicos_bp.route("/api/servicos", methods=["GET"])
