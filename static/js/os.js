@@ -335,7 +335,7 @@
     }
     // Mecânico: bloqueia campos de cabeçalho e peças.
     if (isMecanico) {
-      ["cliente_id", "veiculo_id", "mecanico_id", "problema"].forEach((nome) => {
+      ["cliente_id", "veiculo_id", "mecanico_id", "problema", "horas_trabalhadas"].forEach((nome) => {
         const el = document.querySelector(`#os-form [name="${nome}"]`);
         if (el) el.disabled = true;
       });
