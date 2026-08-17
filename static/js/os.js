@@ -14,6 +14,7 @@
 
   // Só-leitura quando o perfil tem nível "visualizar" (1) no módulo correspondente.
   const MODULO_PAG = EH_ORC ? "orcamentos" : "ordem_servico";
+  const isMecanico = Layout.usuario?.perfil === "mecanico";
   const soLeitura = Layout.usuario?.perfil !== "administrador"
                  && (Layout.permissoes?.[MODULO_PAG] ?? 2) < 2;
 
@@ -160,7 +161,7 @@
     const nome = (it.descricao || it.nome || "").replace(/"/g, "&quot;");
     return `<tr data-peca="${idx}">
       <td>${nome}<input type="hidden" class="pc-desc" value="${nome}"></td>
-      <td style="width:44px"><button class="icon-btn btn--sm" onclick="window.__os.remPeca('${idx}')"><i class="fa-solid fa-xmark"></i></button></td>
+      <td style="width:44px">${isMecanico ? "" : `<button class="icon-btn btn--sm" onclick="window.__os.remPeca('${idx}')"><i class="fa-solid fa-xmark"></i></button>`}</td>
     </tr>`;
   }
 
@@ -261,7 +262,7 @@
             : STATUS
           ).map((s) => `<option value="${s}" ${ed && o.status === s ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
         <div class="field"><label>Previsão</label><input type="date" name="previsao" value="${ed && o.previsao ? String(o.previsao).slice(0,10) : ""}"></div>
-        <div class="field col-2"><label>Problema relatado</label><textarea name="problema">${ed ? (o.problema || "") : ""}</textarea></div>
+        <div class="field col-2"><label>Problema relatado</label><textarea name="problema" ${isMecanico ? "disabled" : ""}>${ed ? (o.problema || "") : ""}</textarea></div>
         <div class="field col-2"><label>Diagnóstico</label><textarea name="diagnostico">${ed ? (o.diagnostico || "") : ""}</textarea></div>
         <div class="field"><label>Horas trabalhadas</label><input type="number" step="0.5" name="horas_trabalhadas" value="${ed ? (o.horas_trabalhadas || 0) : 0}"></div>
         ${EH_ORC ? `<div class="field"><label>Garantia</label><input name="garantia" value="${ed ? (o.garantia || "") : ""}"></div>` : ""}
@@ -271,12 +272,12 @@
       <div class="os-itens os-pecas">
         <div class="os-itens__head">
           <h3>Peças trocadas</h3>
-          <span class="os-pecas__hint">Digite ou pressione <kbd>F1</kbd> para buscar no cadastro de produtos</span>
+          ${!isMecanico ? `<span class="os-pecas__hint">Digite ou pressione <kbd>F1</kbd> para buscar no cadastro de produtos</span>` : ""}
         </div>
-        <div class="field">
+        ${!isMecanico ? `<div class="field">
           <label>Adicionar peça</label>
           <input id="os-peca-busca" placeholder="Nome da peça… (F1 abre a busca)" autocomplete="off">
-        </div>
+        </div>` : ""}
         <div class="table-wrap"><table class="data os-itens__table">
           <thead><tr><th>Peça</th><th></th></tr></thead>
           <tbody id="os-pecas-body">${pecasHtml}</tbody>
@@ -331,6 +332,13 @@
       document.querySelectorAll("#os-form input, #os-form select, #os-form textarea")
         .forEach((el) => { el.disabled = true; });
       return;
+    }
+    // Mecânico: bloqueia campos de cabeçalho e peças.
+    if (isMecanico) {
+      ["cliente_id", "veiculo_id", "mecanico_id", "problema"].forEach((nome) => {
+        const el = document.querySelector(`#os-form [name="${nome}"]`);
+        if (el) el.disabled = true;
+      });
     }
     const btnSalvar = document.getElementById("os-salvar");
     if (btnSalvar) btnSalvar.onclick = () => salvar(ed ? o.id : null, ed ? o : null);
