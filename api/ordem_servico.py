@@ -37,6 +37,7 @@ _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
     "em_execucao", "finalizada_mecanico", "finalizada", "cancelada",
+    "cliente_aprovou",
 }
 
 
