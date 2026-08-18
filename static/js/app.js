@@ -360,6 +360,8 @@ const Layout = {
   set(html) { document.getElementById("conteudo").innerHTML = html; },
 };
 
+window.Layout = Layout; // expõe para onclick inline
+
 /* Utilitário: debounce para campos de busca */
 function debounce(fn, ms = 350) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
