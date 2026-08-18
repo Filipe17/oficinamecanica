@@ -47,5 +47,6 @@
       { nome: "observacoes",   label: "Observações", tipo: "textarea", larguraTotal: true },
     ],
   });
+  window.__recarregar = () => crud.carregar();
   crud.montar();
 })();

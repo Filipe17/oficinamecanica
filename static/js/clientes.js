@@ -199,5 +199,6 @@
     },
   };
 
+  window.__recarregar = () => crud.carregar();
   crud.montar();
 })();

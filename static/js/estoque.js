@@ -623,5 +623,6 @@ Esta ação atualiza o estoque atual para os valores contados.`)) return;
     };
   }
 
+  window.__recarregar = () => document.querySelector(".tab.active")?.click();
   render("alertas");
 })();

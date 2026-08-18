@@ -571,4 +571,5 @@
     });
   }
 
+  window.__recarregar = carregar;
 })();

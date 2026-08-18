@@ -35,5 +35,6 @@
       { nome: "senha", label: "Senha (deixe em branco para manter)", tipo: "password" },
     ],
   });
+  window.__recarregar = () => crud.carregar();
   crud.montar();
 })();

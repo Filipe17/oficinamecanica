@@ -437,8 +437,7 @@ window._diagPendentes = [];
 Layout.abrirNotifDiag = function () {
   const lista = window._diagPendentes || [];
   if (!lista.length) return;
-  window._diagOS = lista;
-  const linhas = lista.map((o, idx) =>
+  const linhas = lista.map((o) =>
     `<div style="padding:.75rem;border:1.5px solid #f59e0b;border-radius:10px;margin-bottom:.5rem;background:#fffbeb">
        <div style="font-weight:700;color:#b45309"><i class="fa-solid fa-stethoscope"></i> OS Nº ${o.numero || o.id} — ${o.cliente_nome || "—"}</div>
        <div style="font-size:.85rem;color:#555;margin:.25rem 0"><b>Mecânico:</b> ${o.mecanico_nome || "—"}</div>
@@ -493,3 +492,15 @@ Layout.iniciar = async function (...args) {
   Layout._iniciarPollingDiag();
   return r;
 };
+
+
+/* =========================================================================
+   Auto-refresh global: recarrega a tela atual a cada 30s silenciosamente
+   ========================================================================= */
+(function() {
+  setInterval(function() {
+    if (typeof window.__recarregar === "function") {
+      try { window.__recarregar(); } catch(_) {}
+    }
+  }, 30000);
+})();

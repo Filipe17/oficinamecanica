@@ -295,5 +295,6 @@
     },
   };
 
+  window.__recarregar = render;
   render();
 })();

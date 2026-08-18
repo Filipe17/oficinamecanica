@@ -230,5 +230,6 @@
     },
   };
 
+  window.__recarregar = carregar;
   carregar();
 })();

@@ -24,5 +24,6 @@
       { nome: "iss_percentual", label: "ISS (%)", tipo: "number" },
     ],
   });
+  window.__recarregar = () => crud.carregar();
   crud.montar();
 })();

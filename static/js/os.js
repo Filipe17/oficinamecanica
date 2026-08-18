@@ -1296,6 +1296,7 @@
   if (_abrirId) {
     carregar().then(() => abrirEditor({ id: _abrirId }));
   } else {
+    window.__recarregar = carregar;
     carregar();
   }
 })();
