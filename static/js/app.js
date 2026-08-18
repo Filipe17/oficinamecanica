@@ -452,12 +452,12 @@ Layout.abrirNotifDiag = function () {
   );
 };
 
-Layout._abrirOS = async function (id) {
-  // Marca como lido
-  try { await API.post(`/api/os/${id}/diagnostico-lido`, {}); } catch (_) {}
+Layout._abrirOS = function (id) {
+  // Marca como lido em background (não bloqueia o redirect)
+  try { API.post(`/api/os/${id}/diagnostico-lido`, {}); } catch (_) {}
   Modal.fechar();
-  // Sempre força navegação com replace para garantir reload limpo
-  location.replace(`/ordem_servico?abrir=${id}`);
+  // Navega para a OS — location.assign força reload mesmo na mesma página
+  location.assign(`/ordem_servico?abrir=${id}`);
 };
 
 Layout._iniciarPollingDiag = function () {
