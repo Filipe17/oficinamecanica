@@ -360,8 +360,6 @@ const Layout = {
   set(html) { document.getElementById("conteudo").innerHTML = html; },
 };
 
-window.Layout = Layout; // expõe para onclick inline
-
 /* Utilitário: debounce para campos de busca */
 function debounce(fn, ms = 350) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
@@ -387,7 +385,8 @@ window._orcsAprovados = [];
 Layout.abrirNotifOrc = function () {
   const lista = window._orcsAprovados || [];
   if (!lista.length) return;
-  const linhas = lista.map((o) =>
+  window._diagOS = lista;
+  const linhas = lista.map((o, idx) =>
     `<div style="padding:.75rem;border:1.5px solid #0d9488;border-radius:10px;margin-bottom:.5rem;background:#f0fdf4">
        <div style="font-weight:700;color:#0d9488"><i class="fa-solid fa-circle-check"></i> Orçamento Nº ${o.numero || o.id}</div>
        <div style="font-size:.9rem;color:#444;margin-top:.25rem">Cliente: <b>${o.cliente_nome || "—"}</b></div>
@@ -442,7 +441,7 @@ Layout.abrirNotifDiag = function () {
        <div style="font-size:.85rem;color:#555;margin:.25rem 0"><b>Mecânico:</b> ${o.mecanico_nome || "—"}</div>
        <div style="font-size:.85rem;color:#444;background:#fef3c7;border-radius:6px;padding:.4rem .6rem;margin:.25rem 0">${o.diagnostico || ""}</div>
        <button class="btn btn--primary btn--sm" style="margin-top:.5rem"
-         onclick="Layout._abrirOS(${o.id}, ${JSON.stringify(o.numero)})">
+         onclick="window._abrirOSDiag(${idx})"
          <i class="fa-solid fa-arrow-right"></i> Continuar preenchendo a OS
        </button>
      </div>`
@@ -452,6 +451,11 @@ Layout.abrirNotifDiag = function () {
     `<div style="margin-bottom:.75rem;color:#555">O(s) mecânico(s) preencheram o diagnóstico. Complete a OS para prosseguir:</div>${linhas}`,
     `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`
   );
+};
+
+window._abrirOSDiag = function(idx) {
+  const o = (window._diagOS || [])[idx];
+  if (o) Layout._abrirOS(o.id);
 };
 
 Layout._abrirOS = function (id) {
