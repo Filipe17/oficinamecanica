@@ -216,18 +216,63 @@
       };
       if (!dados.cliente_id || !dados.data) { toast("Informe cliente e data", "warning"); return; }
       try {
-        if (ed) { await API.put(`/api/agendamentos/${reg.id}`, dados); toast("Agendamento atualizado"); }
-        else { await API.post("/api/agendamentos", dados); toast("Agendamento criado"); }
+        if (ed) {
+          await API.put(`/api/agendamentos/${reg.id}`, dados);
+          toast("Agendamento atualizado");
+          if (dados.status === "confirmado") await checarEnvioWhats(reg.id, "confirmado");
+        } else {
+          const res = await API.post("/api/agendamentos", dados);
+          toast("Agendamento criado");
+          if (dados.status === "confirmado" && res?.id) {
+            // busca no cache atualizado
+            await render();
+            const ag = cache.find((x) => x.id === res.id);
+            if (ag) dispararWhatsConfirmacao(ag);
+            Modal.fechar();
+            return;
+          }
+        }
         Modal.fechar(); render();
       } catch (e) { toast(e.message, "error"); }
     };
   }
 
+
+  /* Dispara WhatsApp de confirmação quando status vira "confirmado" */
+  function dispararWhatsConfirmacao(agendamento) {
+    const fone = (agendamento.whatsapp || agendamento.telefone || "").replace(/\D/g, "");
+    if (!fone) return; // sem telefone, silencioso
+    const data = agendamento.data
+      ? new Date(agendamento.data + "T12:00:00").toLocaleDateString("pt-BR")
+      : "data agendada";
+    const hora = agendamento.hora ? ` às ${agendamento.hora}` : "";
+    const msg = `Olá ${agendamento.cliente_nome || ""}! Por favor retornar se vai deixar o carro na data agendada (${data}${hora})?`;
+    window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(msg)}`, "_blank");
+  }
+
+  /* Busca o agendamento com dados do cliente e dispara se confirmado */
+  async function checarEnvioWhats(id, novoStatus) {
+    if (novoStatus !== "confirmado") return;
+    try {
+      const r = await API.get(`/api/agendamentos?q=`);
+      const ag = (r.dados || []).find((x) => x.id === id)
+              || cache.find((x) => x.id === id);
+      if (ag) dispararWhatsConfirmacao(ag);
+    } catch (_) {}
+  }
+
   window.__ag = {
     editar(id) { const a = cache.find((x) => x.id === id); if (a) abrirForm(a); },
     async status(id, novo) {
-      try { await API.post(`/api/agendamentos/${id}/status`, { status: novo }); toast("Status atualizado"); render(); }
-      catch (e) { toast(e.message, "error"); }
+      try {
+        await API.post(`/api/agendamentos/${id}/status`, { status: novo });
+        toast("Status atualizado");
+        await render();
+        if (novo === "confirmado") {
+          const ag = cache.find((x) => x.id === id);
+          if (ag) dispararWhatsConfirmacao(ag);
+        }
+      } catch (e) { toast(e.message, "error"); }
     },
     async excluir(id) {
       if (!confirm("Excluir este agendamento?")) return;
