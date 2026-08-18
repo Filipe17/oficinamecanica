@@ -302,6 +302,10 @@ const Layout = {
               <i class="fa-solid fa-bell" style="color:#ef4444"></i>
               <span id="notif-orc-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:piscar 1s infinite"></span>
             </button>` : ""}
+            ${["administrador","gerente","atendente"].includes(this.usuario.perfil) ? `<button class="icon-btn" id="btn-notif-diag" title="Diagnósticos pendentes" style="display:none;position:relative" onclick="Layout.abrirNotifDiag()">
+              <i class="fa-solid fa-stethoscope" style="color:#ef4444"></i>
+              <span id="notif-diag-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:piscar 1s infinite"></span>
+            </button>` : ""}
             <button class="icon-btn" id="btn-tema" onclick="Tema.alternar()" title="Alternar tema">
               <i class="fa-solid ${temaEscuro ? "fa-sun" : "fa-moon"}"></i>
             </button>
@@ -419,5 +423,69 @@ const _iniciarOriginal = Layout.iniciar.bind(Layout);
 Layout.iniciar = async function (...args) {
   const r = await _iniciarOriginal(...args);
   Layout._iniciarPollingOrc();
+  return r;
+};
+
+/* =========================================================================
+   Notificação de diagnóstico pendente (admin / gerente / atendente)
+   ========================================================================= */
+window._diagPendentes = [];
+
+Layout.abrirNotifDiag = function () {
+  const lista = window._diagPendentes || [];
+  if (!lista.length) return;
+  const linhas = lista.map((o) =>
+    `<div style="padding:.75rem;border:1.5px solid #f59e0b;border-radius:10px;margin-bottom:.5rem;background:#fffbeb">
+       <div style="font-weight:700;color:#b45309"><i class="fa-solid fa-stethoscope"></i> OS Nº ${o.numero || o.id} — ${o.cliente_nome || "—"}</div>
+       <div style="font-size:.85rem;color:#555;margin:.25rem 0"><b>Mecânico:</b> ${o.mecanico_nome || "—"}</div>
+       <div style="font-size:.85rem;color:#444;background:#fef3c7;border-radius:6px;padding:.4rem .6rem;margin:.25rem 0">${o.diagnostico || ""}</div>
+       <button class="btn btn--primary btn--sm" style="margin-top:.5rem"
+         onclick="Layout._abrirOS(${o.id}, ${JSON.stringify(o.numero)})">
+         <i class="fa-solid fa-arrow-right"></i> Continuar preenchendo a OS
+       </button>
+     </div>`
+  ).join("");
+  Modal.abrir(
+    "🔧 Diagnóstico aguardando sua atenção",
+    `<div style="margin-bottom:.75rem;color:#555">O(s) mecânico(s) preencheram o diagnóstico. Complete a OS para prosseguir:</div>${linhas}`,
+    `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`
+  );
+};
+
+Layout._abrirOS = async function (id, numero) {
+  // Marca como lido e redireciona para a OS
+  try { await fetch(`/api/os/${id}/diagnostico-lido`, { method: "POST" }); } catch (_) {}
+  window._diagPendentes = window._diagPendentes.filter((x) => x.id !== id);
+  const btn = document.getElementById("btn-notif-diag");
+  if (btn) btn.style.display = window._diagPendentes.length ? "inline-flex" : "none";
+  Modal.fechar();
+  // Redireciona para a tela de OS abrindo o registro
+  location.href = `/ordem_servico?abrir=${id}`;
+};
+
+Layout._iniciarPollingDiag = function () {
+  const perfil = this.usuario?.perfil;
+  if (!["administrador", "gerente", "atendente"].includes(perfil)) return;
+
+  const verificar = async () => {
+    try {
+      const r = await fetch("/api/os/diagnostico-pendente", { credentials: "same-origin" });
+      if (!r.ok) return;
+      const data = await r.json();
+      window._diagPendentes = data.dados || [];
+      const btn = document.getElementById("btn-notif-diag");
+      if (btn) btn.style.display = window._diagPendentes.length ? "inline-flex" : "none";
+    } catch (_) {}
+  };
+
+  verificar();
+  setInterval(verificar, 30000);
+};
+
+// Hook no iniciar (complementa o anterior)
+const _iniciarComDiag = Layout.iniciar.bind(Layout);
+Layout.iniciar = async function (...args) {
+  const r = await _iniciarComDiag(...args);
+  Layout._iniciarPollingDiag();
   return r;
 };
