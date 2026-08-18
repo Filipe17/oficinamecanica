@@ -33,11 +33,11 @@ def listar_mecanicos():
 # Garante coluna para notificação de diagnóstico (não-destrutivo)
 from database.database import _garantir_coluna as _gc
 _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
+_gc("ordens_servico", "os_referencia", "TEXT")
 
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
     "em_execucao", "finalizada_mecanico", "finalizada", "cancelada",
-    "cliente_aprovou",
 }
 
 
@@ -146,6 +146,9 @@ def detalhe(oid):
     if not o:
         return jsonify({"erro": "OS não encontrada"}), 404
     o["itens"] = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
+    import json as _json
+    try: o["os_referencia"] = _json.loads(o.get("os_referencia") or "[]")
+    except Exception: o["os_referencia"] = []
     return jsonify(o)
 
 
@@ -203,6 +206,10 @@ def editar(oid):
     if "itens" in d:
         query("DELETE FROM os_itens WHERE os_id=?", (oid,), commit=True)
         _salvar_itens(oid, d["itens"])
+    if "os_referencia" in d:
+        import json as _json
+        query("UPDATE ordens_servico SET os_referencia=? WHERE id=?",
+              (_json.dumps(d["os_referencia"]), oid), commit=True)
     _recalcular_total(oid)
     # Se mecânico preencheu diagnóstico, notifica admin/gerente
     if session.get("perfil") == "mecanico" and (d.get("diagnostico") or "").strip():
