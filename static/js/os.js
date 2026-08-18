@@ -1290,10 +1290,11 @@
     };
   };
 
-  carregar().then(() => {
-    // Abre automaticamente a OS indicada via ?abrir=<id> (vindo da notificação de diagnóstico)
-    const params = new URLSearchParams(location.search);
-    const abrirId = parseInt(params.get("abrir"));
-    if (abrirId) abrirEditor({ id: abrirId });
-  });
+  // Abre automaticamente a OS indicada via ?abrir=<id> (vindo da notificação de diagnóstico)
+  const _abrirId = parseInt(new URLSearchParams(location.search).get("abrir"));
+  if (_abrirId) {
+    carregar().then(() => abrirEditor({ id: _abrirId }));
+  } else {
+    carregar();
+  }
 })();

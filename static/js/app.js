@@ -453,13 +453,19 @@ Layout.abrirNotifDiag = function () {
 };
 
 Layout._abrirOS = async function (id, numero) {
-  // Marca como lido e redireciona para a OS
-  try { await fetch(`/api/os/${id}/diagnostico-lido`, { method: "POST" }); } catch (_) {}
+  // Marca como lido
+  try { await API.post(`/api/os/${id}/diagnostico-lido`, {}); } catch (_) {}
   window._diagPendentes = window._diagPendentes.filter((x) => x.id !== id);
   const btn = document.getElementById("btn-notif-diag");
   if (btn) btn.style.display = window._diagPendentes.length ? "inline-flex" : "none";
   Modal.fechar();
-  // Redireciona para a tela de OS abrindo o registro
+
+  // Se já estamos na tela de OS, abre direto sem redirecionar
+  if (window.__os && typeof window.__os.abrir === "function") {
+    window.__os.abrir(id);
+    return;
+  }
+  // Caso contrário, navega para a tela de OS com parâmetro
   location.href = `/ordem_servico?abrir=${id}`;
 };
 
