@@ -1290,5 +1290,10 @@
     };
   };
 
-  carregar();
+  carregar().then(() => {
+    // Abre automaticamente a OS indicada via ?abrir=<id> (vindo da notificação de diagnóstico)
+    const params = new URLSearchParams(location.search);
+    const abrirId = parseInt(params.get("abrir"));
+    if (abrirId) abrirEditor({ id: abrirId });
+  });
 })();
