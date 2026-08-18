@@ -792,6 +792,7 @@
       obs_finais: document.getElementById("orc-obsf")?.value.trim(),
       desconto: parseFloat(document.getElementById("orc-desc")?.value) || 0,
       status: editando?.status || "aberta",
+      os_referencia: osRefs,
       itens: itens.map((it) => ({
         tipo: it.tipo, referencia_id: it.referencia_id, codigo: it.codigo,
         descricao: it.descricao, unidade: it.unidade,
