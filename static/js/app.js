@@ -469,9 +469,7 @@ Layout._iniciarPollingDiag = function () {
 
   const verificar = async () => {
     try {
-      const r = await fetch("/api/os/diagnostico-pendente", { credentials: "same-origin" });
-      if (!r.ok) return;
-      const data = await r.json();
+      const data = await API.get("/api/os/diagnostico-pendente");
       window._diagPendentes = data.dados || [];
       const btn = document.getElementById("btn-notif-diag");
       if (btn) btn.style.display = window._diagPendentes.length ? "inline-flex" : "none";
