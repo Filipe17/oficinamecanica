@@ -686,3 +686,27 @@ def salvar_foto(oid):
 def excluir_foto(oid, fid):
     query("DELETE FROM os_fotos WHERE id=? AND os_id=?", (fid, oid), commit=True)
     return jsonify({"ok": True})
+
+
+@os_bp.route("/api/os/diagnostico-pendente", methods=["GET"])
+@login_obrigatorio
+def diagnostico_pendente():
+    """Retorna OS com diagnóstico preenchido pelo mecânico aguardando atenção do admin."""
+    lista = query(
+        "SELECT o.id, o.numero, o.diagnostico, o.status, "
+        "c.nome AS cliente_nome, u.nome AS mecanico_nome "
+        "FROM ordens_servico o "
+        "LEFT JOIN clientes c ON c.id=o.cliente_id "
+        "LEFT JOIN usuarios u ON u.id=o.mecanico_id "
+        "WHERE o.diagnostico_notificado=1 AND o.eh_orcamento=0 "
+        "ORDER BY o.id DESC")
+    return jsonify({"dados": lista})
+
+
+@os_bp.route("/api/os/<int:oid>/diagnostico-lido", methods=["POST"])
+@login_obrigatorio
+def diagnostico_lido(oid):
+    """Marca o diagnóstico como lido (some da notificação)."""
+    query("UPDATE ordens_servico SET diagnostico_notificado=0 WHERE id=?",
+          (oid,), commit=True)
+    return jsonify({"ok": True})
