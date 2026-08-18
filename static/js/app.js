@@ -360,6 +360,8 @@ const Layout = {
   set(html) { document.getElementById("conteudo").innerHTML = html; },
 };
 
+window.Layout = Layout;
+
 /* Utilitário: debounce para campos de busca */
 function debounce(fn, ms = 350) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
@@ -441,7 +443,7 @@ Layout.abrirNotifDiag = function () {
        <div style="font-size:.85rem;color:#555;margin:.25rem 0"><b>Mecânico:</b> ${o.mecanico_nome || "—"}</div>
        <div style="font-size:.85rem;color:#444;background:#fef3c7;border-radius:6px;padding:.4rem .6rem;margin:.25rem 0">${o.diagnostico || ""}</div>
        <button class="btn btn--primary btn--sm" style="margin-top:.5rem"
-         onclick="window._abrirOSDiag(${idx})"
+         onclick="window._abrirOSDiag(${idx})">
          <i class="fa-solid fa-arrow-right"></i> Continuar preenchendo a OS
        </button>
      </div>`
@@ -454,7 +456,7 @@ Layout.abrirNotifDiag = function () {
 };
 
 window._abrirOSDiag = function(idx) {
-  const o = (window._diagOS || [])[idx];
+  var o = (window._diagOS || [])[idx];
   if (o) Layout._abrirOS(o.id);
 };
 
