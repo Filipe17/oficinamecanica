@@ -30,6 +30,10 @@ def listar_mecanicos():
     return jsonify({"dados": lista})
 
 
+# Garante coluna para notificação de diagnóstico (não-destrutivo)
+from database.database import _garantir_coluna as _gc
+_gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
+
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
     "em_execucao", "finalizada_mecanico", "finalizada", "cancelada",
@@ -99,6 +103,30 @@ def listar():
         f"LEFT JOIN usuarios u ON u.id=o.mecanico_id "
         f"{clausula} ORDER BY o.id DESC LIMIT 200", params)
     return jsonify({"dados": lista})
+
+
+@os_bp.route("/api/os/diagnostico-pendente", methods=["GET"])
+@login_obrigatorio
+def diagnostico_pendente():
+    """OS com diagnóstico preenchido pelo mecânico aguardando atenção do admin."""
+    lista = query(
+        "SELECT o.id, o.numero, o.diagnostico, o.status, "
+        "c.nome AS cliente_nome, u.nome AS mecanico_nome "
+        "FROM ordens_servico o "
+        "LEFT JOIN clientes c ON c.id=o.cliente_id "
+        "LEFT JOIN usuarios u ON u.id=o.mecanico_id "
+        "WHERE o.diagnostico_notificado=1 AND o.eh_orcamento=0 "
+        "ORDER BY o.id DESC")
+    return jsonify({"dados": lista})
+
+
+@os_bp.route("/api/os/<int:oid>/diagnostico-lido", methods=["POST"])
+@login_obrigatorio
+def diagnostico_lido(oid):
+    """Marca diagnóstico como lido."""
+    query("UPDATE ordens_servico SET diagnostico_notificado=0 WHERE id=?",
+          (oid,), commit=True)
+    return jsonify({"ok": True})
 
 
 @os_bp.route("/api/os/<int:oid>", methods=["GET"])
@@ -175,6 +203,10 @@ def editar(oid):
         query("DELETE FROM os_itens WHERE os_id=?", (oid,), commit=True)
         _salvar_itens(oid, d["itens"])
     _recalcular_total(oid)
+    # Se mecânico preencheu diagnóstico, notifica admin/gerente
+    if session.get("perfil") == "mecanico" and (d.get("diagnostico") or "").strip():
+        query("UPDATE ordens_servico SET diagnostico_notificado=1 WHERE id=? AND (diagnostico_notificado IS NULL OR diagnostico_notificado=0)",
+              (oid,), commit=True)
     registrar_log(session["user_id"], "editar_os", str(oid))
     return jsonify({"ok": True})
 
@@ -685,28 +717,4 @@ def salvar_foto(oid):
 @login_obrigatorio
 def excluir_foto(oid, fid):
     query("DELETE FROM os_fotos WHERE id=? AND os_id=?", (fid, oid), commit=True)
-    return jsonify({"ok": True})
-
-
-@os_bp.route("/api/os/diagnostico-pendente", methods=["GET"])
-@login_obrigatorio
-def diagnostico_pendente():
-    """Retorna OS com diagnóstico preenchido pelo mecânico aguardando atenção do admin."""
-    lista = query(
-        "SELECT o.id, o.numero, o.diagnostico, o.status, "
-        "c.nome AS cliente_nome, u.nome AS mecanico_nome "
-        "FROM ordens_servico o "
-        "LEFT JOIN clientes c ON c.id=o.cliente_id "
-        "LEFT JOIN usuarios u ON u.id=o.mecanico_id "
-        "WHERE o.diagnostico_notificado=1 AND o.eh_orcamento=0 "
-        "ORDER BY o.id DESC")
-    return jsonify({"dados": lista})
-
-
-@os_bp.route("/api/os/<int:oid>/diagnostico-lido", methods=["POST"])
-@login_obrigatorio
-def diagnostico_lido(oid):
-    """Marca o diagnóstico como lido (some da notificação)."""
-    query("UPDATE ordens_servico SET diagnostico_notificado=0 WHERE id=?",
-          (oid,), commit=True)
     return jsonify({"ok": True})
