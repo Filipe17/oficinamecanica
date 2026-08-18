@@ -298,6 +298,14 @@ const Layout = {
             <button class="topbar__toggle" onclick="Layout.toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
             <div class="topbar__title">${titulo}</div>
             <div class="topbar__spacer"></div>
+            ${this.usuario.perfil === "mecanico" ? `<button class="icon-btn notif-bell" id="btn-notif-orc" title="Orçamentos aprovados" style="display:none;position:relative" onclick="Layout.abrirNotifOrc()">
+              <i class="fa-solid fa-bell" style="color:#ef4444"></i>
+              <span id="notif-orc-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:piscar 1s infinite"></span>
+            </button>` : ""}
+            ${["administrador","gerente","atendente"].includes(this.usuario.perfil) ? `<button class="icon-btn" id="btn-notif-diag" title="Diagnósticos pendentes" style="display:none;position:relative" onclick="Layout.abrirNotifDiag()">
+              <i class="fa-solid fa-stethoscope" style="color:#ef4444"></i>
+              <span id="notif-diag-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:piscar 1s infinite"></span>
+            </button>` : ""}
             <button class="icon-btn" id="btn-tema" onclick="Tema.alternar()" title="Alternar tema">
               <i class="fa-solid ${temaEscuro ? "fa-sun" : "fa-moon"}"></i>
             </button>
@@ -356,3 +364,126 @@ const Layout = {
 function debounce(fn, ms = 350) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
+
+/* =========================================================================
+   Notificação de orçamento aprovado pelo cliente (somente mecânico)
+   Polling a cada 30s — acende um sininho vermelho piscando na topbar.
+   ========================================================================= */
+
+// Injeta o CSS da animação piscar uma única vez
+(function () {
+  if (document.getElementById("_piscar_css")) return;
+  const s = document.createElement("style");
+  s.id = "_piscar_css";
+  s.textContent = `@keyframes piscar { 0%,100%{opacity:1} 50%{opacity:0} }`;
+  document.head.appendChild(s);
+})();
+
+// Estado global dos orçamentos aprovados pendentes
+window._orcsAprovados = [];
+
+Layout.abrirNotifOrc = function () {
+  const lista = window._orcsAprovados || [];
+  if (!lista.length) return;
+  const linhas = lista.map((o) =>
+    `<div style="padding:.75rem;border:1.5px solid #0d9488;border-radius:10px;margin-bottom:.5rem;background:#f0fdf4">
+       <div style="font-weight:700;color:#0d9488"><i class="fa-solid fa-circle-check"></i> Orçamento Nº ${o.numero || o.id}</div>
+       <div style="font-size:.9rem;color:#444;margin-top:.25rem">Cliente: <b>${o.cliente_nome || "—"}</b></div>
+       <div style="font-size:.85rem;color:#666">Total: <b>R$ ${(parseFloat(o.total) || 0).toFixed(2).replace(".", ",")}</b></div>
+     </div>`
+  ).join("");
+  Modal.abrir(
+    "✅ Cliente aprovou o orçamento!",
+    `<div style="margin-bottom:.75rem;color:#555">O(s) seguinte(s) orçamento(s) foram aprovados pelo cliente e aguardam sua execução:</div>
+     ${linhas}`,
+    `<button class="btn btn--primary" onclick="Modal.fechar()">Entendido</button>`
+  );
+};
+
+Layout._iniciarPollingOrc = function () {
+  if (this.usuario?.perfil !== "mecanico") return;
+
+  const verificar = async () => {
+    try {
+      // O backend já filtra pela sessão do mecânico; busca status cliente_aprovou
+      const r = await API.get("/api/os?orcamento=1&status=cliente_aprovou&notif=1&por_pagina=100");
+      const dados = r.dados || [];
+      window._orcsAprovados = dados;
+      const btn = document.getElementById("btn-notif-orc");
+      if (btn) btn.style.display = dados.length ? "inline-flex" : "none";
+    } catch (_) {}
+  };
+
+  verificar(); // imediato ao carregar
+  setInterval(verificar, 30000); // a cada 30s
+};
+
+// Hook: dispara o polling logo após o Layout.iniciar
+const _iniciarOriginal = Layout.iniciar.bind(Layout);
+Layout.iniciar = async function (...args) {
+  const r = await _iniciarOriginal(...args);
+  Layout._iniciarPollingOrc();
+  return r;
+};
+
+/* =========================================================================
+   Notificação de diagnóstico pendente (admin / gerente / atendente)
+   ========================================================================= */
+window._diagPendentes = [];
+
+Layout.abrirNotifDiag = function () {
+  const lista = window._diagPendentes || [];
+  if (!lista.length) return;
+  const linhas = lista.map((o) =>
+    `<div style="padding:.75rem;border:1.5px solid #f59e0b;border-radius:10px;margin-bottom:.5rem;background:#fffbeb">
+       <div style="font-weight:700;color:#b45309"><i class="fa-solid fa-stethoscope"></i> OS Nº ${o.numero || o.id} — ${o.cliente_nome || "—"}</div>
+       <div style="font-size:.85rem;color:#555;margin:.25rem 0"><b>Mecânico:</b> ${o.mecanico_nome || "—"}</div>
+       <div style="font-size:.85rem;color:#444;background:#fef3c7;border-radius:6px;padding:.4rem .6rem;margin:.25rem 0">${o.diagnostico || ""}</div>
+       <button class="btn btn--primary btn--sm" style="margin-top:.5rem" data-osid="${o.id}">
+         <i class="fa-solid fa-arrow-right"></i> Continuar preenchendo a OS
+       </button>
+     </div>`
+  ).join("");
+  Modal.abrir(
+    "🔧 Diagnóstico aguardando sua atenção",
+    `<div style="margin-bottom:.75rem;color:#555">O(s) mecânico(s) preencheram o diagnóstico. Complete a OS para prosseguir:</div>${linhas}`,
+    `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`
+  );
+  // Liga os botões após o modal renderizar
+  document.querySelectorAll("[data-osid]").forEach((btn) => {
+    btn.addEventListener("click", () => Layout._abrirOS(Number(btn.dataset.osid)));
+  });
+};
+
+Layout._abrirOS = function (id) {
+  // Marca como lido em background (não bloqueia o redirect)
+  try { API.post(`/api/os/${id}/diagnostico-lido`, {}); } catch (_) {}
+  Modal.fechar();
+  // Navega para a OS — location.assign força reload mesmo na mesma página
+  location.assign(`/ordem_servico?abrir=${id}`);
+};
+
+Layout._iniciarPollingDiag = function () {
+  const perfil = this.usuario?.perfil;
+  if (!["administrador", "gerente", "atendente"].includes(perfil)) return;
+
+  const verificar = async () => {
+    try {
+      const data = await API.get("/api/os/diagnostico-pendente");
+      window._diagPendentes = data.dados || [];
+      const btn = document.getElementById("btn-notif-diag");
+      if (btn) btn.style.display = window._diagPendentes.length ? "inline-flex" : "none";
+    } catch (_) {}
+  };
+
+  verificar();
+  setInterval(verificar, 30000);
+};
+
+// Hook no iniciar (complementa o anterior)
+const _iniciarComDiag = Layout.iniciar.bind(Layout);
+Layout.iniciar = async function (...args) {
+  const r = await _iniciarComDiag(...args);
+  Layout._iniciarPollingDiag();
+  return r;
+};
