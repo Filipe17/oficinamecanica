@@ -219,18 +219,23 @@
         if (ed) {
           await API.put(`/api/agendamentos/${reg.id}`, dados);
           toast("Agendamento atualizado");
-          if (dados.status === "confirmado") await checarEnvioWhats(reg.id, "confirmado");
+          Modal.fechar();
+          await render();
+          if (dados.status === "confirmado") {
+            const ag = cache.find((x) => x.id === reg.id) || { ...reg, ...dados };
+            enviarWhatsConfirmacao(ag);
+          }
+          return;
         } else {
           const res = await API.post("/api/agendamentos", dados);
           toast("Agendamento criado");
+          Modal.fechar();
+          await render();
           if (dados.status === "confirmado" && res?.id) {
-            // busca no cache atualizado
-            await render();
             const ag = cache.find((x) => x.id === res.id);
-            if (ag) dispararWhatsConfirmacao(ag);
-            Modal.fechar();
-            return;
+            if (ag) enviarWhatsConfirmacao(ag);
           }
+          return;
         }
         Modal.fechar(); render();
       } catch (e) { toast(e.message, "error"); }
@@ -241,7 +246,7 @@
   /* Dispara WhatsApp de confirmação quando status vira "confirmado" */
   function dispararWhatsConfirmacao(agendamento) {
     const fone = (agendamento.whatsapp || agendamento.telefone || "").replace(/\D/g, "");
-    if (!fone) return; // sem telefone, silencioso
+    if (!fone) { toast("Cliente sem telefone/WhatsApp — mensagem não enviada", "warning"); return; }
     const data = agendamento.data
       ? new Date(agendamento.data + "T12:00:00").toLocaleDateString("pt-BR")
       : "data agendada";
@@ -250,15 +255,15 @@
     window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(msg)}`, "_blank");
   }
 
-  /* Busca o agendamento com dados do cliente e dispara se confirmado */
-  async function checarEnvioWhats(id, novoStatus) {
-    if (novoStatus !== "confirmado") return;
-    try {
-      const r = await API.get(`/api/agendamentos?q=`);
-      const ag = (r.dados || []).find((x) => x.id === id)
-              || cache.find((x) => x.id === id);
-      if (ag) dispararWhatsConfirmacao(ag);
-    } catch (_) {}
+  /* Enriquece com telefone do cliente (já carregado) e dispara */
+  function enviarWhatsConfirmacao(ag) {
+    // tenta pegar telefone do objeto do cache (já tem c.whatsapp via backend)
+    // se não tiver, pega da lista de clientes
+    if (!ag.whatsapp && !ag.telefone) {
+      const cli = clientes.find((c) => Number(c.id) === Number(ag.cliente_id));
+      if (cli) { ag.whatsapp = cli.whatsapp; ag.telefone = cli.telefone; }
+    }
+    dispararWhatsConfirmacao(ag);
   }
 
   window.__ag = {
@@ -270,7 +275,7 @@
         await render();
         if (novo === "confirmado") {
           const ag = cache.find((x) => x.id === id);
-          if (ag) dispararWhatsConfirmacao(ag);
+          if (ag) enviarWhatsConfirmacao(ag);
         }
       } catch (e) { toast(e.message, "error"); }
     },
