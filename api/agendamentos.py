@@ -40,7 +40,7 @@ def listar():
         where.append("a.status = ?"); params.append(status)
 
     lista = query(
-        f"SELECT a.*, c.nome AS cliente_nome, "
+        f"SELECT a.*, c.nome AS cliente_nome, c.whatsapp, c.telefone, "
         f"v.placa AS veiculo_placa, v.modelo AS veiculo_modelo, "
         f"u.nome AS mecanico_nome, s.descricao AS servico_nome "
         f"FROM agendamentos a "
