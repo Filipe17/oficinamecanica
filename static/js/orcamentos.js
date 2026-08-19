@@ -77,6 +77,12 @@
         <div id="orc-view"></div>
       </div></div>
     `);
+
+  async function _autoSalvarOsRefs() {
+    if (!editando) return;
+    try { await API.put(`/api/os/${editando.id}`, { os_referencia: osRefs }); } catch (_) {}
+  }
+
     window.__orc = api;
 
     let _viewOrc = "lista";
@@ -796,7 +802,6 @@
       obs_finais: document.getElementById("orc-obsf")?.value.trim(),
       desconto: parseFloat(document.getElementById("orc-desc")?.value) || 0,
       status: editando?.status || "aberta",
-      os_referencia: osRefs,
       itens: itens.map((it) => ({
         tipo: it.tipo, referencia_id: it.referencia_id, codigo: it.codigo,
         descricao: it.descricao, unidade: it.unidade,
@@ -834,11 +839,8 @@
   /* ------------------------------------------- FINALIZAR (baixa + caixa + A5) */
   async function salvarRascunho() {
     if (!editando) return;
-    const d = coletar();
-    try {
-      await API.put(`/api/os/${editando.id}`, d);
-      toast("Orçamento salvo");
-    } catch (e) { toast(e.message || "Erro ao salvar", "error"); }
+    try { await API.put(`/api/os/${editando.id}`, coletar()); toast("Orçamento salvo"); }
+    catch (e) { toast(e.message || "Erro ao salvar", "error"); }
   }
 
   async function finalizarOrcamento() {
