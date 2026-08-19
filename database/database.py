@@ -604,6 +604,10 @@ def _migrar_colunas():
     _garantir_coluna("financeiro", "total_parcelas",  "INTEGER DEFAULT 1")
     # Limite de crédito por cliente (0 = sem limite definido)
     _garantir_coluna("clientes", "limite_credito", "REAL DEFAULT 0")
+    # OS relacionadas ao orçamento (JSON array)
+    _garantir_coluna("ordens_servico", "os_referencia", "TEXT")
+    # Notificação de diagnóstico pendente para admin
+    _garantir_coluna("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
