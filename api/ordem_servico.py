@@ -34,6 +34,7 @@ def listar_mecanicos():
 from database.database import _garantir_coluna as _gc
 _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
 _gc("ordens_servico", "os_referencia", "TEXT")
+_gc("ordens_servico", "orc_finalizado_notif", "INTEGER DEFAULT 0")
 
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
@@ -127,6 +128,30 @@ def diagnostico_pendente():
 def diagnostico_lido(oid):
     """Marca diagnóstico como lido."""
     query("UPDATE ordens_servico SET diagnostico_notificado=0 WHERE id=?",
+          (oid,), commit=True)
+    return jsonify({"ok": True})
+
+
+@os_bp.route("/api/os/orc-finalizado-pendente", methods=["GET"])
+@login_obrigatorio
+def orc_finalizado_pendente():
+    """OS com orçamento finalizado aguardando o mecânico fechar a OS."""
+    lista = query(
+        "SELECT o.id, o.numero, o.status, "
+        "c.nome AS cliente_nome, u.nome AS mecanico_nome "
+        "FROM ordens_servico o "
+        "LEFT JOIN clientes c ON c.id=o.cliente_id "
+        "LEFT JOIN usuarios u ON u.id=o.mecanico_id "
+        "WHERE o.orc_finalizado_notif=1 AND o.eh_orcamento=0 "
+        "ORDER BY o.id DESC")
+    return jsonify({"dados": lista})
+
+
+@os_bp.route("/api/os/<int:oid>/orc-finalizado-lido", methods=["POST"])
+@login_obrigatorio
+def orc_finalizado_lido(oid):
+    """Marca notificação de orçamento finalizado como lida."""
+    query("UPDATE ordens_servico SET orc_finalizado_notif=0 WHERE id=?",
           (oid,), commit=True)
     return jsonify({"ok": True})
 
@@ -393,6 +418,19 @@ def finalizar(oid):
                     (oid, o["cliente_id"], o.get("veiculo_id"), garantia_texto,
                      hoje.isoformat(), data_fim, dias_gar, "vigente", now()),
                     commit=True)
+
+    # Se for orçamento, notifica as OS vinculadas para o mecânico finalizar
+    if o.get("eh_orcamento") == 1:
+        import json as _json
+        try:
+            refs = _json.loads(o.get("os_referencia") or "[]")
+            for ref in refs:
+                ref_id = ref.get("id") if isinstance(ref, dict) else ref
+                if ref_id:
+                    query("UPDATE ordens_servico SET orc_finalizado_notif=1 WHERE id=? AND eh_orcamento=0",
+                          (ref_id,), commit=True)
+        except Exception:
+            pass
 
     registrar_log(session["user_id"], "finalizar_os", str(oid))
     return jsonify({"ok": True})
