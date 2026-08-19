@@ -82,15 +82,13 @@
         `<i class="fa-solid fa-comments"></i> Comunicações — ${clienteNome}`,
         `<div id="com-body"><div class="loading"><i class="fa-solid fa-spinner spin"></i></div></div>`,
         `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>
-         <button class="btn btn--primary" id="com-add-btn">
-           <i class="fa-solid fa-plus"></i> Registrar contato
-         </button>`,
+         ${Layout.usuario?.perfil !== "mecanico" ? '<button class="btn btn--primary" id="com-add-btn"><i class="fa-solid fa-plus"></i> Registrar contato</button>' : ""}`,
         true
       );
       await this._carregar(clienteId);
 
-      document.getElementById("com-add-btn").onclick = () =>
-        this._abrirForm(clienteId);
+      const comAddBtn = document.getElementById("com-add-btn");
+      if (comAddBtn) comAddBtn.onclick = () => this._abrirForm(clienteId);
     },
 
     async _carregar(clienteId) {
@@ -118,10 +116,7 @@
                 <div style="flex:1">
                   <div style="display:flex;justify-content:space-between;align-items:flex-start">
                     <strong style="font-size:.85rem">${cfg.label}${c.assunto ? ` — ${c.assunto}` : ""}</strong>
-                    <button class="icon-btn btn--sm" onclick="window.__com._excluir(${c.id},${clienteId})"
-                      style="flex-shrink:0">
-                      <i class="fa-solid fa-trash" style="font-size:.7rem"></i>
-                    </button>
+                    ${Layout.usuario?.perfil !== "mecanico" ? `<button class="icon-btn btn--sm" onclick="window.__com._excluir(${c.id},${clienteId})" style="flex-shrink:0"><i class="fa-solid fa-trash" style="font-size:.7rem"></i></button>` : ""}
                   </div>
                   <div style="font-size:.82rem;color:#555;margin:.2rem 0">${c.descricao}</div>
                   <div style="font-size:.75rem;color:var(--text-muted)">
