@@ -77,6 +77,12 @@
         <div id="orc-view"></div>
       </div></div>
     `);
+
+  async function _autoSalvarOsRefs() {
+    if (!editando) return;
+    try { await API.put(`/api/os/${editando.id}`, { os_referencia: osRefs }); } catch (_) {}
+  }
+
     window.__orc = api;
 
     let _viewOrc = "lista";
@@ -205,6 +211,7 @@
           if (!osRefs.some((r) => r.id === origem.id)) {
             osRefs.push({ id: origem.id, numero: origem.numero, cliente: "" });
             renderOSRefs();
+            _autoSalvarOsRefs();
           }
         }
       } catch (_) {}
@@ -230,9 +237,13 @@
 
     // OS relacionadas (só para a nota A5; não são gravadas). Começa vazio; se
     // houver uma referência antiga salva em texto, semeia a lista com ela.
-    osRefs = orc?.os_referencia
-      ? String(orc.os_referencia).split(/[,;]+/).map((s) => ({ numero: s.trim() })).filter((x) => x.numero)
-      : [];
+    if (Array.isArray(orc?.os_referencia) && orc.os_referencia.length) {
+      osRefs = orc.os_referencia;
+    } else if (typeof orc?.os_referencia === "string" && orc.os_referencia) {
+      try { osRefs = JSON.parse(orc.os_referencia); } catch(_) { osRefs = []; }
+    } else {
+      osRefs = [];
+    }
 
     Layout.set(`
       <div class="orc">
@@ -341,6 +352,7 @@
               ? `${orc?.status === "cliente_aprovou"
                   ? '<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>'
                   : '<button class="btn btn--primary" id="orc-enviar-cliente"><i class="fa-solid fa-paper-plane"></i> Enviar para cliente</button>'}
+                 <button class="btn btn--outline" id="orc-salvar-rascunho"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
                  <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
               : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>`))}
           <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${(jaFinalizado || soLeitura) ? "Voltar" : "Cancelar"}</button>
@@ -433,6 +445,7 @@
       osRefs.push({ id: l.id, numero: l.numero, cliente: l.cliente });
     }
     renderOSRefs();
+    _autoSalvarOsRefs();
     focarNovoOS();
   }
 
@@ -504,6 +517,7 @@
     });
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
+    on("orc-salvar-rascunho", "click", salvarRascunho);
     on("orc-enviar-cliente", "click", enviarParaCliente);
     on("orc-limpar", "click", () => abrirEditor(null));
     on("orc-imprimir", "click", imprimir);
@@ -790,6 +804,7 @@
       obs_finais: document.getElementById("orc-obsf")?.value.trim(),
       desconto: parseFloat(document.getElementById("orc-desc")?.value) || 0,
       status: editando?.status || "aberta",
+      os_referencia: osRefs,
       itens: itens.map((it) => ({
         tipo: it.tipo, referencia_id: it.referencia_id, codigo: it.codigo,
         descricao: it.descricao, unidade: it.unidade,
@@ -1191,7 +1206,7 @@
     remItem: (i) => { itens.splice(i, 1); renderItens(); recalc(); },
     pickBusca: (i) => escolherBusca(i),
     pickOS: (i) => escolherOS(i),
-    remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); },
+    remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); _autoSalvarOsRefs(); },
   };
-  window.__recarregar = carregar;
+  window.__recarregar = renderLista;
 })();
