@@ -9,6 +9,7 @@
     { id: "veiculos", nome: "Veículos", icone: "fa-car" },
     { id: "produtos", nome: "Produtos", icone: "fa-box" },
     { id: "os", nome: "Ordens de Serviço", icone: "fa-screwdriver-wrench" },
+    { id: "orcamentos", nome: "Orçamentos", icone: "fa-file-invoice-dollar" },
     { id: "vendas", nome: "Vendas (PDV)", icone: "fa-cash-register" },
     { id: "financeiro", nome: "Financeiro", icone: "fa-wallet" },
     { id: "comissoes", nome: "Comissões", icone: "fa-hand-holding-dollar" },
