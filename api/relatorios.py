@@ -106,7 +106,7 @@ RELATORIOS = {
     "clientes": "SELECT id, nome, cpf_cnpj, telefone, cidade, estado FROM clientes ORDER BY nome",
     "veiculos": "SELECT id, marca, modelo, placa, ano, cor FROM veiculos ORDER BY id",
     "produtos": "SELECT id, nome, categoria, preco_venda, estoque_atual FROM produtos ORDER BY nome",
-    "os": "SELECT id, numero, status, total, data FROM ordens_servico ORDER BY id DESC",
+    "os": "SELECT id, numero, status, total, data FROM ordens_servico WHERE eh_orcamento=0 ORDER BY id DESC",
     "vendas": "SELECT id, total, forma_pagamento, criado_em FROM vendas ORDER BY id DESC",
     "financeiro": "SELECT id, tipo, descricao, valor, status, vencimento FROM financeiro ORDER BY vencimento",
 }

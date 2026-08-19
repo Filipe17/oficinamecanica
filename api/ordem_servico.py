@@ -55,9 +55,12 @@ def _dono_os(oid):
     return bool(row) and row["mecanico_id"] == session.get("user_id")
 
 
-def _proximo_numero():
-    """Gera número sequencial no formato OS-000001."""
-    r = query("SELECT COUNT(*) AS n FROM ordens_servico", fetchone=True)
+def _proximo_numero(eh_orcamento=0):
+    """Gera número sequencial no formato OS-000001 ou ORC-000001."""
+    if eh_orcamento:
+        r = query("SELECT COUNT(*) AS n FROM ordens_servico WHERE eh_orcamento=1", fetchone=True)
+        return f"ORC-{(r['n'] + 1):06d}"
+    r = query("SELECT COUNT(*) AS n FROM ordens_servico WHERE eh_orcamento=0", fetchone=True)
     return f"OS-{(r['n'] + 1):06d}"
 
 
@@ -197,7 +200,7 @@ def criar():
         "observacoes, validade, forma_pagamento, condicoes, obs_finais, eh_orcamento, "
         "desconto, total, criado_em, os_referencia) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (_proximo_numero(), d.get("cliente_id"), d.get("veiculo_id"),
+        (_proximo_numero(eh_orc), d.get("cliente_id"), d.get("veiculo_id"),
          mecanico_id, d.get("data", now()), d.get("previsao"),
          d.get("status", "aberta"), d.get("problema"), d.get("diagnostico"), d.get("diagnostico_tecnico"),
          d.get("horas_trabalhadas", 0), d.get("garantia"), d.get("observacoes"),
@@ -458,7 +461,7 @@ def para_orcamento(oid):
         return jsonify({"erro": "Este registro já é um orçamento", "ja_orcamento": True}), 400
 
     # 1) Cria o registro do orçamento (cópia da OS), com número próprio.
-    novo_numero = _proximo_numero()
+    novo_numero = _proximo_numero(eh_orcamento=1)
     r = query(
         "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
         "data, previsao, status, problema, diagnostico, horas_trabalhadas, garantia, "
@@ -685,7 +688,7 @@ def criar_os_retorno(oid):
     garantia_id = d.get("garantia_id")
     problema = d.get("problema") or f"Retorno de garantia — OS {os_orig.get('numero')}"
 
-    novo_numero = _proximo_numero()
+    novo_numero = _proximo_numero(eh_orcamento=0)
     res = query(
         "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
         "data, status, problema, eh_orcamento, os_origem_id, garantia_id, criado_em) "
