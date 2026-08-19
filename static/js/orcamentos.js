@@ -213,6 +213,7 @@
 
   /* ----------------------------------------------------------------- EDITOR */
   async function abrirEditor(id) {
+    window.__recarregar = null; // pausa auto-refresh enquanto editor está aberto
     let orc = null;
     if (id) { try { orc = await API.get(`/api/os/${id}`); } catch (_) {} }
     editando = orc;
@@ -1210,5 +1211,4 @@
     pickOS: (i) => escolherOS(i),
     remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); },
   };
-  window.__recarregar = renderLista;
 })();
