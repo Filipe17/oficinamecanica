@@ -1208,5 +1208,5 @@
     pickOS: (i) => escolherOS(i),
     remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); },
   };
-  window.__recarregar = carregar;
+  window.__recarregar = renderLista;
 })();
