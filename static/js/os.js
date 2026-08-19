@@ -309,8 +309,8 @@
       ${ed ? `<button class="btn btn--ghost" onclick="window.__os.imprimir(${o.id})"><i class="fa-solid fa-print"></i> Imprimir</button>` : ""}
       ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirChecklist(${o.id})"><i class="fa-solid fa-clipboard-check"></i> Checklist</button>` : ""}
       ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirFotos(${o.id})"><i class="fa-solid fa-camera"></i> Fotos</button>` : ""}
-      ${ed && !EH_ORC && o.status === "finalizada" ? `<button class="btn btn--outline" onclick="window.__nps?.abrirEnvio(${o.id},${o.cliente_id},'${(o.cliente_nome||'').replace(/'/g,"\'")}','${o.cliente_email||''}','${o.cliente_whatsapp||o.cliente_telefone||''}')"><i class="fa-solid fa-star"></i> NPS</button>` : ""}
-      ${ed && !EH_ORC && ["finalizada","finalizada_mecanico"].includes(o.status) ? `<button class="btn btn--outline" onclick="window.__os.abrirRetorno(${o.id},'${(o.numero||'').replace(/'/g,"\'")}')"><i class="fa-solid fa-rotate-left"></i> OS Retorno</button>` : ""}
+      ${ed && !EH_ORC && !isMecanico && o.status === "finalizada" ? `<button class="btn btn--outline" onclick="window.__nps?.abrirEnvio(${o.id},${o.cliente_id},'${(o.cliente_nome||'').replace(/'/g,"\'")}','${o.cliente_email||''}','${o.cliente_whatsapp||o.cliente_telefone||''}')"><i class="fa-solid fa-star"></i> NPS</button>` : ""}
+      ${ed && !EH_ORC && !isMecanico && ["finalizada","finalizada_mecanico"].includes(o.status) ? `<button class="btn btn--outline" onclick="window.__os.abrirRetorno(${o.id},'${(o.numero||'').replace(/'/g,"\'")}')"><i class="fa-solid fa-rotate-left"></i> OS Retorno</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
       ${!soLeitura && ed && !EH_ORC && o.status === "aguardando_aprovacao" && Layout.usuario?.perfil !== "mecanico"
         ? `<button class="btn btn--primary" onclick="window.__os.gerarOrcamento(${o.id})"><i class="fa-solid fa-file-invoice-dollar"></i> Gerar Orçamento</button>`
