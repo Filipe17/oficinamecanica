@@ -230,6 +230,7 @@
 
     // OS relacionadas (só para a nota A5; não são gravadas). Começa vazio; se
     // houver uma referência antiga salva em texto, semeia a lista com ela.
+    console.log("orc.os_referencia raw:", orc?.os_referencia, typeof orc?.os_referencia);
     if (Array.isArray(orc?.os_referencia) && orc.os_referencia.length) {
       osRefs = orc.os_referencia;
     } else if (typeof orc?.os_referencia === "string" && orc.os_referencia) {
