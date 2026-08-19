@@ -31,6 +31,11 @@ from api.configuracoes import obter_config
 nfe_bp = Blueprint("nfe", __name__)
 
 
+def _modulo_nfe_ativo():
+    """Retorna False se o módulo NF-e estiver desabilitado nas configurações."""
+    return (obter_config().get("modulo_nfe") or "habilitado") != "desabilitado"
+
+
 # =========================================================================
 # Configuração do gateway (lida do ambiente / configurações)
 # =========================================================================
@@ -201,6 +206,8 @@ def _registrar_nota(oid, tipo, ambiente, payload, resultado):
 @nfe_bp.route("/api/notas", methods=["GET"])
 @login_obrigatorio
 def listar_notas():
+    if not _modulo_nfe_ativo():
+        return jsonify({"erro": "Módulo Nota Fiscal desabilitado"}), 403
     """
     Lista as OS candidatas a emissão + as notas já emitidas de cada uma.
     O front usa isso para montar a tela 'Notas Fiscais'.
@@ -223,6 +230,8 @@ def listar_notas():
 @nfe_bp.route("/api/notas/os/<int:oid>", methods=["GET"])
 @login_obrigatorio
 def notas_da_os(oid):
+    if not _modulo_nfe_ativo():
+        return jsonify({"erro": "Módulo Nota Fiscal desabilitado"}), 403
     """Detalhe: o que a OS tem (produtos/serviços) e as notas já emitidas."""
     o, produtos, servicos = _dados_os(oid)
     if not o:
@@ -241,6 +250,8 @@ def notas_da_os(oid):
 @login_obrigatorio
 @perfil_permitido("administrador", "gerente", "financeiro")
 def emitir():
+    if not _modulo_nfe_ativo():
+        return jsonify({"erro": "Módulo Nota Fiscal desabilitado"}), 403
     """
     Emite a nota de uma OS. Body: { "os_id": N, "tipo": "nfe" | "nfse" }.
     Monta o payload, transmite via adaptador e registra em notas_fiscais.
@@ -288,6 +299,8 @@ def emitir():
 @nfe_bp.route("/api/notas/<int:nid>", methods=["GET"])
 @login_obrigatorio
 def detalhe_nota(nid):
+    if not _modulo_nfe_ativo():
+        return jsonify({"erro": "Módulo Nota Fiscal desabilitado"}), 403
     n = query("SELECT * FROM notas_fiscais WHERE id=?", (nid,), fetchone=True)
     if not n:
         return jsonify({"erro": "Nota não encontrada"}), 404
@@ -301,6 +314,8 @@ def detalhe_nota(nid):
 @login_obrigatorio
 @perfil_permitido("administrador", "gerente", "financeiro")
 def exportar_lista():
+    if not _modulo_nfe_ativo():
+        return jsonify({"erro": "Módulo Nota Fiscal desabilitado"}), 403
     """
     Lista as notas autorizadas do período (para a tela de exportação).
     Parâmetros: inicio, fim (YYYY-MM-DD), tipo (nfe|nfse|'' para ambos).
@@ -334,6 +349,8 @@ def exportar_lista():
 @login_obrigatorio
 @perfil_permitido("administrador", "gerente", "financeiro")
 def exportar_zip():
+    if not _modulo_nfe_ativo():
+        return jsonify({"erro": "Módulo Nota Fiscal desabilitado"}), 403
     """
     Gera um .zip com os XMLs das notas autorizadas do período (download).
     Só inclui notas que tenham XML gravado.
