@@ -69,10 +69,9 @@
     app.innerHTML = `
       <div class="login-wrap">
         <div class="login-side">
-          <svg class="login-side__s" viewBox="0 0 300 380" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><path d="M 208 96 C 208 50, 118 42, 80 82 C 42 122, 72 168, 152 192 C 232 216, 258 264, 220 302 C 182 340, 96 332, 96 288" fill="none" stroke="currentColor" stroke-width="56" stroke-linecap="round"/></svg>
+          <svg class="login-side__s" viewBox="0 0 300 380" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><path d="M 40 320 L 40 60 L 150 240 L 260 60 L 260 320" fill="none" stroke="currentColor" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <div class="login-side__brand">
-            <div class="login-brand__nome">Dev<span>System</span></div>
-            <span class="login-brand__prime">PRIME</span>
+            <div class="login-brand__nome">Mec<span>PRIME</span></div>
             <p class="login-brand__tag">Seu negócio, nosso sistema</p>
             <div class="login-brand__bar"></div>
             <p class="login-brand__desc">Transforme a gestão do seu negócio com um sistema moderno, completo e fácil de usar.</p>
