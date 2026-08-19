@@ -262,7 +262,7 @@
             ? STATUS.filter((s) => !["finalizada", "cancelada"].includes(s))
             : STATUS
           ).map((s) => `<option value="${s}" ${ed && o.status === s ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
-        <div class="field"><label>Previsão</label><input type="date" name="previsao" value="${ed && o.previsao ? String(o.previsao).slice(0,10) : ""}"></div>
+        <div class="field"><label>Previsão</label>${isMecanico ? `<span>${ed && o.previsao ? String(o.previsao).slice(0,10) : "—"}</span>` : `<input type="date" name="previsao" value="${ed && o.previsao ? String(o.previsao).slice(0,10) : ""}">`}</div>
         <div class="field col-2"><label>Problema relatado</label><textarea name="problema" ${isMecanico ? "disabled" : ""}>${ed ? (o.problema || "") : ""}</textarea></div>
         <div class="field col-2"><label>Mensagem</label><textarea name="diagnostico">${ed ? (o.diagnostico || "") : ""}</textarea></div>
         <div class="field col-2"><label>Diagnóstico</label><textarea name="diagnostico_tecnico">${ed ? (o.diagnostico_tecnico || "") : ""}</textarea></div>
