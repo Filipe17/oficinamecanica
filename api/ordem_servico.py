@@ -34,7 +34,6 @@ def listar_mecanicos():
 from database.database import _garantir_coluna as _gc
 _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
 _gc("ordens_servico", "os_referencia", "TEXT")
-_gc("ordens_servico", "os_referencia", "TEXT")
 
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
@@ -147,10 +146,8 @@ def detalhe(oid):
         (oid,), fetchone=True)
     if not o:
         return jsonify({"erro": "OS não encontrada"}), 404
+    o = dict(o)
     o["itens"] = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
-    import json as _json
-    try: o["os_referencia"] = _json.loads(o.get("os_referencia") or "[]")
-    except Exception: o["os_referencia"] = []
     import json as _json
     try: o["os_referencia"] = _json.loads(o.get("os_referencia") or "[]")
     except Exception: o["os_referencia"] = []
@@ -167,18 +164,20 @@ def criar():
     mecanico_id = d.get("mecanico_id")
     if session.get("perfil") == "mecanico" and not mecanico_id:
         mecanico_id = session.get("user_id")
+    import json as _json
     res = query(
         "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
         "data, previsao, status, problema, diagnostico, horas_trabalhadas, garantia, "
         "observacoes, validade, forma_pagamento, condicoes, obs_finais, eh_orcamento, "
-        "desconto, total, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "desconto, total, criado_em, os_referencia) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (_proximo_numero(), d.get("cliente_id"), d.get("veiculo_id"),
          mecanico_id, d.get("data", now()), d.get("previsao"),
          d.get("status", "aberta"), d.get("problema"), d.get("diagnostico"),
          d.get("horas_trabalhadas", 0), d.get("garantia"), d.get("observacoes"),
          d.get("validade"), d.get("forma_pagamento"), d.get("condicoes"),
-         d.get("obs_finais"), eh_orc, d.get("desconto", 0), 0, now()),
+         d.get("obs_finais"), eh_orc, d.get("desconto", 0), 0, now(),
+         _json.dumps(d.get("os_referencia") or [])),
         commit=True,
     )
     oid = res["_lastid"]
@@ -220,13 +219,6 @@ def editar(oid):
     if session.get("perfil") == "mecanico" and (d.get("diagnostico") or "").strip():
         query("UPDATE ordens_servico SET diagnostico_notificado=1 WHERE id=? AND (diagnostico_notificado IS NULL OR diagnostico_notificado=0)",
               (oid,), commit=True)
-    if session.get("perfil") == "mecanico" and (d.get("diagnostico") or "").strip():
-        query("UPDATE ordens_servico SET diagnostico_notificado=1 WHERE id=? AND (diagnostico_notificado IS NULL OR diagnostico_notificado=0)",
-              (oid,), commit=True)
-    if "os_referencia" in d:
-        import json as _json
-        query("UPDATE ordens_servico SET os_referencia=? WHERE id=?",
-              (_json.dumps(d["os_referencia"]), oid), commit=True)
     registrar_log(session["user_id"], "editar_os", str(oid))
     return jsonify({"ok": True})
 
