@@ -246,6 +246,8 @@ const Layout = {
     } else {
       window.__semCaixa = false;
     }
+    // Oculta Notas Fiscais se modulo_nfe = desabilitado
+    window.__semNfe = (this.config?.modulo_nfe || "habilitado") === "desabilitado";
     this._render(paginaAtiva, titulo);
     return this.usuario;
   },
@@ -266,6 +268,7 @@ const Layout = {
         if (!podeVer(i.id)) return false;
         // Oculta Caixa e PDV no modo sem_caixa
         if (window.__semCaixa && ["caixa", "pdv"].includes(i.id)) return false;
+        if (window.__semNfe && i.id === "notas_fiscais") return false;
         return true;
       });
       if (!itens.length) return "";   // não mostra grupo sem itens

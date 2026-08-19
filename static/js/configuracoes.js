@@ -304,6 +304,16 @@
             Ideal para quem usa outro sistema de caixa/fiscal em paralelo.
           </p>
         </div>
+        <div class="field col-2"><label>Módulo Nota Fiscal (NF-e)</label>
+          <select name="modulo_nfe">
+            <option value="habilitado" ${(c.modulo_nfe||"habilitado")==="habilitado"?"selected":""}>
+              Habilitado — exibe o menu Notas Fiscais
+            </option>
+            <option value="desabilitado" ${(c.modulo_nfe||"")==="desabilitado"?"selected":""}>
+              Desabilitado — oculta o menu Notas Fiscais
+            </option>
+          </select>
+        </div>
       </div>
 
       <h3 style="margin:22px 0 4px;font-size:15px">Backup do Banco de Dados</h3>
@@ -431,6 +441,7 @@
       nfe_certificado_pfx: document.getElementById("cfg-cert-dados")?.value || undefined,
       nfe_certificado_senha: val("nfe_certificado_senha"),
       modo_financeiro: val("modo_financeiro"),
+      modulo_nfe: val("modulo_nfe"),
       nfce_ativo: val("nfce_ativo"),
       nfce_serie: val("nfce_serie"),
       nfce_numero_inicial: val("nfce_numero_inicial"),
