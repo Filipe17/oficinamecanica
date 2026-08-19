@@ -77,12 +77,6 @@
         <div id="orc-view"></div>
       </div></div>
     `);
-
-  async function _autoSalvarOsRefs() {
-    if (!editando) return;
-    try { await API.put(`/api/os/${editando.id}`, { os_referencia: osRefs }); } catch (_) {}
-  }
-
     window.__orc = api;
 
     let _viewOrc = "lista";
@@ -236,13 +230,9 @@
 
     // OS relacionadas (só para a nota A5; não são gravadas). Começa vazio; se
     // houver uma referência antiga salva em texto, semeia a lista com ela.
-    if (Array.isArray(orc?.os_referencia) && orc.os_referencia.length) {
-      osRefs = orc.os_referencia;
-    } else if (typeof orc?.os_referencia === "string" && orc.os_referencia) {
-      try { osRefs = JSON.parse(orc.os_referencia); } catch(_) { osRefs = []; }
-    } else {
-      osRefs = [];
-    }
+    osRefs = orc?.os_referencia
+      ? String(orc.os_referencia).split(/[,;]+/).map((s) => ({ numero: s.trim() })).filter((x) => x.numero)
+      : [];
 
     Layout.set(`
       <div class="orc">
@@ -351,7 +341,6 @@
               ? `${orc?.status === "cliente_aprovou"
                   ? '<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>'
                   : '<button class="btn btn--primary" id="orc-enviar-cliente"><i class="fa-solid fa-paper-plane"></i> Enviar para cliente</button>'}
-                 <button class="btn btn--outline" id="orc-salvar-rascunho"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
                  <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
               : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>`))}
           <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${(jaFinalizado || soLeitura) ? "Voltar" : "Cancelar"}</button>
@@ -515,7 +504,6 @@
     });
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
-    on("orc-salvar-rascunho", "click", salvarRascunho);
     on("orc-enviar-cliente", "click", enviarParaCliente);
     on("orc-limpar", "click", () => abrirEditor(null));
     on("orc-imprimir", "click", imprimir);
@@ -837,12 +825,6 @@
   }
 
   /* ------------------------------------------- FINALIZAR (baixa + caixa + A5) */
-  async function salvarRascunho() {
-    if (!editando) return;
-    try { await API.put(`/api/os/${editando.id}`, coletar()); toast("Orçamento salvo"); }
-    catch (e) { toast(e.message || "Erro ao salvar", "error"); }
-  }
-
   async function finalizarOrcamento() {
     if (!editando) return;
     const d = coletar();
@@ -1166,12 +1148,14 @@
     if (btnStatus) btnStatus.onclick = async () => {
       const novoStatus = document.getElementById("env-status-sel")?.value;
       if (!novoStatus) { Modal.fechar(); return; }
+      const orcId = editando?.id;
+      if (!orcId) { toast("Orçamento não identificado", "warning"); return; }
       try {
-        await API.put(`/api/os/${editando.id}`, { ...coletar(), status: novoStatus });
-        editando.status = novoStatus;
+        await API.put(`/api/os/${orcId}`, { status: novoStatus });
+        if (editando) editando.status = novoStatus;
         toast("Status atualizado");
         Modal.fechar();
-        abrirEditor(editando.id); // reabre para atualizar botões
+        abrirEditor(orcId); // reabre para atualizar botões
       } catch (e) { toast(e.message || "Erro ao salvar status", "error"); }
     };
   }
@@ -1209,5 +1193,5 @@
     pickOS: (i) => escolherOS(i),
     remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); },
   };
-  window.__recarregar = renderLista;
+  window.__recarregar = carregar;
 })();
