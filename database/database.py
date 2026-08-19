@@ -536,6 +536,7 @@ def init_db():
         conn.close()
 
     _migrar_colunas()
+    _migrar_numeracao_orcamentos()
     _seed_permissoes()
     _seed()
 
@@ -627,6 +628,34 @@ _PERMISSOES_PADRAO = {
     "financeiro": {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":1,"servicos":0,"produtos":0,"fornecedores":1,"estoque":0,"xml":0,"financeiro":2,"cobrancas":2,"mala_direta":2,"pdv":2,"caixa":2,"relatorios":1,"notas_fiscais":2,"agendamentos":1,"lembretes":1,"nps":1,"cartao":2,"cheques":2,"usuarios":0,"logs":0},
     "caixa":      {"dashboard":1,"clientes":1,"veiculos":0,"ordem_servico":1,"orcamentos":0,"servicos":0,"produtos":0,"fornecedores":0,"estoque":0,"xml":0,"financeiro":1,"cobrancas":0,"mala_direta":0,"pdv":2,"caixa":2,"relatorios":0,"notas_fiscais":0,"agendamentos":1,"lembretes":0,"nps":0,"cartao":1,"cheques":1,"usuarios":0,"logs":0},
 }
+
+
+def _migrar_numeracao_orcamentos():
+    """
+    Renumera orçamentos que ainda têm prefixo OS- (criados antes da separação
+    de numeração). Idempotente: só toca registros com eh_orcamento=1 e numero
+    começando com 'OS-'. Roda uma vez no primeiro boot após o deploy.
+    """
+    orcamentos = query(
+        "SELECT id, numero FROM ordens_servico "
+        "WHERE eh_orcamento=1 AND numero LIKE 'OS-%' ORDER BY id ASC"
+    )
+    if not orcamentos:
+        return
+    # Conta quantos ORC- já existem para continuar a sequência
+    r = query(
+        "SELECT COUNT(*) AS n FROM ordens_servico "
+        "WHERE eh_orcamento=1 AND numero LIKE 'ORC-%'",
+        fetchone=True
+    )
+    proximo = (r["n"] if r else 0) + 1
+    for orc in orcamentos:
+        novo_numero = f"ORC-{proximo:06d}"
+        query(
+            "UPDATE ordens_servico SET numero=? WHERE id=?",
+            (novo_numero, orc["id"]), commit=True
+        )
+        proximo += 1
 
 
 def _seed_permissoes():
