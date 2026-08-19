@@ -1291,12 +1291,44 @@
     };
   };
 
+  // Refresh silencioso: busca dados e re-renderiza sem spinner, só se não houver editor aberto
+  async function carregarSilencioso() {
+    const alvo = document.getElementById("os-tabela");
+    if (!alvo) return;                          // tela diferente, ignora
+    if (document.getElementById("os-editor")) return; // editor aberto, não interrompe
+    const p = new URLSearchParams({ orcamento: EH_ORC });
+    if (filtroStatus) p.set("status", filtroStatus);
+    if (busca) p.set("q", busca);
+    try {
+      const r = await API.get(`/api/os?${p}`);
+      const lista = r.dados || [];
+      if (!lista.length) { alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-inbox"></i>Nenhum registro</div>`; return; }
+      const semPrefixo = (n) => (n && n.includes("-")) ? n.slice(n.indexOf("-") + 1) : (n || "-");
+      alvo.innerHTML = `<div class="table-wrap"><table class="data">
+        <thead><tr><th>ID</th><th>Cliente</th><th>Veículo</th><th>Status</th><th>Mecânico</th><th></th></tr></thead>
+        <tbody>${lista.map((o) => `<tr>
+          <td><b>${EH_ORC ? semPrefixo(o.numero) : (o.numero || "-")}</b></td>
+          <td>${o.cliente_nome || "-"}</td>
+          <td>${o.veiculo_placa || o.veiculo_modelo || "-"}</td>
+          <td>
+            <span class="badge badge--${STATUS_TOM[o.status] || ""}">${STATUS_LABEL[o.status] || o.status}</span>
+            ${o.os_origem_id ? `<span class="badge" style="background:#f59e0b20;color:#f59e0b;margin-left:4px;font-size:.7rem">retorno</span>` : ""}
+          </td>
+          <td>${o.mecanico_nome || "-"}</td>
+          <td class="text-right">
+            <button class="icon-btn btn--sm" title="Abrir" onclick="window.__os.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
+            ${soLeitura || isMecanico ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
+          </td></tr>`).join("")}
+        </tbody></table></div>`;
+    } catch (_) {}                              // falha silenciosa no refresh
+  }
+
   // Abre automaticamente a OS indicada via ?abrir=<id> (vindo da notificação de diagnóstico)
   const _abrirId = parseInt(new URLSearchParams(location.search).get("abrir"));
   if (_abrirId) {
     carregar().then(() => abrirEditor({ id: _abrirId }));
   } else {
-    window.__recarregar = carregar;
+    window.__recarregar = carregarSilencioso;
     carregar();
   }
 })();

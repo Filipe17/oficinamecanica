@@ -295,6 +295,18 @@
     },
   };
 
-  window.__recarregar = render;
+  // Refresh silencioso: atualiza dados sem spinner, só se não houver modal/editor aberto
+  async function renderSilencioso() {
+    const alvo = document.getElementById("ag-conteudo");
+    if (!alvo) return;
+    if (document.querySelector(".modal-overlay")) return; // modal aberto, não interrompe
+    try {
+      await carregar();
+      alvo.innerHTML = modo === "lista" ? renderLista() : renderCalendario();
+      if (modo === "calendario") ligarCalendario();
+    } catch (_) {}
+  }
+
+  window.__recarregar = renderSilencioso;
   render();
 })();
