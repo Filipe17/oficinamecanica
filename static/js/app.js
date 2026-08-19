@@ -302,6 +302,10 @@ const Layout = {
               <i class="fa-solid fa-bell" style="color:#ef4444"></i>
               <span id="notif-orc-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:piscar 1s infinite"></span>
             </button>` : ""}
+            ${this.usuario.perfil === "mecanico" ? `<button class="icon-btn" id="btn-notif-orc-fin" title="Orçamento finalizado — feche a OS" style="display:none;position:relative" onclick="Layout.abrirNotifOrcFin()">
+              <i class="fa-solid fa-file-circle-check" style="color:#16a34a"></i>
+              <span id="notif-orc-fin-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#16a34a;border-radius:50%;animation:piscar 1s infinite"></span>
+            </button>` : ""}
             ${["administrador","gerente","atendente"].includes(this.usuario.perfil) ? `<button class="icon-btn" id="btn-notif-diag" title="Diagnósticos pendentes" style="display:none;position:relative" onclick="Layout.abrirNotifDiag()">
               <i class="fa-solid fa-stethoscope" style="color:#ef4444"></i>
               <span id="notif-diag-badge" style="position:absolute;top:2px;right:2px;width:10px;height:10px;background:#ef4444;border-radius:50%;animation:piscar 1s infinite"></span>
@@ -485,11 +489,57 @@ Layout._iniciarPollingDiag = function () {
   setInterval(verificar, 30000);
 };
 
+
+Layout.abrirNotifOrcFin = function () {
+  const lista = window._orcFinPendentes || [];
+  if (!lista.length) return;
+  const linhas = lista.map((o, idx) =>
+    `<div style="padding:.75rem;border:1.5px solid #16a34a;border-radius:10px;margin-bottom:.5rem;background:#f0fdf4">
+       <div style="font-weight:700;color:#15803d"><i class="fa-solid fa-file-circle-check"></i> OS Nº ${o.numero || o.id} — ${o.cliente_nome || "—"}</div>
+       <div style="font-size:.85rem;color:#555;margin:.25rem 0"><b>Status:</b> ${o.status || "—"}</div>
+       <button class="btn btn--primary btn--sm" style="margin-top:.5rem;background:#16a34a;border-color:#16a34a"
+         onclick="window._abrirOSOrcFin(${idx})">
+         <i class="fa-solid fa-arrow-right"></i> Ir para a OS e finalizar
+       </button>
+     </div>`
+  ).join("");
+  Modal.abrir(
+    "✅ Orçamento aprovado e finalizado!",
+    `<div style="margin-bottom:.75rem;color:#555">O orçamento foi finalizado pelo cliente. Finalize a OS para concluir o serviço:</div>${linhas}`,
+    `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>`
+  );
+};
+
+window._abrirOSOrcFin = function(idx) {
+  const o = (window._orcFinPendentes || [])[idx];
+  if (!o) return;
+  try { API.post(`/api/os/${o.id}/orc-finalizado-lido`, {}); } catch (_) {}
+  Modal.fechar();
+  location.assign(`/ordem_servico?abrir=${o.id}`);
+};
+
+Layout._iniciarPollingOrcFin = function () {
+  if (this.usuario?.perfil !== "mecanico") return;
+
+  const verificar = async () => {
+    try {
+      const data = await API.get("/api/os/orc-finalizado-pendente");
+      window._orcFinPendentes = data.dados || [];
+      const btn = document.getElementById("btn-notif-orc-fin");
+      if (btn) btn.style.display = window._orcFinPendentes.length ? "inline-flex" : "none";
+    } catch (_) {}
+  };
+
+  verificar();
+  setInterval(verificar, 30000);
+};
+
 // Hook no iniciar (complementa o anterior)
 const _iniciarComDiag = Layout.iniciar.bind(Layout);
 Layout.iniciar = async function (...args) {
   const r = await _iniciarComDiag(...args);
   Layout._iniciarPollingDiag();
+  Layout._iniciarPollingOrcFin();
   return r;
 };
 
