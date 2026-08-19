@@ -636,16 +636,20 @@ def _migrar_numeracao_orcamentos():
     de numeração). Idempotente: só toca registros com eh_orcamento=1 e numero
     começando com 'OS-'. Roda uma vez no primeiro boot após o deploy.
     """
+    like_os = "OS-%"
+    like_orc = "ORC-%"
     orcamentos = query(
         "SELECT id, numero FROM ordens_servico "
-        "WHERE eh_orcamento=1 AND numero LIKE 'OS-%' ORDER BY id ASC"
+        "WHERE eh_orcamento=1 AND numero LIKE ?  ORDER BY id ASC",
+        (like_os,)
     )
     if not orcamentos:
         return
     # Conta quantos ORC- já existem para continuar a sequência
     r = query(
         "SELECT COUNT(*) AS n FROM ordens_servico "
-        "WHERE eh_orcamento=1 AND numero LIKE 'ORC-%'",
+        "WHERE eh_orcamento=1 AND numero LIKE ?",
+        (like_orc,),
         fetchone=True
     )
     proximo = (r["n"] if r else 0) + 1
