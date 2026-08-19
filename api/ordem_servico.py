@@ -33,6 +33,7 @@ def listar_mecanicos():
 # Garante coluna para notificação de diagnóstico (não-destrutivo)
 from database.database import _garantir_coluna as _gc
 _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
+_gc("ordens_servico", "diagnostico_tecnico", "TEXT")
 _gc("ordens_servico", "os_referencia", "TEXT")
 _gc("ordens_servico", "orc_finalizado_notif", "INTEGER DEFAULT 0")
 
@@ -192,13 +193,13 @@ def criar():
     import json as _json
     res = query(
         "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
-        "data, previsao, status, problema, diagnostico, horas_trabalhadas, garantia, "
+        "data, previsao, status, problema, diagnostico, diagnostico_tecnico, horas_trabalhadas, garantia, "
         "observacoes, validade, forma_pagamento, condicoes, obs_finais, eh_orcamento, "
         "desconto, total, criado_em, os_referencia) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (_proximo_numero(), d.get("cliente_id"), d.get("veiculo_id"),
          mecanico_id, d.get("data", now()), d.get("previsao"),
-         d.get("status", "aberta"), d.get("problema"), d.get("diagnostico"),
+         d.get("status", "aberta"), d.get("problema"), d.get("diagnostico"), d.get("diagnostico_tecnico"),
          d.get("horas_trabalhadas", 0), d.get("garantia"), d.get("observacoes"),
          d.get("validade"), d.get("forma_pagamento"), d.get("condicoes"),
          d.get("obs_finais"), eh_orc, d.get("desconto", 0), 0, now(),
@@ -222,12 +223,12 @@ def editar(oid):
         return jsonify({"erro": "Status inválido"}), 400
     query(
         "UPDATE ordens_servico SET cliente_id=?, veiculo_id=?, mecanico_id=?, "
-        "previsao=?, status=?, problema=?, diagnostico=?, horas_trabalhadas=?, "
+        "previsao=?, status=?, problema=?, diagnostico=?, diagnostico_tecnico=?, horas_trabalhadas=?, "
         "garantia=?, observacoes=?, validade=?, forma_pagamento=?, condicoes=?, "
         "obs_finais=?, desconto=? WHERE id=?",
         (d.get("cliente_id"), d.get("veiculo_id"), d.get("mecanico_id"),
          d.get("previsao"), d.get("status", "aberta"), d.get("problema"),
-         d.get("diagnostico"), d.get("horas_trabalhadas", 0), d.get("garantia"),
+         d.get("diagnostico"), d.get("diagnostico_tecnico"), d.get("horas_trabalhadas", 0), d.get("garantia"),
          d.get("observacoes"), d.get("validade"), d.get("forma_pagamento"),
          d.get("condicoes"), d.get("obs_finais"), d.get("desconto", 0), oid),
         commit=True,
