@@ -34,10 +34,12 @@ def listar_mecanicos():
 from database.database import _garantir_coluna as _gc
 _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
 _gc("ordens_servico", "os_referencia", "TEXT")
+_gc("ordens_servico", "os_referencia", "TEXT")
 
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
     "em_execucao", "finalizada_mecanico", "finalizada", "cancelada",
+    "cliente_aprovou",
 }
 
 
@@ -149,6 +151,9 @@ def detalhe(oid):
     import json as _json
     try: o["os_referencia"] = _json.loads(o.get("os_referencia") or "[]")
     except Exception: o["os_referencia"] = []
+    import json as _json
+    try: o["os_referencia"] = _json.loads(o.get("os_referencia") or "[]")
+    except Exception: o["os_referencia"] = []
     return jsonify(o)
 
 
@@ -215,6 +220,13 @@ def editar(oid):
     if session.get("perfil") == "mecanico" and (d.get("diagnostico") or "").strip():
         query("UPDATE ordens_servico SET diagnostico_notificado=1 WHERE id=? AND (diagnostico_notificado IS NULL OR diagnostico_notificado=0)",
               (oid,), commit=True)
+    if session.get("perfil") == "mecanico" and (d.get("diagnostico") or "").strip():
+        query("UPDATE ordens_servico SET diagnostico_notificado=1 WHERE id=? AND (diagnostico_notificado IS NULL OR diagnostico_notificado=0)",
+              (oid,), commit=True)
+    if "os_referencia" in d:
+        import json as _json
+        query("UPDATE ordens_servico SET os_referencia=? WHERE id=?",
+              (_json.dumps(d["os_referencia"]), oid), commit=True)
     registrar_log(session["user_id"], "editar_os", str(oid))
     return jsonify({"ok": True})
 
