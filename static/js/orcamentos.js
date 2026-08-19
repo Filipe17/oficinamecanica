@@ -220,6 +220,7 @@
 
   /* ----------------------------------------------------------------- EDITOR */
   async function abrirEditor(id) {
+    _carregandoEditor = true;
     let orc = null;
     if (id) { try { orc = await API.get(`/api/os/${id}`); } catch (_) {} }
     editando = orc;
@@ -244,6 +245,7 @@
     } else {
       osRefs = [];
     }
+    _carregandoEditor = false;
 
     Layout.set(`
       <div class="orc">
