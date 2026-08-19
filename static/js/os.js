@@ -264,7 +264,8 @@
           ).map((s) => `<option value="${s}" ${ed && o.status === s ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
         <div class="field"><label>Previsão</label><input type="date" name="previsao" value="${ed && o.previsao ? String(o.previsao).slice(0,10) : ""}"></div>
         <div class="field col-2"><label>Problema relatado</label><textarea name="problema" ${isMecanico ? "disabled" : ""}>${ed ? (o.problema || "") : ""}</textarea></div>
-        <div class="field col-2"><label>Diagnóstico</label><textarea name="diagnostico">${ed ? (o.diagnostico || "") : ""}</textarea></div>
+        <div class="field col-2"><label>Mensagem</label><textarea name="diagnostico">${ed ? (o.diagnostico || "") : ""}</textarea></div>
+        <div class="field col-2"><label>Diagnóstico</label><textarea name="diagnostico_tecnico">${ed ? (o.diagnostico_tecnico || "") : ""}</textarea></div>
         <div class="field"><label>Horas trabalhadas</label><input type="number" step="0.5" name="horas_trabalhadas" value="${ed ? (o.horas_trabalhadas || 0) : 0}"></div>
         ${EH_ORC ? `<div class="field"><label>Garantia</label><input name="garantia" value="${ed ? (o.garantia || "") : ""}"></div>` : ""}
       </div>
@@ -560,6 +561,7 @@
       previsao: val("previsao") || null,
       problema: val("problema"),
       diagnostico: val("diagnostico"),
+      diagnostico_tecnico: val("diagnostico_tecnico"),
       horas_trabalhadas: parseFloat(val("horas_trabalhadas")) || 0,
       eh_orcamento: EH_ORC,
     };
@@ -708,7 +710,8 @@
 
       ${(o.problema || o.diagnostico) ? `<div class="obs">
         ${o.problema ? `<h3>Problema relatado</h3><div>${o.problema}</div>` : ""}
-        ${o.diagnostico ? `<h3 style="margin-top:8px">Diagnóstico</h3><div>${o.diagnostico}</div>` : ""}
+        ${o.diagnostico ? `<h3 style="margin-top:8px">Mensagem</h3><div>${o.diagnostico}</div>` : ""}
+        ${o.diagnostico_tecnico ? `<h3 style="margin-top:8px">Diagnóstico</h3><div>${o.diagnostico_tecnico}</div>` : ""}
       </div>` : ""}
 
       <table>
