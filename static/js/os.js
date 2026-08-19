@@ -1324,9 +1324,21 @@
   }
 
   // Abre automaticamente a OS indicada via ?abrir=<id> (vindo da notificação de diagnóstico)
+  // Só abre o editor se a OS não estiver finalizada
   const _abrirId = parseInt(new URLSearchParams(location.search).get("abrir"));
   if (_abrirId) {
-    carregar().then(() => abrirEditor({ id: _abrirId }));
+    carregar().then(async () => {
+      try {
+        const os = await API.get(`/api/os/${_abrirId}`);
+        if (os.status === "finalizada") {
+          window.__recarregar = carregarSilencioso;
+        } else {
+          abrirEditor({ id: _abrirId });
+        }
+      } catch (_) {
+        abrirEditor({ id: _abrirId });
+      }
+    });
   } else {
     window.__recarregar = carregarSilencioso;
     carregar();
