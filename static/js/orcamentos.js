@@ -77,12 +77,6 @@
         <div id="orc-view"></div>
       </div></div>
     `);
-
-  async function _autoSalvarOsRefs() {
-    if (!editando) return;
-    try { await API.put(`/api/os/${editando.id}`, { os_referencia: osRefs }); } catch (_) {}
-  }
-
     window.__orc = api;
 
     let _viewOrc = "lista";
@@ -211,7 +205,6 @@
           if (!osRefs.some((r) => r.id === origem.id)) {
             osRefs.push({ id: origem.id, numero: origem.numero, cliente: "" });
             renderOSRefs();
-            _autoSalvarOsRefs();
           }
         }
       } catch (_) {}
@@ -220,7 +213,6 @@
 
   /* ----------------------------------------------------------------- EDITOR */
   async function abrirEditor(id) {
-    _carregandoEditor = true;
     let orc = null;
     if (id) { try { orc = await API.get(`/api/os/${id}`); } catch (_) {} }
     editando = orc;
@@ -245,7 +237,6 @@
     } else {
       osRefs = [];
     }
-    _carregandoEditor = false;
 
     Layout.set(`
       <div class="orc">
@@ -447,7 +438,6 @@
       osRefs.push({ id: l.id, numero: l.numero, cliente: l.cliente });
     }
     renderOSRefs();
-    _autoSalvarOsRefs();
     focarNovoOS();
   }
 
@@ -842,6 +832,14 @@
   }
 
   /* ------------------------------------------- FINALIZAR (baixa + caixa + A5) */
+  async function salvarRascunho() {
+    if (!editando) return;
+    try {
+      await API.put(`/api/os/${editando.id}`, coletar());
+      toast("Orçamento salvo");
+    } catch (e) { toast(e.message || "Erro ao salvar", "error"); }
+  }
+
   async function finalizarOrcamento() {
     if (!editando) return;
     const d = coletar();
@@ -1172,7 +1170,7 @@
         if (editando) editando.status = novoStatus;
         toast("Status atualizado");
         Modal.fechar();
-        abrirEditor(orcId); // reabre para atualizar botões
+        abrirEditor(editando.id); // reabre para atualizar botões
       } catch (e) { toast(e.message || "Erro ao salvar status", "error"); }
     };
   }
@@ -1208,7 +1206,7 @@
     remItem: (i) => { itens.splice(i, 1); renderItens(); recalc(); },
     pickBusca: (i) => escolherBusca(i),
     pickOS: (i) => escolherOS(i),
-    remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); _autoSalvarOsRefs(); },
+    remOS: (i) => { osRefs.splice(i, 1); renderOSRefs(); },
   };
   window.__recarregar = renderLista;
 })();
