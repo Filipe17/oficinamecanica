@@ -360,6 +360,7 @@
     preencherCliente();
     renderItens();
     recalc();
+    console.log("osRefs at render:", JSON.stringify(osRefs));
     renderOSRefs();
     if (soLeitura || jaFinalizado) document.querySelectorAll(".orc input, .orc select, .orc textarea").forEach((el) => el.disabled = true);
     else focarNovoCodigo();
