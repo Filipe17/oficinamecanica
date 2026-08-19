@@ -117,9 +117,7 @@
         `<i class="fa-solid fa-timeline"></i> Histórico — ${nome.trim()}`,
         `<div id="hist-body"><div class="loading"><i class="fa-solid fa-spinner spin"></i> Carregando…</div></div>`,
         `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>
-         <button class="btn btn--outline" onclick="window.__veicHist.imprimir()">
-           <i class="fa-solid fa-print"></i> Imprimir
-         </button>`,
+         ${Layout.usuario?.perfil !== "mecanico" ? '<button class="btn btn--outline" onclick="window.__veicHist.imprimir()"><i class="fa-solid fa-print"></i> Imprimir</button>' : ""}`,
         true
       );
 
