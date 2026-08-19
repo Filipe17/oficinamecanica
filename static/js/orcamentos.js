@@ -230,9 +230,14 @@
 
     // OS relacionadas (só para a nota A5; não são gravadas). Começa vazio; se
     // houver uma referência antiga salva em texto, semeia a lista com ela.
-    osRefs = orc?.os_referencia
-      ? String(orc.os_referencia).split(/[,;]+/).map((s) => ({ numero: s.trim() })).filter((x) => x.numero)
-      : [];
+    // os_referencia vem como array JSON do backend
+    if (Array.isArray(orc?.os_referencia) && orc.os_referencia.length) {
+      osRefs = orc.os_referencia;
+    } else if (typeof orc?.os_referencia === "string" && orc.os_referencia) {
+      try { osRefs = JSON.parse(orc.os_referencia); } catch(_) { osRefs = []; }
+    } else {
+      osRefs = [];
+    }
 
     Layout.set(`
       <div class="orc">
@@ -341,7 +346,6 @@
               ? `${orc?.status === "cliente_aprovou"
                   ? '<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-flag-checkered"></i> Finalizar orçamento</button>'
                   : '<button class="btn btn--primary" id="orc-enviar-cliente"><i class="fa-solid fa-paper-plane"></i> Enviar para cliente</button>'}
-                 <button class="btn btn--outline" id="orc-salvar-rascunho"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
                  <button class="btn btn--ghost" id="orc-limpar"><i class="fa-solid fa-broom"></i> Limpar</button>`
               : `<button class="btn btn--success" id="orc-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar orçamento</button>`))}
           <button class="btn btn--danger-ghost" id="orc-cancelar"><i class="fa-solid fa-xmark"></i> ${(jaFinalizado || soLeitura) ? "Voltar" : "Cancelar"}</button>
@@ -505,7 +509,6 @@
     });
     on("orc-desc", "input", recalc);
     on("orc-salvar", "click", editando ? finalizarOrcamento : salvar);
-    on("orc-salvar-rascunho", "click", salvarRascunho);
     on("orc-enviar-cliente", "click", enviarParaCliente);
     on("orc-limpar", "click", () => abrirEditor(null));
     on("orc-imprimir", "click", imprimir);
@@ -828,15 +831,6 @@
   }
 
   /* ------------------------------------------- FINALIZAR (baixa + caixa + A5) */
-  async function salvarRascunho() {
-    if (!editando) return;
-    const d = coletar();
-    try {
-      await API.put(`/api/os/${editando.id}`, d);
-      toast("Orçamento salvo");
-    } catch (e) { toast(e.message || "Erro ao salvar", "error"); }
-  }
-
   async function finalizarOrcamento() {
     if (!editando) return;
     const d = coletar();
