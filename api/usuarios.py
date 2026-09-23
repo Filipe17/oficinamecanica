@@ -13,7 +13,7 @@ from functools import wraps
 from flask import Blueprint, request, jsonify, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from database.database import query, now, registrar_log
+from database.database import query, now, registrar_log, buscar_usuario_login
 
 usuarios_bp = Blueprint("usuarios", __name__)
 
@@ -51,14 +51,31 @@ def perfil_permitido(*perfis):
 # -------------------------------------------------------------------------
 # Regras de negócio
 # -------------------------------------------------------------------------
-def _autenticar(email, senha):
-    """Valida credenciais e retorna o usuário (sem o hash) ou None."""
-    u = query("SELECT * FROM usuarios WHERE email = ? AND ativo = 1",
-              (email,), fetchone=True)
-    if u and check_password_hash(u["senha_hash"], senha):
+def _autenticar(login, senha):
+    """
+    Valida credenciais e retorna o usuário (sem o hash) ou None.
+    Aceita o nome de usuário (ex.: "admin") ou o e-mail.
+    """
+    u = buscar_usuario_login(login)
+    if u and u.get("ativo") == 1 and check_password_hash(u["senha_hash"], senha):
         u.pop("senha_hash", None)
         return u
     return None
+
+
+def _login_livre(login, uid=None):
+    """True se nenhum OUTRO usuário já usa esse nome de login."""
+    r = query("SELECT id FROM usuarios WHERE LOWER(usuario)=?", (login,), fetchone=True)
+    return not r or r["id"] == uid
+
+
+def _gerar_login(email):
+    """Cria um login a partir do e-mail (joao@x.com -> joao, joao2, joao3...)."""
+    base = (email or "").split("@")[0].strip().lower() or "usuario"
+    login, n = base, 2
+    while not _login_livre(login):
+        login, n = f"{base}{n}", n + 1
+    return login
 
 
 # -------------------------------------------------------------------------
@@ -67,9 +84,11 @@ def _autenticar(email, senha):
 @usuarios_bp.route("/api/login", methods=["POST"])
 def login():
     dados = request.get_json(force=True)
-    u = _autenticar(dados.get("email", ""), dados.get("senha", ""))
+    # O campo da tela ainda se chama "email", mas recebe o usuário ou o e-mail
+    login_digitado = dados.get("usuario") or dados.get("email", "")
+    u = _autenticar(login_digitado, dados.get("senha", ""))
     if not u:
-        return jsonify({"erro": "E-mail ou senha inválidos"}), 401
+        return jsonify({"erro": "Usuário ou senha inválidos"}), 401
 
     # Grava a sessão
     session.permanent = bool(dados.get("lembrar"))
@@ -115,7 +134,7 @@ def me():
 @login_obrigatorio
 @perfil_permitido("administrador", "gerente")
 def listar_usuarios():
-    lista = query("SELECT id, nome, email, perfil, ativo, criado_em "
+    lista = query("SELECT id, nome, usuario, email, perfil, ativo, criado_em "
                   "FROM usuarios ORDER BY nome")
     return jsonify(lista)
 
@@ -128,10 +147,18 @@ def criar_usuario():
     if not d.get("email") or not d.get("senha"):
         return jsonify({"erro": "E-mail e senha são obrigatórios"}), 400
 
+    # Login: o informado na tela ou, se vier vazio, gerado a partir do e-mail
+    login = (d.get("usuario") or "").strip().lower()
+    if login:
+        if not _login_livre(login):
+            return jsonify({"erro": f"O usuário '{login}' já está em uso"}), 400
+    else:
+        login = _gerar_login(d.get("email"))
+
     res = query(
-        "INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo, criado_em) "
-        "VALUES (?,?,?,?,?,?)",
-        (d.get("nome"), d.get("email"),
+        "INSERT INTO usuarios (nome, usuario, email, senha_hash, perfil, ativo, criado_em) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (d.get("nome"), login, d.get("email"),
          generate_password_hash(d["senha"]),
          d.get("perfil", "atendente"), int(d.get("ativo", 1)), now()),
         commit=True,
@@ -145,6 +172,12 @@ def criar_usuario():
 @perfil_permitido("administrador")
 def editar_usuario(uid):
     d = request.get_json(force=True)
+    # Troca o login apenas se enviado
+    login = (d.get("usuario") or "").strip().lower()
+    if login:
+        if not _login_livre(login, uid):
+            return jsonify({"erro": f"O usuário '{login}' já está em uso"}), 400
+        query("UPDATE usuarios SET usuario=? WHERE id=?", (login, uid), commit=True)
     # Atualiza a senha apenas se enviada
     if d.get("senha"):
         query("UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=?, senha_hash=? WHERE id=?",
