@@ -1,3 +1,32 @@
+// Visualizador de foto ampliada (lightbox)
+window.__verFoto = function (src) {
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;" +
+    "display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:2rem";
+  ov.innerHTML = `
+    <img src="${src}" style="max-width:90vw;max-height:90vh;border-radius:10px;
+      box-shadow:0 10px 40px rgba(0,0,0,.5);background:#fff;cursor:default">
+    <button type="button" title="Fechar" style="position:absolute;top:1rem;right:1rem;
+      width:42px;height:42px;border-radius:50%;border:none;background:#fff;
+      font-size:1.2rem;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>`;
+  const fechar = () => { ov.remove(); document.removeEventListener("keydown", esc); };
+  const esc = (e) => { if (e.key === "Escape") fechar(); };
+  ov.addEventListener("click", (e) => { if (e.target.tagName !== "IMG") fechar(); });
+  document.addEventListener("keydown", esc);
+  document.body.appendChild(ov);
+};
+
+// Captura o clique em qualquer miniatura marcada com data-ampliar,
+// antes dos handlers da tabela (fase de captura)
+document.addEventListener("click", (e) => {
+  const img = e.target.closest && e.target.closest("img[data-ampliar]");
+  if (!img) return;
+  e.preventDefault();
+  e.stopPropagation();
+  window.__verFoto(img.src);
+}, true);
+console.log("[produtos.js] visualizador de foto carregado");
+
 /* =======================================================================
    produtos.js — Página de Produtos (Crud genérico + Grade de variações)
    ======================================================================= */
@@ -142,7 +171,7 @@
     colunas: [
 
       { chave: "foto", titulo: "", render: (v, row) => {
-          if (v) return `<img src="${v}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block">`;
+          if (v) return `<img src="${v}" data-ampliar="1" title="Clique para ampliar" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block;cursor:zoom-in">`;
           if (row.tem_variacoes && !row.produto_pai_id) return "";
           return `<div style="width:38px;height:38px;border-radius:6px;border:1px dashed #ddd;
             background:#f8f9fa;display:flex;align-items:center;justify-content:center">
@@ -571,5 +600,6 @@
     });
   }
 
-  window.__recarregar = carregar;
+  window.__crud = crud;
+  window.__recarregar = () => crud.carregar?.();
 })();
