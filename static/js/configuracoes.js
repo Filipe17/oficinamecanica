@@ -134,42 +134,112 @@
         </div>
       </div>
 
-      <h3 style="margin:22px 0 4px;font-size:15px">NFC-e — Cupom Fiscal Eletrônico (PDV/Caixa)</h3>
-      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
-        Configurações para emissão de NFC-e no Caixa. Usa o mesmo provedor da NF-e configurado acima.
-        O CSC (Código de Segurança do Contribuinte) é fornecido pela SEFAZ do seu estado.
+      <h3 style="margin:22px 0 4px;font-size:15px">NFC-e &mdash; Nota Fiscal Eletr&ocirc;nica (Cupom Fiscal / PDV)</h3>
+      <p class="text-muted" style="margin:0 0 8px;font-size:13px">
+        Configure os dados fiscais e o certificado digital A1 (.pfx) para emiss&atilde;o de NFC-e.
+        <strong>Sem o certificado, o sistema gera e salva o XML mas n&atilde;o transmite &agrave; SEFAZ.</strong>
       </p>
-      <div class="form-grid" id="cfg-form-nfce">
-        <div class="field">
-          <label>NFC-e ativa?</label>
-          <select name="nfce_ativo">
-            <option value="0" ${(c.nfce_ativo||"0")==="0"?"selected":""}>Não (desativada)</option>
-            <option value="1" ${(c.nfce_ativo||"")==="1"?"selected":""}>Sim — emitir NFC-e no caixa</option>
-          </select>
+      <div style="background:#fef9c3;border:1px solid #f59e0b;border-radius:10px;padding:.85rem 1rem;margin-bottom:14px;display:${c.nfe_certificado_pfx&&c.nfce_csc?'none':'flex'};gap:.75rem;align-items:flex-start">
+        <span style="font-size:1.2rem">&#x26A0;</span>
+        <div>
+          <strong style="color:#92400e">Modo Esqueleto &mdash; Aguardando ${c.nfe_certificado_pfx?"CSC":"Certificado Digital"}</strong><br>
+          <span style="font-size:.82rem;color:#78350f">Preencha os dados abaixo e fa&ccedil;a o upload do <strong>.pfx</strong> para ativar a transmiss&atilde;o &agrave; SEFAZ.</span>
         </div>
-        <div class="field">
-          <label>Série da NFC-e</label>
-          <input name="nfce_serie" value="${c.nfce_serie||"1"}" placeholder="Geralmente 1">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.5rem">
+        <div style="border:1px solid var(--border);border-radius:12px;padding:1rem">
+          <div style="font-weight:700;margin-bottom:.75rem;font-size:.88rem">
+            <i class="fa-regular fa-file-lines" style="color:#6366f1;margin-right:6px"></i>Dados Fiscais
+          </div>
+          <div class="form-grid" id="cfg-form-nfce" style="gap:.55rem">
+            <div class="field col-2"><label>NFC-e ativa?</label>
+              <select name="nfce_ativo">
+                <option value="0" ${(c.nfce_ativo||"0")==="0"?"selected":""}>N&atilde;o (desativada)</option>
+                <option value="1" ${(c.nfce_ativo||"")==="1"?"selected":""}>Sim &mdash; emitir NFC-e no caixa</option>
+              </select></div>
+            <div class="field col-2"><label>CNPJ</label>
+              <input value="${c.empresa_cnpj||""}" placeholder="00.000.000/0001-00" readonly style="background:var(--bg-alt);color:var(--text-muted);cursor:default"></div>
+            <div class="field col-2"><label>Inscri&ccedil;&atilde;o Estadual</label>
+              <input value="${c.empresa_inscricao_estadual||""}" placeholder="000.000.000.000" readonly style="background:var(--bg-alt);color:var(--text-muted);cursor:default"></div>
+            <div class="field col-2"><label>UF (Estado)</label>
+              <input value="${c.empresa_estado||""}" placeholder="SP" readonly style="background:var(--bg-alt);color:var(--text-muted);cursor:default"></div>
+            <div class="field"><label>S&eacute;rie NFC-e</label>
+              <input name="nfce_serie" value="${c.nfce_serie||"001"}" placeholder="001"></div>
+            <div class="field"><label>Pr&oacute;ximo n&uacute;mero</label>
+              <input type="number" name="nfce_numero_inicial" value="${c.nfce_numero_inicial||"1"}" min="1"></div>
+            <div class="field col-2"><label>Ambiente</label>
+              <select name="nfce_ambiente">
+                <option value="homologacao" ${(c.nfce_ambiente||"homologacao")==="homologacao"?"selected":""}>Homologa&ccedil;&atilde;o (testes)</option>
+                <option value="producao" ${(c.nfce_ambiente||"")==="producao"?"selected":""}>Produ&ccedil;&atilde;o (valendo)</option>
+              </select></div>
+            <div class="field col-2" style="font-size:.78rem;color:var(--text-muted)">
+              <i class="fa-solid fa-circle-info"></i> CNPJ, IE e UF s&atilde;o editados nos Dados da empresa acima.
+            </div>
+          </div>
         </div>
-        <div class="field">
-          <label>Número inicial</label>
-          <input type="number" name="nfce_numero_inicial" value="${c.nfce_numero_inicial||"1"}" min="1">
+        <div style="border:1px solid var(--border);border-radius:12px;padding:1rem">
+          <div style="font-weight:700;margin-bottom:.75rem;font-size:.88rem">
+            <i class="fa-solid fa-lock" style="color:#f59e0b;margin-right:6px"></i>Certificado e CSC
+          </div>
+          <div class="form-grid" style="gap:.55rem">
+            <div class="field col-2"><label>CSC &mdash; C&oacute;digo de Seguran&ccedil;a do Contribuinte <span class="text-muted" style="font-weight:400">(gerado na SEFAZ)</span></label>
+              <input name="nfce_csc" value="${c.nfce_csc||""}" placeholder="Cole o CSC aqui..." autocomplete="off"></div>
+            <div class="field col-2"><label>ID do CSC</label>
+              <input name="nfce_csc_id" value="${c.nfce_csc_id||"000001"}" placeholder="000001"></div>
+            <div class="field col-2"><label>Certificado Digital A1 (.pfx)</label>
+              <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                <label class="btn btn--primary btn--sm" style="cursor:pointer;margin:0">
+                  <i class="fa-solid fa-key"></i> Selecionar .pfx
+                  <input type="file" id="cfg-nfce-cert-input" accept=".pfx,.p12" style="display:none">
+                </label>
+                <span id="cfg-nfce-cert-nome" style="font-size:.82rem;color:var(--text-muted)">
+                  ${c.nfe_certificado_pfx?"&#x2705; Certificado j&aacute; carregado":"Nenhum arquivo selecionado"}
+                </span>
+              </div>
+              <input type="hidden" name="nfce_certificado_pfx" id="cfg-nfce-cert-dados" value=""></div>
+            <div class="field col-2"><label>Senha do certificado</label>
+              <input type="password" name="nfe_certificado_senha" value="${c.nfe_certificado_senha||""}" placeholder="Senha do arquivo .pfx" autocomplete="new-password"></div>
+          </div>
         </div>
-        <div class="field">
-          <label>CSC ID</label>
-          <input name="nfce_csc_id" value="${c.nfce_csc_id||""}" placeholder="ID do CSC (ex: 1)">
-        </div>
-        <div class="field col-2">
-          <label>CSC (Código de Segurança do Contribuinte)</label>
-          <input name="nfce_csc" value="${c.nfce_csc||""}" placeholder="Código fornecido pela SEFAZ do seu estado" autocomplete="off">
-        </div>
-        <div class="field col-2">
-          <p style="font-size:.8rem;color:var(--text-muted);margin:0">
-            <i class="fa-solid fa-circle-info"></i>
-            O token/chave da API do provedor é o mesmo configurado na seção NF-e acima.
-            Após configurar, o botão "Emitir NFC-e" aparecerá no Caixa.
-          </p>
-        </div>
+      </div>
+
+      <h3 style="margin:22px 0 4px;font-size:15px">NFS-e &mdash; Nota Fiscal de Servi&ccedil;os Eletr&ocirc;nica</h3>
+      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
+        Configure a emiss&atilde;o de NFS-e. O c&oacute;digo IBGE do munic&iacute;pio &eacute; exigido pela maioria dos provedores.
+      </p>
+      <div class="form-grid" id="cfg-form-nfse">
+        <div class="field"><label>NFS-e ativa?</label>
+          <select name="nfse_ativo">
+            <option value="0" ${(c.nfse_ativo||"0")==="0"?"selected":""}>N&atilde;o (desativada)</option>
+            <option value="1" ${(c.nfse_ativo||"")==="1"?"selected":""}>Sim &mdash; emitir NFS-e</option>
+          </select></div>
+        <div class="field"><label>Ambiente</label>
+          <select name="nfse_ambiente">
+            <option value="homologacao" ${(c.nfse_ambiente||"homologacao")==="homologacao"?"selected":""}>Homologa&ccedil;&atilde;o (teste)</option>
+            <option value="producao" ${(c.nfse_ambiente||"")==="producao"?"selected":""}>Produ&ccedil;&atilde;o (valendo)</option>
+          </select></div>
+        <div class="field col-2"><label>Provedor NFS-e</label>
+          <select name="nfse_provedor">
+            ${["","focus","plugnotas","nfeio","enotas"].map((p)=>{
+              const nm={"":"&mdash; mesmo da NF-e acima &mdash;",focus:"Focus NFe",plugnotas:"PlugNotas",nfeio:"NFe.io",enotas:"eNotas"};
+              return `<option value="${p}" ${(c.nfse_provedor||"")===p?"selected":""}>${nm[p]}</option>`;
+            }).join("")}
+          </select></div>
+        <div class="field col-2"><label>Token NFS-e <span class="text-muted" style="font-weight:400">(vazio = usa o token da NF-e acima)</span></label>
+          <input name="nfse_token" value="${c.nfse_token||""}" placeholder="Token espec&iacute;fico de NFS-e, se diferente" autocomplete="off"></div>
+        <div class="field"><label>C&oacute;digo IBGE do munic&iacute;pio <a href="https://www.ibge.gov.br/explica/codigos-dos-municipios.php" target="_blank" style="font-size:.8rem">(consultar)</a></label>
+          <input name="nfse_codigo_municipio" value="${c.nfse_codigo_municipio||""}" placeholder="Ex: 3550308 (S&atilde;o Paulo)"></div>
+        <div class="field"><label>C&oacute;digo de tributa&ccedil;&atilde;o LC 116</label>
+          <input name="nfse_codigo_tributacao" value="${c.nfse_codigo_tributacao||""}" placeholder="Ex: 14.01"></div>
+        <div class="field col-2"><label>ISS retido na fonte?</label>
+          <select name="nfse_iss_retido">
+            <option value="0" ${(c.nfse_iss_retido||"0")==="0"?"selected":""}>N&atilde;o</option>
+            <option value="1" ${(c.nfse_iss_retido||"")==="1"?"selected":""}>Sim &mdash; ISS retido pelo tomador</option>
+          </select></div>
+        <div class="field col-2"><p style="font-size:.8rem;color:var(--text-muted);margin:0">
+          <i class="fa-solid fa-circle-info"></i>
+          A inscri&ccedil;&atilde;o municipal fica nos Dados da empresa acima.
+          O percentual de ISS de cada servi&ccedil;o &eacute; configurado no cadastro de Servi&ccedil;os.</p></div>
       </div>
 
       <h3 style="margin:22px 0 4px;font-size:15px">Boleto Bancário</h3>
@@ -420,7 +490,7 @@
 
   /* ---------------- salvar ---------------- */
   document.getElementById("cfg-salvar").onclick = async () => {
-    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-modo [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-nfce [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"], #cfg-form-etiqueta [name="${n}"]`)?.value || "").trim();
+    const val = (n) => (document.querySelector(`#cfg-form [name="${n}"], #cfg-form-modo [name="${n}"], #cfg-form-fiscal [name="${n}"], #cfg-form-nfce [name="${n}"], #cfg-form-boleto [name="${n}"], #cfg-form-smtp [name="${n}"], #cfg-form-etiqueta [name="${n}"], #cfg-form-nfse [name="${n}"]`)?.value || "").trim();
     const dados = {
       empresa_nome: val("empresa_nome"),
       empresa_cnpj: val("empresa_cnpj"),
@@ -447,6 +517,14 @@
       nfce_numero_inicial: val("nfce_numero_inicial"),
       nfce_csc: val("nfce_csc"),
       nfce_csc_id: val("nfce_csc_id"),
+      nfce_ambiente: val("nfce_ambiente"),
+      nfse_ativo: val("nfse_ativo"),
+      nfse_provedor: val("nfse_provedor"),
+      nfse_token: val("nfse_token"),
+      nfse_ambiente: val("nfse_ambiente"),
+      nfse_codigo_municipio: val("nfse_codigo_municipio"),
+      nfse_codigo_tributacao: val("nfse_codigo_tributacao"),
+      nfse_iss_retido: val("nfse_iss_retido"),
       boleto_metodo: val("boleto_metodo"),
       boleto_provedor: val("boleto_provedor"),
       boleto_ambiente: val("boleto_ambiente"),
@@ -492,6 +570,16 @@
   };
 
   // Carrega certificado .pfx como base64
+  document.getElementById("cfg-nfce-cert-input")?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById("cfg-nfce-cert-dados").value = reader.result;
+      document.getElementById("cfg-nfce-cert-nome").textContent = "&#x2705; " + file.name + " (" + (file.size/1024).toFixed(1) + " KB)";
+    };
+    reader.readAsDataURL(file);
+  });
+
   document.getElementById("cfg-cert-input")?.addEventListener("change", (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
