@@ -14,7 +14,7 @@ Arquitetura em camadas:
 Execução local:
     pip install -r requirements.txt
     python server.py
-    Acesse http://localhost:5000  (admin@oficina.com / admin123)
+    Acesse http://localhost:5000  (admin / admin123)
 """
 
 import os
@@ -46,6 +46,7 @@ from api.permissoes import permissoes_bp, nivel_de
 from api.configuracoes import configuracoes_bp
 from api.caixa import caixa_bp
 from api.servicos import servicos_bp
+from api.recuperar_senha import bp as recuperar_senha_bp
 
 # Diretórios base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -65,7 +66,7 @@ app.permanent_session_lifetime = timedelta(days=30)   # "lembrar acesso"
 # Registro dos Blueprints (cada módulo cuida de um domínio)
 for bp in (usuarios_bp, clientes_bp, veiculos_bp, produtos_bp, estoque_bp,
            os_bp, financeiro_bp, pdv_bp, xml_bp, relatorios_bp, dre_bp, nfe_bp, agendamentos_bp, boletos_bp, cartao_bp, cheques_bp, permissoes_bp, nps_bp,
-           configuracoes_bp, caixa_bp, servicos_bp):
+           configuracoes_bp, caixa_bp, servicos_bp, recuperar_senha_bp):
     app.register_blueprint(bp)
 
 
@@ -286,6 +287,6 @@ if __name__ == "__main__":
     debug = os.getenv("FLASK_DEBUG", "1") == "1"
     print("=" * 55)
     print(f" ERP Oficina rodando em http://localhost:{porta}")
-    print(" Login padrão: admin@oficina.com  /  admin123")
+    print(" Login padrão: admin  /  admin123")
     print("=" * 55)
     app.run(host="0.0.0.0", port=porta, debug=debug)
