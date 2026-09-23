@@ -34,7 +34,7 @@
   }
 })();
 
-// Preenche o e-mail lembrado (se o usuário marcou "lembrar acesso" antes).
+// Preenche o usuário lembrado (se o usuário marcou "lembrar acesso" antes).
 const emailLembrado = localStorage.getItem("login_email");
 if (emailLembrado) {
   const campo = document.querySelector('input[name="email"]');
@@ -50,11 +50,11 @@ document.getElementById("form-login").addEventListener("submit", async (e) => {
     senha: e.target.senha.value,
   };
   if (!dados.email || !dados.senha) {
-    toast("Informe e-mail e senha", "warning");
+    toast("Informe usuário e senha", "warning");
     return;
   }
 
-  // Guarda (ou limpa) o e-mail conforme o "lembrar acesso".
+  // Guarda (ou limpa) o usuário conforme o "lembrar acesso".
   if (e.target.lembrar.checked) localStorage.setItem("login_email", dados.email);
   else localStorage.removeItem("login_email");
 
@@ -83,22 +83,51 @@ function toggleSenha(botao) {
   }
 }
 
-// Esqueci a senha (estrutura preparada — integração de e-mail é futura)
+// Esqueci a senha: troca o card de login pela tela "Recuperar sua senha".
 function esqueciSenha(ev) {
-  ev.preventDefault();
-  Modal.abrir(
-    "Recuperar senha",
-    `<p class="text-muted">Informe seu e-mail e o administrador da oficina
-     receberá um pedido de redefinição de senha.</p>
-     <div class="field"><label>E-mail</label>
-       <input type="email" id="rec-email" placeholder="voce@oficina.com"></div>
-     <p class="text-muted" style="font-size:.82rem;margin-top:.6rem">
-       Dica: no acesso de teste use <b>admin@oficina.com</b> / <b>admin123</b>.</p>`,
-    `<button class="btn btn--ghost" onclick="Modal.fechar()">Fechar</button>
-     <button class="btn btn--primary" onclick="toast('Solicitação registrada. Procure o administrador.');Modal.fechar()">
-       <i class="fa-solid fa-paper-plane"></i> Enviar</button>`
-  );
+  if (ev) ev.preventDefault();
+  const login = document.querySelector('#form-login [name="email"]').value.trim();
+  const form = document.getElementById("form-recuperar");
+  form.usuario.value = login;
+  form.style.display = "";
+  document.getElementById("recuperar-msg").style.display = "none";
+  document.getElementById("view-login").style.display = "none";
+  document.getElementById("view-recuperar").style.display = "";
+  form.usuario.focus();
 }
+
+// Volta da tela de recuperar senha para o login.
+function voltarLogin(ev) {
+  if (ev) ev.preventDefault();
+  document.getElementById("view-recuperar").style.display = "none";
+  document.getElementById("view-login").style.display = "";
+}
+
+// Envio do pedido de redefinição (registrado nos logs para o administrador).
+document.getElementById("form-recuperar").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const usuario = e.target.usuario.value.trim();
+  const btn = document.getElementById("btn-recuperar");
+  const msg = document.getElementById("recuperar-msg");
+  if (!usuario) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner spin"></i> Enviando…';
+  try {
+    await API.post("/api/auth/esqueci-senha", { usuario });
+    msg.className = "login-msg";
+    msg.innerHTML = '<i class="fa-solid fa-circle-check"></i> Pedido registrado. ' +
+                    "O administrador do sistema vai redefinir sua senha e te passar a nova.";
+    e.target.style.display = "none";
+  } catch (_) {
+    msg.className = "login-msg erro";
+    msg.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Não foi possível enviar o pedido agora. ' +
+                    "Entre em contato com o administrador do sistema.";
+  }
+  msg.style.display = "block";
+  btn.disabled = false;
+  btn.innerHTML = "Próximo";
+});
 
 // Botão de tema na tela de login (se existir no HTML)
 const btnTemaLogin = document.getElementById("btn-tema-login");

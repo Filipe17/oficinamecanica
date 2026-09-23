@@ -24,6 +24,8 @@
     <!-- Formulário -->
     <div class="login-form-side">
       <div class="login-card">
+        <!-- ===== Tela de login ===== -->
+        <div id="view-login">
         <h1>Bem-vindo de volta</h1>
         <p class="login-sub">Entre com suas credenciais para continuar</p>
 
@@ -49,6 +51,25 @@
             <i class="fa-solid fa-right-to-bracket"></i> Entrar
           </button>
         </form>
+        </div>
+
+        <!-- ===== Tela de recuperar senha ===== -->
+        <div id="view-recuperar" style="display:none">
+          <h1>Recuperar sua senha</h1>
+          <p class="login-sub">Podemos te ajudar a redefinir sua senha. Preencha os campos a seguir para prosseguir.</p>
+
+          <form id="form-recuperar">
+            <div class="field">
+              <label>Login</label>
+              <input class="login-input" type="text" name="usuario" placeholder="Seu usuário"
+                     autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            </div>
+            <button type="submit" class="login-btn" id="btn-recuperar">Próximo</button>
+          </form>
+
+          <div class="login-msg" id="recuperar-msg"></div>
+          <a href="#" class="login-voltar" onclick="voltarLogin(event)">Voltar ao login</a>
+        </div>
       </div>
     </div>
   </div>
