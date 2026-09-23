@@ -25,6 +25,54 @@ document.addEventListener("click", (e) => {
   e.stopPropagation();
   window.__verFoto(img.src);
 }, true);
+// Adicionar foto rápida: clique no quadrado vazio da lista
+document.addEventListener("click", (e) => {
+  const box = e.target.closest && e.target.closest("[data-add-foto]");
+  if (!box) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = box.dataset.addFoto;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    box.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="color:#aaa"></i>';
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 600;
+          let w = img.width, h = img.height;
+          if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+          if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d").drawImage(img, 0, 0, w, h);
+          res(c.toDataURL("image/jpeg", 0.82));
+        };
+        img.onerror = () => rej(new Error("Arquivo não é uma imagem válida"));
+        img.src = URL.createObjectURL(file);
+      });
+      const r = await fetch(`/api/produtos/${id}/foto`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ foto: base64 }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.erro || "Erro ao salvar foto");
+      box.outerHTML = `<img src="${base64}" data-ampliar="1" title="Clique para ampliar"
+        style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block;cursor:zoom-in">`;
+    } catch (err) {
+      alert(err.message);
+      box.innerHTML = '<i class="fa-solid fa-image" style="color:#ddd;font-size:.85rem"></i>';
+    }
+  };
+  input.click();
+}, true);
+
 console.log("[produtos.js] visualizador de foto carregado");
 
 /* =======================================================================
@@ -173,7 +221,7 @@ console.log("[produtos.js] visualizador de foto carregado");
       { chave: "foto", titulo: "", render: (v, row) => {
           if (v) return `<img src="${v}" data-ampliar="1" title="Clique para ampliar" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid #eee;display:block;cursor:zoom-in">`;
           if (row.tem_variacoes && !row.produto_pai_id) return "";
-          return `<div style="width:38px;height:38px;border-radius:6px;border:1px dashed #ddd;
+          return `<div data-add-foto="${row.id}" title="Clique para adicionar foto" style="cursor:pointer;width:38px;height:38px;border-radius:6px;border:1px dashed #ddd;
             background:#f8f9fa;display:flex;align-items:center;justify-content:center">
             <i class="fa-solid fa-image" style="color:#ddd;font-size:.85rem"></i></div>`;
         }},
