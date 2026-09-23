@@ -21,7 +21,7 @@ CHAVES = ["empresa_nome", "empresa_cnpj", "empresa_telefone", "empresa_cep",
           "empresa_estado", "empresa_logo",
           "empresa_regime_tributario", "empresa_inscricao_estadual",
           "empresa_inscricao_municipal", "nfe_provedor", "nfe_ambiente", "nfe_token",
-          "modo_financeiro", "modulo_nfe", "nfce_serie", "nfce_numero_inicial", "nfce_csc", "nfce_csc_id", "nfce_ativo",
+          "modo_financeiro", "modulo_nfe", "nfce_serie", "nfce_numero_inicial", "nfce_csc", "nfce_csc_id", "nfce_ativo", "nfce_ambiente", "nfce_certificado_pfx",
           # NFS-e (nota de serviço municipal)
           "nfse_ativo", "nfse_provedor", "nfse_token", "nfse_ambiente",
           "nfse_codigo_municipio", "nfse_codigo_tributacao", "nfse_iss_retido",
