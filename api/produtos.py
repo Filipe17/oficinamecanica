@@ -128,6 +128,19 @@ def excluir_produto(pid):
     return jsonify({"ok": True})
 
 
+@produtos_bp.route("/api/produtos/<int:pid>/foto", methods=["PUT"])
+@login_obrigatorio
+def atualizar_foto(pid):
+    """Atualiza só a foto (produto ou variação), sem mexer nos outros campos."""
+    d = request.get_json(force=True) or {}
+    foto = d.get("foto") or None
+    if foto and not str(foto).startswith("data:image/"):
+        return jsonify({"erro": "Imagem inválida"}), 400
+    query("UPDATE produtos SET foto=? WHERE id=?", (foto, pid), commit=True)
+    registrar_log(session["user_id"], "atualizar_foto", str(pid))
+    return jsonify({"ok": True})
+
+
 # =========================================================================
 # SERVIÇOS
 # =========================================================================
