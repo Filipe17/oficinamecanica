@@ -53,22 +53,76 @@
         </form>
         </div>
 
-        <!-- ===== Tela de recuperar senha ===== -->
-        <div id="view-recuperar" style="display:none">
+        <!-- ===== Recuperar senha — passo 1: usuário ===== -->
+        <div id="view-recuperar" class="rec-view" style="display:none">
           <h1>Recuperar sua senha</h1>
           <p class="login-sub">Podemos te ajudar a redefinir sua senha. Preencha os campos a seguir para prosseguir.</p>
-
           <form id="form-recuperar">
             <div class="field">
               <label>Login</label>
               <input class="login-input" type="text" name="usuario" placeholder="Seu usuário"
                      autocomplete="username" autocapitalize="none" spellcheck="false" required>
             </div>
-            <button type="submit" class="login-btn" id="btn-recuperar">Próximo</button>
+            <button type="submit" class="login-btn">Próximo</button>
           </form>
-
-          <div class="login-msg" id="recuperar-msg"></div>
           <a href="#" class="login-voltar" onclick="voltarLogin(event)">Voltar ao login</a>
+        </div>
+
+        <!-- ===== Recuperar senha — passo 2: e-mail ===== -->
+        <div id="view-email" class="rec-view" style="display:none">
+          <h1>Informe seu e-mail</h1>
+          <p class="login-sub">Digite o e-mail cadastrado no seu usuário para receber o código de recuperação da senha.</p>
+          <form id="form-email">
+            <div class="field">
+              <label>E-mail cadastrado</label>
+              <input class="login-input" type="email" name="email" placeholder="voce@empresa.com"
+                     autocomplete="email" autocapitalize="none" spellcheck="false" required>
+            </div>
+            <button type="submit" class="login-btn" id="btn-enviar-codigo">Enviar código</button>
+          </form>
+          <div class="login-msg erro" id="email-msg"></div>
+          <a href="#" class="login-voltar" onclick="voltarLogin(event)">Voltar ao login</a>
+        </div>
+
+        <!-- ===== Recuperar senha — passo 3: código + nova senha ===== -->
+        <div id="view-codigo" class="rec-view" style="display:none">
+          <h1>Crie sua nova senha</h1>
+          <p class="login-sub" id="codigo-sub">Digite o código que enviamos para o seu e-mail e escolha uma nova senha.</p>
+          <form id="form-codigo">
+            <div class="field">
+              <label>Código</label>
+              <input class="login-input login-codigo" type="text" name="codigo" placeholder="000000"
+                     inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+            </div>
+            <div class="field">
+              <label>Nova senha</label>
+              <div class="login-inp">
+                <input class="login-input" type="password" name="senha" placeholder="Mínimo de 6 caracteres"
+                       autocomplete="new-password" minlength="6" required>
+                <button type="button" class="login-eye" onclick="toggleSenha(this)"><i class="fa-solid fa-eye"></i></button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Confirmar nova senha</label>
+              <div class="login-inp">
+                <input class="login-input" type="password" name="confirmar" placeholder="Repita a nova senha"
+                       autocomplete="new-password" minlength="6" required>
+                <button type="button" class="login-eye" onclick="toggleSenha(this)"><i class="fa-solid fa-eye"></i></button>
+              </div>
+            </div>
+            <button type="submit" class="login-btn" id="btn-redefinir">Alterar senha</button>
+          </form>
+          <div class="login-msg erro" id="codigo-msg"></div>
+          <a href="#" class="login-voltar" onclick="voltarLogin(event)">Voltar ao login</a>
+        </div>
+
+        <!-- ===== Recuperar senha — concluído ===== -->
+        <div id="view-concluido" class="rec-view" style="display:none">
+          <h1>Senha alterada!</h1>
+          <p class="login-sub">Sua senha foi redefinida com sucesso. Agora é só entrar com a nova senha.</p>
+          <button type="button" class="login-btn" onclick="voltarLogin(event)">
+            <i class="fa-solid fa-right-to-bracket"></i> Ir para o login
+          </button>
         </div>
       </div>
     </div>

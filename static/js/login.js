@@ -83,50 +83,98 @@ function toggleSenha(botao) {
   }
 }
 
-// Esqueci a senha: troca o card de login pela tela "Recuperar sua senha".
+// =======================================================================
+// Recuperação de senha em 3 passos, todos dentro do mesmo card:
+//   1) usuário  ->  2) e-mail cadastrado (recebe o código)  ->  3) código + nova senha
+// =======================================================================
+const recuperacao = { usuario: "", email: "" };
+
+// Mostra só a tela pedida (login ou um dos passos da recuperação).
+function mostrarTela(id) {
+  ["view-login", "view-recuperar", "view-email", "view-codigo", "view-concluido"].forEach((v) => {
+    const el = document.getElementById(v);
+    if (el) el.style.display = v === id ? "" : "none";
+  });
+  document.querySelectorAll(".login-msg").forEach((m) => (m.style.display = "none"));
+  const primeiro = document.querySelector(`#${id} input`);
+  if (primeiro) primeiro.focus();
+}
+
+function mostrarErro(idMsg, texto) {
+  const msg = document.getElementById(idMsg);
+  msg.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${texto}`;
+  msg.style.display = "block";
+}
+
+// Deixa o botão em "carregando" enquanto espera o servidor.
+function carregando(btn, ativo, texto) {
+  if (ativo) btn.dataset.texto = btn.innerHTML;
+  btn.disabled = ativo;
+  btn.innerHTML = ativo ? `<i class="fa-solid fa-spinner spin"></i> ${texto}` : btn.dataset.texto;
+}
+
+// Link "Esqueci a senha"
 function esqueciSenha(ev) {
   if (ev) ev.preventDefault();
   const login = document.querySelector('#form-login [name="email"]').value.trim();
-  const form = document.getElementById("form-recuperar");
-  form.usuario.value = login;
-  form.style.display = "";
-  document.getElementById("recuperar-msg").style.display = "none";
-  document.getElementById("view-login").style.display = "none";
-  document.getElementById("view-recuperar").style.display = "";
-  form.usuario.focus();
+  document.querySelector('#form-recuperar [name="usuario"]').value = login;
+  mostrarTela("view-recuperar");
 }
 
-// Volta da tela de recuperar senha para o login.
+// Link "Voltar ao login"
 function voltarLogin(ev) {
   if (ev) ev.preventDefault();
-  document.getElementById("view-recuperar").style.display = "none";
-  document.getElementById("view-login").style.display = "";
+  document.getElementById("form-codigo").reset();
+  mostrarTela("view-login");
 }
 
-// Envio do pedido de redefinição (registrado nos logs para o administrador).
-document.getElementById("form-recuperar").addEventListener("submit", async (e) => {
+// Passo 1 -> 2: guarda o usuário e pede o e-mail
+document.getElementById("form-recuperar").addEventListener("submit", (e) => {
   e.preventDefault();
-  const usuario = e.target.usuario.value.trim();
-  const btn = document.getElementById("btn-recuperar");
-  const msg = document.getElementById("recuperar-msg");
-  if (!usuario) return;
+  recuperacao.usuario = e.target.usuario.value.trim();
+  if (!recuperacao.usuario) return;
+  mostrarTela("view-email");
+});
 
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner spin"></i> Enviando…';
+// Passo 2 -> 3: envia o código para o e-mail digitado
+document.getElementById("form-email").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  recuperacao.email = e.target.email.value.trim();
+  const btn = document.getElementById("btn-enviar-codigo");
+  carregando(btn, true, "Enviando…");
   try {
-    await API.post("/api/auth/esqueci-senha", { usuario });
-    msg.className = "login-msg";
-    msg.innerHTML = '<i class="fa-solid fa-circle-check"></i> Pedido registrado. ' +
-                    "O administrador do sistema vai redefinir sua senha e te passar a nova.";
-    e.target.style.display = "none";
-  } catch (_) {
-    msg.className = "login-msg erro";
-    msg.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Não foi possível enviar o pedido agora. ' +
-                    "Entre em contato com o administrador do sistema.";
+    await API.post("/api/esqueci-senha/enviar-codigo", recuperacao);
+    document.getElementById("codigo-sub").textContent =
+      `Se o e-mail ${recuperacao.email} for o cadastrado neste usuário, você vai receber um código ` +
+      `em instantes (confira também o spam). Digite o código e escolha uma nova senha.`;
+    mostrarTela("view-codigo");
+  } catch (err) {
+    mostrarErro("email-msg", err.message || "Não foi possível enviar o código. Tente novamente.");
   }
-  msg.style.display = "block";
-  btn.disabled = false;
-  btn.innerHTML = "Próximo";
+  carregando(btn, false);
+});
+
+// Passo 3: confere o código e grava a nova senha
+document.getElementById("form-codigo").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const codigo = e.target.codigo.value.replace(/\D/g, "");
+  const senha = e.target.senha.value;
+  if (codigo.length !== 6) return mostrarErro("codigo-msg", "O código tem 6 números.");
+  if (senha.length < 6) return mostrarErro("codigo-msg", "A nova senha precisa ter pelo menos 6 caracteres.");
+  if (senha !== e.target.confirmar.value) return mostrarErro("codigo-msg", "As senhas não conferem.");
+
+  const btn = document.getElementById("btn-redefinir");
+  carregando(btn, true, "Salvando…");
+  try {
+    await API.post("/api/esqueci-senha/redefinir", { usuario: recuperacao.usuario, codigo, senha });
+    e.target.reset();
+    document.querySelector('#form-login [name="email"]').value = recuperacao.usuario;
+    document.querySelector('#form-login [name="senha"]').value = "";
+    mostrarTela("view-concluido");
+  } catch (err) {
+    mostrarErro("codigo-msg", err.message || "Código inválido ou expirado.");
+  }
+  carregando(btn, false);
 });
 
 // Botão de tema na tela de login (se existir no HTML)

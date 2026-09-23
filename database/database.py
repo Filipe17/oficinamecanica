@@ -165,6 +165,17 @@ def init_db():
             criado_em TEXT
         )""",
 
+        # Códigos de recuperação de senha ("Esqueci a senha")
+        f"""CREATE TABLE IF NOT EXISTS recuperacao_senha (
+            id {pk},
+            usuario_id INTEGER REFERENCES usuarios(id),
+            codigo_hash TEXT NOT NULL,       -- código de 6 dígitos (guardado com hash)
+            expira_em TEXT NOT NULL,
+            tentativas INTEGER DEFAULT 0,    -- tentativas erradas
+            usado INTEGER DEFAULT 0,         -- 1 = já usado ou substituído
+            criado_em TEXT
+        )""",
+
         # ---------------- Clientes ----------------
         f"""CREATE TABLE IF NOT EXISTS clientes (
             id {pk},

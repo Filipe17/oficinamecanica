@@ -89,3 +89,4 @@
 .login-msg { display: none; margin-top: 16px; padding: 14px 16px; border-radius: 12px; font-size: 14px; line-height: 1.45;
              background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .login-msg.erro { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.login-codigo { text-align: center; font-size: 22px; letter-spacing: 10px; font-weight: 700; }
