@@ -84,13 +84,13 @@ def criar_produto():
     res = query(
         "INSERT INTO produtos (codigo, codigo_barras, nome, categoria, marca, "
         "fornecedor_id, localizacao, preco_compra, preco_venda, estoque_atual, "
-        "estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, comissao_percentual, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, comissao_percentual, foto, criado_em) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get("codigo"), d.get("codigo_barras"), d.get("nome"), d.get("categoria"),
          d.get("marca"), d.get("fornecedor_id"), d.get("localizacao"),
          d.get("preco_compra", 0), d.get("preco_venda", 0), d.get("estoque_atual", 0),
          d.get("estoque_minimo", 0), d.get("estoque_maximo", 0), d.get("ncm"),
-         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), now()),
+         d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), d.get("foto") or None, now()),
         commit=True,
     )
     registrar_log(session["user_id"], "criar_produto", d.get("nome"))
@@ -113,6 +113,9 @@ def editar_produto(pid):
          d.get("cfop"), d.get("cest"), d.get("ean"), d.get("comissao_percentual", 0), pid),
         commit=True,
     )
+    # Foto só é enviada quando alterada; "" remove
+    if "foto" in d:
+        query("UPDATE produtos SET foto=? WHERE id=?", (d.get("foto") or None, pid), commit=True)
     registrar_log(session["user_id"], "editar_produto", str(pid))
     return jsonify({"ok": True})
 
@@ -300,7 +303,7 @@ def criar_variacao(pid):
         "INSERT INTO produtos (produto_pai_id, variacao_atributo, codigo, codigo_barras, "
         "nome, categoria, marca, fornecedor_id, localizacao, preco_compra, preco_venda, "
         "estoque_atual, estoque_minimo, estoque_maximo, ncm, cfop, cest, ean, "
-        "comissao_percentual, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "comissao_percentual, foto, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (pid, d.get("variacao_atributo"),
          d.get("codigo"), d.get("codigo_barras"),
          f"{pai['nome']} — {d['variacao_atributo']}",   # nome automático
@@ -312,7 +315,8 @@ def criar_variacao(pid):
          d.get("estoque_minimo", pai.get("estoque_minimo", 0)),
          d.get("estoque_maximo", pai.get("estoque_maximo", 0)),
          pai.get("ncm"), pai.get("cfop"), pai.get("cest"), d.get("ean"),
-         d.get("comissao_percentual", pai.get("comissao_percentual", 0)), now()),
+         d.get("comissao_percentual", pai.get("comissao_percentual", 0)),
+         d.get("foto") or pai.get("foto"), now()),
         commit=True,
     )
     registrar_log(session["user_id"], "criar_variacao",
@@ -335,6 +339,9 @@ def editar_variacao(vid):
          d.get("comissao_percentual", 0), d.get("ean"), vid),
         commit=True,
     )
+    if "foto" in d:
+        query("UPDATE produtos SET foto=? WHERE id=? AND produto_pai_id IS NOT NULL",
+              (d.get("foto") or None, vid), commit=True)
     registrar_log(session["user_id"], "editar_variacao", str(vid))
     return jsonify({"ok": True})
 
