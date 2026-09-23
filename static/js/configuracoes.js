@@ -68,72 +68,6 @@
           <input name="empresa_inscricao_estadual" value="${c.empresa_inscricao_estadual || ""}" placeholder="ISENTO ou número"></div>
       </div>
 
-      <h3 style="margin:22px 0 4px;font-size:15px">Nota Fiscal (NF-e / NFC-e)</h3>
-      <p class="text-muted" style="margin:0 0 12px;font-size:13px">
-        Configure a emissão de NF-e e NFC-e. Escolha entre usar um provedor (mais simples)
-        ou certificado digital próprio (direto com a SEFAZ).
-      </p>
-      <div class="form-grid" id="cfg-form-fiscal">
-        <div class="field col-2"><label>Modo de integração</label>
-          <select name="nfe_modo" onchange="window.__cfgNfeModo(this.value)">
-            <option value="" ${!(c.nfe_modo||"")?"selected":""}>— não configurado —</option>
-            <option value="provedor" ${(c.nfe_modo||"")==="provedor"?"selected":""}>Via provedor (Focus NFe, PlugNotas, NFe.io, eNotas…)</option>
-            <option value="certificado" ${(c.nfe_modo||"")==="certificado"?"selected":""}>Certificado próprio A1 — direto com a SEFAZ</option>
-          </select>
-        </div>
-        <div class="field"><label>Ambiente</label>
-          <select name="nfe_ambiente">
-            ${["homologacao", "producao"].map((a) =>
-              `<option value="${a}" ${(c.nfe_ambiente||"homologacao")===a?"selected":""}>${a==="homologacao"?"Homologação (teste)":"Produção (valendo)"}</option>`).join("")}
-          </select>
-        </div>
-        <div class="field col-2"><label>Inscrição Municipal (para NFS-e)</label>
-          <input name="empresa_inscricao_municipal" value="${c.empresa_inscricao_municipal||""}" placeholder="Número da inscrição na prefeitura">
-        </div>
-
-        <!-- Seção provedor -->
-        <div id="cfg-nfe-prov" style="${(c.nfe_modo||"")==="provedor"?"display:contents":"display:none"}">
-          <div class="field col-2"><label>Provedor</label>
-            <select name="nfe_provedor">
-              ${["","focus","plugnotas","nfeio","enotas","webmania"].map((p)=>{
-                const nm={"":"— selecione —",focus:"Focus NFe",plugnotas:"PlugNotas",nfeio:"NFe.io",enotas:"eNotas",webmania:"WebmaniaBR"};
-                return `<option value="${p}" ${(c.nfe_provedor||"")===p?"selected":""}>${nm[p]}</option>`;
-              }).join("")}
-            </select>
-          </div>
-          <div class="field col-2"><label>Token / chave da API do provedor</label>
-            <input name="nfe_token" value="${c.nfe_token||""}" placeholder="Cole aqui o token da API" autocomplete="off">
-          </div>
-        </div>
-
-        <!-- Seção certificado próprio -->
-        <div id="cfg-nfe-cert" style="${(c.nfe_modo||"")==="certificado"?"display:contents":"display:none"}">
-          <div class="field col-2">
-            <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.75rem;font-size:.82rem">
-              <strong>⚠️ Certificado Digital A1</strong> — Envie o arquivo <strong>.pfx</strong> do certificado.
-              Ele é armazenado no banco e usado para assinar os XMLs direto com a SEFAZ.
-              A implementação específica por UF deve ser feita em <code>api/caixa.py</code>.
-            </div>
-          </div>
-          <div class="field col-2"><label>Certificado A1 (.pfx / .p12)</label>
-            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-              <label class="btn btn--outline btn--sm" style="cursor:pointer;margin:0">
-                <i class="fa-solid fa-upload"></i> Carregar certificado
-                <input type="file" id="cfg-cert-input" accept=".pfx,.p12" style="display:none">
-              </label>
-              <span id="cfg-cert-nome" style="font-size:.82rem;color:var(--text-muted)">
-                ${c.nfe_certificado_pfx?"✅ Certificado já carregado":"Nenhum arquivo selecionado"}
-              </span>
-            </div>
-            <input type="hidden" name="nfe_certificado_pfx" id="cfg-cert-dados" value="">
-          </div>
-          <div class="field"><label>Senha do certificado</label>
-            <input type="password" name="nfe_certificado_senha" value="${c.nfe_certificado_senha||""}"
-              placeholder="Senha do arquivo .pfx" autocomplete="new-password">
-          </div>
-        </div>
-      </div>
-
       <h3 style="margin:22px 0 4px;font-size:15px">NFC-e &mdash; Nota Fiscal Eletr&ocirc;nica (Cupom Fiscal / PDV)</h3>
       <p class="text-muted" style="margin:0 0 8px;font-size:13px">
         Configure os dados fiscais e o certificado digital A1 (.pfx) para emiss&atilde;o de NFC-e.
@@ -507,12 +441,6 @@
       empresa_regime_tributario: val("empresa_regime_tributario"),
       empresa_inscricao_estadual: val("empresa_inscricao_estadual"),
       empresa_inscricao_municipal: val("empresa_inscricao_municipal"),
-      nfe_provedor: val("nfe_provedor"),
-      nfe_ambiente: val("nfe_ambiente"),
-      nfe_modo: val("nfe_modo"),
-      nfe_token: val("nfe_token"),
-      nfe_certificado_pfx: document.getElementById("cfg-cert-dados")?.value || undefined,
-      nfe_certificado_senha: val("nfe_certificado_senha"),
       modo_financeiro: val("modo_financeiro"),
       modulo_nfe: val("modulo_nfe"),
       nfce_ativo: val("nfce_ativo"),
@@ -563,14 +491,6 @@
   // -----------------------------------------------------------------------
   // Backup
   // -----------------------------------------------------------------------
-
-  // Toggle seções NF-e conforme o modo selecionado
-  window.__cfgNfeModo = function(modo) {
-    const prov = document.getElementById("cfg-nfe-prov");
-    const cert = document.getElementById("cfg-nfe-cert");
-    if (prov) prov.style.display = modo === "provedor" ? "contents" : "none";
-    if (cert) cert.style.display = modo === "certificado" ? "contents" : "none";
-  };
 
   // Certificado NFC-e
   document.getElementById("cfg-nfce-cert-input")?.addEventListener("change", (e) => {
