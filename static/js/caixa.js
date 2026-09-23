@@ -84,8 +84,8 @@
             <p class="login-sub">Entre com seu usuário de caixa</p>
             ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
             <div class="field">
-              <label>E-mail</label>
-              <input class="login-input" id="lg-email" type="email" placeholder="voce@empresa.com" autocomplete="username">
+              <label>Usuário</label>
+              <input class="login-input" id="lg-email" type="text" placeholder="Seu usuário" autocomplete="username" autocapitalize="none" spellcheck="false">
             </div>
             <div class="field">
               <label>Senha</label>
@@ -101,7 +101,7 @@
     const entrar = async () => {
       const email = document.getElementById("lg-email").value.trim();
       const senha = document.getElementById("lg-senha").value;
-      if (!email || !senha) { toast("Informe e-mail e senha", "warning"); return; }
+      if (!email || !senha) { toast("Informe usuário e senha", "warning"); return; }
       try {
         const r = await cx("POST", "/api/caixa/login", { email, senha });
         setToken(r.token);
