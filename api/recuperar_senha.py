@@ -9,17 +9,22 @@ Fluxo:
     2) POST /api/esqueci-senha/redefinir      {usuario, codigo, senha}
        Confere o código e grava a nova senha.
 
-Envio de e-mail configurado por variáveis de ambiente:
-    SMTP_HOST, SMTP_PORT (587 ou 465), SMTP_USER, SMTP_PASS, SMTP_FROM
-Sem SMTP_HOST (desenvolvimento), o código é mostrado no console do servidor.
+Envio de e-mail configurado por variáveis de ambiente (use UMA das opções):
+    Resend (recomendado no Railway):  RESEND_API_KEY, EMAIL_FROM
+    SMTP (ex.: Gmail):                SMTP_HOST, SMTP_PORT (587 ou 465),
+                                      SMTP_USER, SMTP_PASS, SMTP_FROM
+Sem nenhuma delas (desenvolvimento), o código é mostrado no console/logs.
 """
 
+import json
 import os
 import secrets
 import smtplib
 import ssl
 from datetime import datetime, timedelta
 from email.message import EmailMessage
+from urllib import error as urlerror
+from urllib import request as urlrequest
 
 from flask import Blueprint, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -38,23 +43,56 @@ def _fmt(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
+ASSUNTO = "Código para redefinir sua senha"
+
+
+def _texto_email(nome, codigo):
+    return (
+        f"Olá, {nome}!\n\n"
+        f"Seu código para redefinir a senha é: {codigo}\n\n"
+        f"Ele vale por {VALIDADE_MINUTOS} minutos. "
+        f"Se você não pediu a troca de senha, ignore este e-mail."
+    )
+
+
+def _enviar_resend(destino, nome, codigo):
+    """Envia pela API do Resend (HTTPS — não depende de portas SMTP)."""
+    corpo = json.dumps({
+        "from": os.getenv("EMAIL_FROM") or "MecPRIME <onboarding@resend.dev>",
+        "to": [destino],
+        "subject": ASSUNTO,
+        "text": _texto_email(nome, codigo),
+    }).encode("utf-8")
+    req = urlrequest.Request(
+        "https://api.resend.com/emails", data=corpo, method="POST",
+        headers={
+            "Authorization": f"Bearer {os.getenv('RESEND_API_KEY')}",
+            "Content-Type": "application/json",
+            "User-Agent": "MecPRIME/1.0",
+        })
+    try:
+        with urlrequest.urlopen(req, timeout=20) as resp:
+            resp.read()
+    except urlerror.HTTPError as e:
+        raise RuntimeError(f"Resend respondeu {e.code}: {e.read().decode('utf-8', 'ignore')}")
+
+
 def _enviar_email(destino, nome, codigo):
-    """Envia o código por e-mail (ou mostra no console, se não houver SMTP)."""
+    """Envia o código por e-mail (Resend, SMTP ou, sem nenhum, só no console)."""
+    if os.getenv("RESEND_API_KEY"):
+        _enviar_resend(destino, nome, codigo)
+        return
+
     host = os.getenv("SMTP_HOST")
     if not host:
         print(f">> [DEV] Código de recuperação para {destino}: {codigo}")
         return
 
     msg = EmailMessage()
-    msg["Subject"] = "Código para redefinir sua senha"
+    msg["Subject"] = ASSUNTO
     msg["From"] = os.getenv("SMTP_FROM") or os.getenv("SMTP_USER")
     msg["To"] = destino
-    msg.set_content(
-        f"Olá, {nome}!\n\n"
-        f"Seu código para redefinir a senha é: {codigo}\n\n"
-        f"Ele vale por {VALIDADE_MINUTOS} minutos. "
-        f"Se você não pediu a troca de senha, ignore este e-mail."
-    )
+    msg.set_content(_texto_email(nome, codigo))
 
     porta = int(os.getenv("SMTP_PORT", "587"))
     contexto = ssl.create_default_context()
