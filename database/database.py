@@ -157,6 +157,7 @@ def init_db():
         f"""CREATE TABLE IF NOT EXISTS usuarios (
             id {pk},
             nome TEXT NOT NULL,
+            usuario TEXT,                  -- nome de login (ex.: "admin")
             email TEXT UNIQUE NOT NULL,
             senha_hash TEXT NOT NULL,
             perfil TEXT NOT NULL DEFAULT 'atendente',  -- administrador, gerente, mecanico, atendente, financeiro, caixa
@@ -609,6 +610,42 @@ def _migrar_colunas():
     _garantir_coluna("ordens_servico", "os_referencia", "TEXT")
     # Notificação de diagnóstico pendente para admin
     _garantir_coluna("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
+    # Login por nome de usuário (ex.: "admin") em vez de e-mail
+    _garantir_coluna("usuarios", "usuario", "TEXT")
+    _preencher_usuario_login()
+
+
+def _preencher_usuario_login():
+    """
+    Preenche a coluna 'usuario' dos usuários antigos com a parte do e-mail
+    antes do '@' (admin@oficina.com -> admin). Se o nome já estiver em uso,
+    acrescenta o id (ex.: joao2). Idempotente: só mexe em quem está vazio.
+    """
+    pendentes = query(
+        "SELECT id, email FROM usuarios WHERE usuario IS NULL OR usuario='' ORDER BY id")
+    for u in pendentes:
+        base = (u["email"] or "").split("@")[0].strip().lower() or f"usuario{u['id']}"
+        login = base
+        if query("SELECT id FROM usuarios WHERE usuario=? AND id<>?",
+                 (login, u["id"]), fetchone=True):
+            login = f"{base}{u['id']}"
+        query("UPDATE usuarios SET usuario=? WHERE id=?", (login, u["id"]), commit=True)
+    # Garante que dois usuários não tenham o mesmo login
+    query("CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_usuario ON usuarios(usuario)",
+          commit=True)
+
+
+def buscar_usuario_login(login):
+    """
+    Busca um usuário pelo nome de login OU pelo e-mail (sem diferenciar
+    maiúsculas/minúsculas). Use esta função na rota de login.
+    """
+    login = (login or "").strip().lower()
+    if not login:
+        return None
+    return query(
+        "SELECT * FROM usuarios WHERE LOWER(usuario)=? OR LOWER(email)=?",
+        (login, login), fetchone=True)
 
 
 # Módulos controláveis por permissão e o nível padrão de cada perfil.
@@ -703,13 +740,13 @@ def _seed():
     existe = query("SELECT COUNT(*) AS n FROM usuarios", fetchone=True)
     if existe and existe["n"] == 0:
         query(
-            "INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo, criado_em) "
-            "VALUES (?,?,?,?,?,?)",
-            ("Administrador", "admin@oficina.com",
+            "INSERT INTO usuarios (nome, usuario, email, senha_hash, perfil, ativo, criado_em) "
+            "VALUES (?,?,?,?,?,?,?)",
+            ("Administrador", "admin", "admin@oficina.com",
              generate_password_hash("admin123"), "administrador", 1, now()),
             commit=True,
         )
-        print(">> Usuário admin criado: admin@oficina.com / admin123")
+        print(">> Usuário admin criado: admin / admin123")
 
 
 def registrar_log(usuario_id, acao, detalhe=""):
