@@ -29,13 +29,13 @@
 
         <form id="form-login" autocomplete="on">
           <div class="field">
-            <label>E-mail</label>
-            <input class="login-input" type="email" name="email" placeholder="voce@empresa.com" required>
+            <label>Usuário</label>
+            <input class="login-input" type="text" name="email" placeholder="Seu usuário" autocomplete="username" autocapitalize="none" spellcheck="false" required>
           </div>
           <div class="field">
             <label>Senha</label>
             <div class="login-inp">
-              <input class="login-input" type="password" name="senha" placeholder="••••••••" required>
+              <input class="login-input" type="password" name="senha" autocomplete="current-password" placeholder="••••••••" required>
               <button type="button" class="login-eye" onclick="toggleSenha(this)"><i class="fa-solid fa-eye"></i></button>
             </div>
           </div>
