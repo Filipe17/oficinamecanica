@@ -24,7 +24,7 @@ from email.message import EmailMessage
 from flask import Blueprint, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from database import buscar_usuario_login, now, query, registrar_log
+from database.database import buscar_usuario_login, now, query, registrar_log
 
 bp = Blueprint("recuperar_senha", __name__)
 
