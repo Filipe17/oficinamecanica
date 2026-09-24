@@ -94,25 +94,41 @@ function debounce(fn, ms = 350) {
           <div class="login-side__brand">
             <div class="login-brand__nome">Mec<span>PRIME</span></div>
             <p class="login-brand__tag">Seu negócio, nosso sistema</p>
+            <div class="login-brand__bar"></div>
+            <p class="login-brand__desc">Módulo de Caixa — gestão de recebimentos e pagamentos.</p>
           </div>
         </div>
         <div class="login-form-side">
           <div class="login-card">
             <div class="login-card__marca">
-              ${marca.empresa_logo ? `<img class="login-card__logo" src="${marca.empresa_logo}" alt="">` : ""}
+              ${marca.empresa_logo
+                ? `<img class="login-card__logo" src="${marca.empresa_logo}" alt="${marca.empresa_nome || ''}">`
+                : `<i class="fa-solid fa-cash-register" style="font-size:2.2rem;color:var(--primary)"></i>`}
               ${marca.empresa_nome ? `<div class="login-card__nome">${marca.empresa_nome}</div>` : ""}
             </div>
-            <h2 class="login-title">Caixa</h2>
-            <p class="login-sub">Entre com seu usuário de caixa</p>
-            ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
-            <div class="login-group"><label>Usuário</label>
-              <input class="login-input" id="lg-user" type="text" autocomplete="username" autocapitalize="none"></div>
-            <div class="login-group"><label>Senha</label>
+            <h2 class="login-title" style="margin-top:18px">
+              <i class="fa-solid fa-cash-register" style="color:var(--primary);margin-right:8px"></i>Caixa
+            </h2>
+            <p class="login-sub">Entre com seu usuário e senha para acessar o caixa</p>
+            ${aviso ? `<div class="cx-erro"><i class="fa-solid fa-triangle-exclamation"></i> ${aviso}</div>` : ""}
+            <div class="login-group">
+              <label class="login-label">Usuário</label>
+              <input class="login-input" id="lg-user" type="text"
+                autocomplete="username" autocapitalize="none" spellcheck="false"
+                placeholder="Seu usuário" autofocus>
+            </div>
+            <div class="login-group">
+              <label class="login-label">Senha</label>
               <div class="login-inp">
-                <input class="login-input" id="lg-senha" type="password" autocomplete="current-password">
-                <button type="button" class="login-eye" id="lg-eye"><i class="fa-solid fa-eye"></i></button>
-              </div></div>
-            <button class="login-btn" id="lg-ok"><i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa</button>
+                <input class="login-input" id="lg-senha" type="password"
+                  autocomplete="current-password" placeholder="••••••••">
+                <button type="button" class="login-eye" id="lg-eye">
+                  <i class="fa-solid fa-eye"></i></button>
+              </div>
+            </div>
+            <button class="login-btn" id="lg-ok" style="margin-top:8px">
+              <i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa
+            </button>
           </div>
         </div>
       </div>`;
