@@ -1,3 +1,45 @@
+
+/* ---- utilitários embutidos (sem depender do app.js) ---- */
+const Modal = {
+  abrir(titulo, htmlCorpo, htmlRodape = "", grande = false) {
+    this.fechar();
+    const bd = document.createElement("div");
+    bd.className = "modal-backdrop";
+    bd.id = "modal-atual";
+    bd.innerHTML = `
+      <div class="modal ${grande ? "modal--lg" : ""}">
+        <div class="modal__head">
+          <div class="modal__title">${titulo}</div>
+          <button class="modal__close" onclick="Modal.fechar()">&times;</button>
+        </div>
+        <div class="modal__body">${htmlCorpo}</div>
+        ${htmlRodape ? `<div class="modal__foot">${htmlRodape}</div>` : ""}
+      </div>`;
+    document.body.appendChild(bd);
+    requestAnimationFrame(() => bd.classList.add("open"));
+    return bd;
+  },
+  fechar() {
+    const bd = document.getElementById("modal-atual");
+    if (bd) { bd.classList.remove("open"); setTimeout(() => bd.remove(), 200); }
+  },
+};
+
+function toast(msg, tipo = "success") {
+  const el = document.createElement("div");
+  el.className = "toast toast--" + tipo;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("show"));
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3200);
+}
+
+function debounce(fn, ms = 350) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+/* --------------------------------------------------------- */
+
 /* =======================================================================
    caixa.js — Caixa integrado ao painel administrativo.
    Abre em aba separada com login próprio (token em sessionStorage).
