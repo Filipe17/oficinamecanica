@@ -88,21 +88,27 @@ function debounce(fn, ms = 350) {
     document.body.innerHTML = `
       <style>
         .cx-login-bg {
-          min-height: 100vh; display: flex;
-          background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+          min-height: 100vh; display: grid; grid-template-columns: 1fr 480px;
+          background: #fff;
         }
         .cx-login-lado {
-          flex: 1; display: flex; flex-direction: column; align-items: center;
-          justify-content: center; color: #fff; padding: 40px; gap: 18px;
+          display: flex; flex-direction: column; align-items: flex-start;
+          justify-content: center; color: #fff; padding: 60px 56px; gap: 16px;
+          background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 100%);
+          position: relative; overflow: hidden;
         }
-        .cx-login-lado svg { width: 120px; opacity: .15; }
-        .cx-login-brand { font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; }
+        .cx-login-lado::before {
+          content: ""; position: absolute; inset: 0;
+          background: url("data:image/svg+xml,%3Csvg viewBox='0 0 300 380' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 40 320 L 40 60 L 150 240 L 260 60 L 260 320' fill='none' stroke='white' stroke-width='56' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+          center / 80% no-repeat; opacity: .06;
+        }
+        .cx-login-brand { font-size: 2.6rem; font-weight: 800; letter-spacing: -1px; position: relative; }
         .cx-login-brand span { color: #3b82f6; }
-        .cx-login-tag { color: rgba(255,255,255,.55); font-size: .95rem; margin: 0; }
-        .cx-login-bar { width: 48px; height: 3px; background: #3b82f6; border-radius: 2px; }
-        .cx-login-desc { color: rgba(255,255,255,.45); font-size: .85rem; margin: 0; text-align: center; max-width: 260px; }
+        .cx-login-tag { color: rgba(255,255,255,.6); font-size: 1rem; margin: 0; position: relative; }
+        .cx-login-bar { width: 48px; height: 3px; background: linear-gradient(90deg,#3b82f6,#818cf8); border-radius: 2px; position: relative; }
+        .cx-login-desc { color: rgba(255,255,255,.4); font-size: .88rem; margin: 0; max-width: 320px; line-height: 1.6; position: relative; }
         .cx-login-form-side {
-          width: 480px; display: flex; align-items: center; justify-content: center;
+          display: flex; align-items: center; justify-content: center;
           background: #fff; padding: 48px 40px; min-height: 100vh;
         }
         .cx-login-card { width: 100%; max-width: 380px; }
