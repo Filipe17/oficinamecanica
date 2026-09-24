@@ -166,22 +166,41 @@ function debounce(fn, ms = 350) {
   const cfg = st.config || marca;
 
   function montarCasca() {
+    document.body.style.cssText = "margin:0;background:#f5f6f8;font-family:inherit";
     document.body.innerHTML = `
-      <div class="caixa-body" style="min-height:100vh;background:var(--bg)">
-        <header class="cx-top">
-          <div class="cx-marca">
-            ${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}" alt="">` : `<i class="fa-solid fa-cash-register"></i>`}
-            <div><b>${cfg.empresa_nome || "Caixa"}</b><span>Sistema de Caixa</span></div>
+      <style>
+        .cx-topo {
+          display:flex; align-items:center; justify-content:space-between;
+          padding:10px 24px; background:#fff; border-bottom:1px solid #e3e5ea;
+          box-shadow:0 1px 4px rgba(0,0,0,.06); position:sticky; top:0; z-index:10;
+        }
+        .cx-topo__marca { display:flex; align-items:center; gap:10px; }
+        .cx-topo__marca img { height:36px; max-width:80px; object-fit:contain; }
+        .cx-topo__marca i { font-size:22px; color:#1f5fbf; }
+        .cx-topo__marca b { display:block; font-size:15px; color:#1b2230; line-height:1.2; }
+        .cx-topo__marca span { font-size:11px; color:#6b7385; text-transform:uppercase; letter-spacing:.5px; }
+        .cx-topo__info { display:flex; align-items:center; gap:16px; font-size:13px; color:#6b7385; }
+        .cx-topo__info i { margin-right:4px; }
+        .cx-topo__info b { color:#1b2230; }
+      </style>
+      <header class="cx-topo">
+        <div class="cx-topo__marca">
+          ${cfg.empresa_logo
+            ? `<img src="${cfg.empresa_logo}" alt="${cfg.empresa_nome || ''}">`
+            : `<i class="fa-solid fa-cash-register"></i>`}
+          <div>
+            <b>${cfg.empresa_nome || "Caixa"}</b>
+            <span>Sistema de Caixa</span>
           </div>
-          <div class="cx-op">
-            <span><i class="fa-solid fa-user"></i> ${st.operador || ""}</span>
-            <span><i class="fa-solid fa-calendar"></i> ${new Date().toLocaleDateString("pt-BR")}</span>
-            <button class="btn btn--outline btn--sm" onclick="window.__cx.sair()">
-              <i class="fa-solid fa-right-from-bracket"></i> Sair</button>
-          </div>
-        </header>
-        <div id="cx-corpo" style="max-width:1200px;margin:0 auto;padding:20px"></div>
-      </div>`;
+        </div>
+        <div class="cx-topo__info">
+          <span><i class="fa-solid fa-user"></i><b>${st.operador || ""}</b></span>
+          <span><i class="fa-solid fa-calendar-days"></i>${new Date().toLocaleDateString("pt-BR")}</span>
+          <button class="btn btn--outline btn--sm" onclick="window.__cx.sair()">
+            <i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        </div>
+      </header>
+      <div id="cx-corpo" style="max-width:1200px;margin:0 auto;padding:20px 24px"></div>`;
   }
   montarCasca();
 
