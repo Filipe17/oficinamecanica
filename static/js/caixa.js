@@ -299,12 +299,7 @@ function debounce(fn, ms = 350) {
         <div class="cx-card"><span><i class="fa-solid fa-hand-holding-dollar"></i> Total recebido</span><b>${money(t.total_recebido)}</b></div>
         <div class="cx-card cx-card--saldo"><span><i class="fa-solid fa-wallet"></i> Saldo atual</span><b>${money(t.saldo)}</b></div>
       </div>
-      <div class="cx-formas-resumo">
-        ${[["dinheiro", "Dinheiro"], ["pix", "Pix"], ["debito", "Débito"], ["credito", "Crédito"], ["outros", "Outros"]].map(([k, r]) => {
-          const v = k === "outros" ? (t.por_forma.outros + t.por_forma.transferencia) : t.por_forma[k];
-          return `<div class="cx-fr"><i class="${iconeForma(k)}"></i><span>${r}</span><b>${money(v)}</b></div>`;
-        }).join("")}
-      </div>` : `
+      ` : `
       <div class="card"><div class="card__body cx-fechado">
         <i class="fa-solid fa-cash-register"></i>
         <h3>O caixa está fechado</h3>
@@ -313,24 +308,115 @@ function debounce(fn, ms = 350) {
           : "Você pode consultar as cobranças e o histórico, mas não tem permissão para operar o caixa."}</p>
       </div></div>`}
 
-      <div class="card"><div class="card__body">
-        <div class="cx-tabs">
-          <button class="cx-tab ${aba === "aguardando" ? "ativa" : ""}" data-aba="aguardando">
-            <i class="fa-solid fa-hourglass-half"></i> Aguardando pagamento <span class="cx-tab__n" id="cx-n-ag"></span></button>
-          <button class="cx-tab ${aba === "historico" ? "ativa" : ""}" data-aba="historico">
-            <i class="fa-solid fa-clock-rotate-left"></i> Histórico de pagamentos</button>
-          ${aberto ? `<button class="cx-tab ${aba === "movimentos" ? "ativa" : ""}" data-aba="movimentos">
-            <i class="fa-solid fa-list"></i> Movimentações do caixa</button>` : ""}
+      <div class="cx-layout-2col">
+        <div class="cx-col-main">
+          <div class="card"><div class="card__body">
+            <div class="cx-tabs">
+              <button class="cx-tab ${aba === "aguardando" ? "ativa" : ""}" data-aba="aguardando">
+                <i class="fa-solid fa-hourglass-half"></i> Aguardando pagamento <span class="cx-tab__n" id="cx-n-ag"></span></button>
+              <button class="cx-tab ${aba === "historico" ? "ativa" : ""}" data-aba="historico">
+                <i class="fa-solid fa-clock-rotate-left"></i> Histórico de pagamentos</button>
+              ${aberto ? `<button class="cx-tab ${aba === "movimentos" ? "ativa" : ""}" data-aba="movimentos">
+                <i class="fa-solid fa-list"></i> Movimentações do caixa</button>` : ""}
+            </div>
+            <div id="cx-aba"></div>
+          </div></div>
+
+          <div class="cx-rodape">
+            <div class="cx-rodape__card">
+              <i class="fa-solid fa-link-slash cx-rodape__i cx-rodape__i--blue"></i>
+              <div>
+                <b>Integração com a Ordem de Serviço</b>
+                <p>Quando uma OS for finalizada e o pagamento for registrado, o sistema gera automaticamente uma entrada no caixa, com os valores de serviços e peças.</p>
+              </div>
+            </div>
+            <div class="cx-rodape__card">
+              <i class="fa-solid fa-circle-info cx-rodape__i cx-rodape__i--blue"></i>
+              <div style="flex:1">
+                <b>Fechamento do caixa</b>
+                <p>Ao finalizar o dia, confira os valores por forma de pagamento e gere o relatório de fechamento.</p>
+              </div>
+              ${aberto && podeOperar() ? `<button class="btn btn--primary btn--sm" id="cx-fechar2"><i class="fa-solid fa-lock"></i> Fechar caixa</button>` : ""}
+            </div>
+          </div>
         </div>
-        <div id="cx-aba"></div>
-      </div></div>
+
+        <aside class="cx-col-lado">
+          <div class="cx-lado__resumo">
+            <div class="cx-lado__tit">Resumo por forma de pagamento</div>
+            ${aberto ? `
+            ${[["dinheiro","Dinheiro"],["pix","Pix"],["debito","Débito"],["credito","Crédito"],["outros","Outros"]].map(([k,r]) => {
+              const v = k === "outros" ? ((t.por_forma||{}).outros+((t.por_forma||{}).transferencia||0)) : ((t.por_forma||{})[k]||0);
+              return `<div class="cx-lado__l"><span><i class="${iconeForma(k)}"></i> ${r}</span><b>${money(v)}</b></div>`;
+            }).join("")}` : `<p class="text-muted" style="font-size:13px">Abra o caixa para ver o resumo.</p>`}
+          </div>
+
+          ${aberto && podeOperar() ? `
+          <div class="cx-lado__form cx-lado__form--in">
+            <div class="cx-lado__tit"><i class="fa-solid fa-circle-plus" style="color:#15803d"></i> Nova entrada</div>
+            <label class="cx-f"><span>Descrição</span><input id="qe-desc" placeholder="Ex.: OS #1028, Venda de peça…"></label>
+            <label class="cx-f"><span>Forma de pagamento</span>
+              <select id="qe-forma">
+                <option value="">Selecione</option>
+                ${['dinheiro','pix','debito','credito','transferencia','outros'].map(f=>`<option value="${f}">${nomeForma(f)}</option>`).join('')}
+              </select></label>
+            <label class="cx-f"><span>Valor</span><input id="qe-valor" inputmode="decimal" placeholder="R$ 0,00"></label>
+            <button class="btn btn--success" id="qe-ok" style="width:100%;justify-content:center;margin-top:4px">Registrar entrada</button>
+          </div>
+
+          <div class="cx-lado__form cx-lado__form--out">
+            <div class="cx-lado__tit"><i class="fa-solid fa-circle-minus" style="color:#dc2626"></i> Nova saída</div>
+            <label class="cx-f"><span>Descrição</span><input id="qs-desc" placeholder="Ex.: Compra de peças, Material…"></label>
+            <label class="cx-f"><span>Forma de pagamento</span>
+              <select id="qs-forma">
+                <option value="">Selecione</option>
+                ${['dinheiro','pix','debito','credito','transferencia','outros'].map(f=>`<option value="${f}">${nomeForma(f)}</option>`).join('')}
+              </select></label>
+            <label class="cx-f"><span>Valor</span><input id="qs-valor" inputmode="decimal" placeholder="R$ 0,00"></label>
+            <button class="btn btn--danger" id="qs-ok" style="width:100%;justify-content:center;margin-top:4px">Registrar saída</button>
+          </div>` : ""}
+        </aside>
+      </div>
     `);
 
     const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
     on("cx-abrir", abrirCaixa);
     on("cx-fechar", fecharCaixa);
+    on("cx-fechar2", fecharCaixa);
     on("cx-entrada", () => movimento("suprimento"));
     on("cx-saida", () => movimento("sangria"));
+    // Entrada rápida pelo painel lateral
+    on("qe-ok", async () => {
+      const desc = document.getElementById("qe-desc")?.value.trim();
+      const forma = document.getElementById("qe-forma")?.value;
+      const valor = num(document.getElementById("qe-valor")?.value);
+      if (!desc) return toast("Informe a descrição", "error");
+      if (!forma) return toast("Selecione a forma de pagamento", "error");
+      if (valor <= 0) return toast("Informe um valor válido", "error");
+      try {
+        await API.post("/api/caixa/movimento", { tipo: "suprimento", motivo: desc, valor, forma_pagamento: forma });
+        toast("Entrada registrada");
+        document.getElementById("qe-desc").value = "";
+        document.getElementById("qe-valor").value = "";
+        recarregar();
+      } catch (e) { toast(e.message, "error"); }
+    });
+    // Saída rápida pelo painel lateral
+    on("qs-ok", async () => {
+      const desc = document.getElementById("qs-desc")?.value.trim();
+      const forma = document.getElementById("qs-forma")?.value;
+      const valor = num(document.getElementById("qs-valor")?.value);
+      if (!desc) return toast("Informe a descrição", "error");
+      if (!forma) return toast("Selecione a forma de pagamento", "error");
+      if (valor <= 0) return toast("Informe um valor válido", "error");
+      try {
+        await API.post("/api/caixa/movimento", { tipo: "sangria", motivo: desc, valor, forma_pagamento: forma });
+        toast("Saída registrada");
+        document.getElementById("qs-desc").value = "";
+        document.getElementById("qs-valor").value = "";
+        recarregar();
+      } catch (e) { toast(e.message, "error"); }
+    });
     document.querySelectorAll(".cx-tab").forEach((b) => b.onclick = () => {
       aba = b.dataset.aba;
       document.querySelectorAll(".cx-tab").forEach((x) => x.classList.toggle("ativa", x === b));
