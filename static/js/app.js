@@ -142,7 +142,7 @@ const MENU = [
     { id: "financeiro", nome: "Financeiro", icone: "fa-wallet" },
     { id: "cobrancas", nome: "Cobranças", icone: "fa-hand-holding-dollar" },
     { id: "mala_direta", nome: "Mala Direta", icone: "fa-envelope-open-text" },
-    { id: "caixa", nome: "Caixa", icone: "fa-cash-register" },
+    { id: "caixa", nome: "Caixa", icone: "fa-cash-register", novaAba: true },
   ]},
   { grupo: "Sistema", itens: [
     { id: "relatorios", nome: "Relatórios", icone: "fa-chart-column" },
