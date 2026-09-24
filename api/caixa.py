@@ -1,9 +1,7 @@
 """
-caixa.py — Módulo de Caixa.
+caixa.py — Módulo de Caixa integrado ao painel administrativo.
 
-O caixa abre numa aba separada com login próprio (token no cabeçalho
-X-Caixa-Token), mas conversa com o MESMO banco do painel.
-Sair do admin não desloga o caixa e vice-versa.
+Usa a MESMA sessão, usuários e permissões do painel (sem login próprio).
 
 Fluxo:
   Orçamento finalizado ("Finalizar orçamento") -> o sistema cria uma conta a
@@ -19,10 +17,9 @@ Permissões (módulo "caixa"): 1 = visualizar, 2 = operar (receber, lançar, fec
 Estorno: somente administrador e gerente.
 """
 
-from flask import Blueprint, request, jsonify, session as _session
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from flask import Blueprint, request, jsonify, session
 from database.database import query, now, registrar_log
-from api.usuarios import _autenticar, login_obrigatorio, perfil_permitido
+from api.usuarios import login_obrigatorio, perfil_permitido
 from api.configuracoes import obter_config
 
 caixa_bp = Blueprint("caixa", __name__)
@@ -32,51 +29,18 @@ ROTULO_FORMA = {"dinheiro": "Dinheiro", "pix": "Pix", "debito": "Cartão de déb
                 "credito": "Cartão de crédito", "transferencia": "Transferência",
                 "outros": "Outros"}
 PERFIS_ESTORNO = ("administrador", "gerente")
-TOKEN_VALIDADE = 60 * 60 * 12  # 12 horas
-
-
-# --------------------------------------------------------- token próprio
-def _serializer():
-    from flask import current_app
-    return URLSafeTimedSerializer(current_app.secret_key, salt="caixa-token")
-
-
-def _tem_acesso(perfil):
-    if perfil == "administrador":
-        return True
-    from api.permissoes import nivel_de
-    return nivel_de(perfil, "caixa") > 0
-
-
-def _operador():
-    """Identifica o operador pelo token X-Caixa-Token (não usa cookie do ERP)."""
-    token = request.headers.get("X-Caixa-Token", "")
-    if not token:
-        return None
-    try:
-        dados = _serializer().loads(token, max_age=TOKEN_VALIDADE)
-    except (BadSignature, SignatureExpired):
-        return None
-    u = query("SELECT id, nome, perfil FROM usuarios WHERE id=? AND ativo=1",
-              (dados.get("uid"),), fetchone=True)
-    if u and _tem_acesso(u["perfil"]):
-        return u
-    return None
 
 
 # ------------------------------------------------------------- permissões
 def _nivel():
-    op = _operador()
-    if not op:
-        return 0
     from api.permissoes import nivel_de
+    op = _operador()
+    if not op: return 0
     return nivel_de(op["perfil"], "caixa")
 
 
 def _exige(nivel_min):
-    op = _operador()
-    if not op:
-        return jsonify({"erro": "Sessão de caixa inválida"}), 401
+    """Retorna uma resposta de erro se o usuário não tiver o nível exigido."""
     if _nivel() < nivel_min:
         msg = "Sem permissão para operar o caixa" if nivel_min > 1 else "Sem acesso ao caixa"
         return jsonify({"erro": msg}), 403
@@ -89,8 +53,8 @@ def _uid():
 
 
 def _nome_operador():
-    op = _operador()
-    return op["nome"] if op else ""
+    u = query("SELECT nome FROM usuarios WHERE id=?", (_uid(),), fetchone=True)
+    return (u or {}).get("nome") or ""
 
 
 # --------------------------------------------------------------- helpers
@@ -181,24 +145,9 @@ SQL_COBRANCA = (
 )
 
 
-
-@caixa_bp.route("/api/caixa/login", methods=["POST"])
-def caixa_login():
-    d = request.get_json(force=True) or {}
-    u = _autenticar(d.get("email", ""), d.get("senha", ""))
-    if not u:
-        return jsonify({"erro": "Usuário ou senha inválidos"}), 401
-    if not _tem_acesso(u["perfil"]):
-        return jsonify({"erro": "Este usuário não tem acesso ao caixa"}), 403
-    token = _serializer().dumps({"uid": u["id"]})
-    cfg = obter_config()
-    return jsonify({"ok": True, "token": token, "nome": u["nome"],
-                    "config": {"empresa_nome": cfg.get("empresa_nome"),
-                               "empresa_logo": cfg.get("empresa_logo")}})
-
-
 # ------------------------------------------------------------------ status
 @caixa_bp.route("/api/caixa/status", methods=["GET"])
+@login_obrigatorio
 def status():
     erro = _exige(1)
     if erro:
@@ -210,11 +159,12 @@ def status():
         "totais": _totais(caixa) if caixa else None,
         "operador": _nome_operador(),
         "nivel": _nivel(),
-        "pode_estornar": session.get("perfil") in PERFIS_ESTORNO,
+        "pode_estornar": ((_operador() or {}).get("perfil")) in PERFIS_ESTORNO,
     })
 
 
 @caixa_bp.route("/api/caixa/abrir", methods=["POST"])
+@login_obrigatorio
 def abrir():
     erro = _exige(2)
     if erro:
@@ -235,6 +185,7 @@ def abrir():
 
 
 @caixa_bp.route("/api/caixa/movimento", methods=["POST"])
+@login_obrigatorio
 def movimento():
     """Entrada avulsa (suprimento) ou saída (sangria) de dinheiro."""
     erro = _exige(2)
@@ -265,6 +216,7 @@ def movimento():
 
 
 @caixa_bp.route("/api/caixa/movimentos", methods=["GET"])
+@login_obrigatorio
 def movimentos():
     """Movimentações do caixa aberto do operador (extrato do dia)."""
     erro = _exige(1)
@@ -281,6 +233,7 @@ def movimentos():
 
 # ------------------------------------------------ aguardando pagamento
 @caixa_bp.route("/api/caixa/receber", methods=["GET"])
+@login_obrigatorio
 def aguardando():
     """
     Cobranças geradas pelo "Finalizar orçamento" ainda não quitadas.
@@ -307,6 +260,7 @@ def aguardando():
 
 
 @caixa_bp.route("/api/caixa/receber/<int:fid>", methods=["GET"])
+@login_obrigatorio
 def detalhe_cobranca(fid):
     """Dados da OS para a tela de recebimento (somente leitura)."""
     erro = _exige(1)
@@ -331,6 +285,7 @@ def detalhe_cobranca(fid):
 
 
 @caixa_bp.route("/api/caixa/cartao-calcular", methods=["POST"])
+@login_obrigatorio
 def cartao_calcular():
     """Taxa e valor líquido do cartão (usa o cadastro de taxas existente)."""
     erro = _exige(1)
@@ -348,6 +303,7 @@ def cartao_calcular():
 
 
 @caixa_bp.route("/api/caixa/receber/<int:fid>", methods=["POST"])
+@login_obrigatorio
 def receber(fid):
     """
     Recebe a cobrança de uma OS/orçamento. Corpo:
@@ -503,6 +459,7 @@ def _formas_de(pids):
 
 
 @caixa_bp.route("/api/caixa/historico", methods=["GET"])
+@login_obrigatorio
 def historico():
     """Filtros: q (OS/cliente/placa), data_ini, data_fim, forma, status."""
     erro = _exige(1)
@@ -537,6 +494,7 @@ def historico():
 
 
 @caixa_bp.route("/api/caixa/pagamento/<int:pid>", methods=["GET"])
+@login_obrigatorio
 def detalhe_pagamento(pid):
     erro = _exige(1)
     if erro:
@@ -552,18 +510,14 @@ def detalhe_pagamento(pid):
 
 @caixa_bp.route("/api/caixa/pagamento/<int:pid>/estornar", methods=["POST"])
 @login_obrigatorio
+@perfil_permitido(*PERFIS_ESTORNO)
 def estornar(pid):
     """
     Estorna um recebimento sem apagar nada: o pagamento fica 'estornado'
     (com motivo, usuário e data), a saída é lançada no caixa aberto de quem
     estorna e a cobrança volta a ficar em aberto no caixa.
     """
-    op = _operador()
-    if not op:
-        return jsonify({"erro": "Sessão de caixa inválida"}), 401
-    if op["perfil"] not in PERFIS_ESTORNO:
-        return jsonify({"erro": "Sem permissão para estornar"}), 403
-    uid = op["id"]
+    uid = _uid()
     caixa = _aberto(uid)
     if not caixa:
         return jsonify({"erro": "Abra o seu caixa para registrar o estorno"}), 400
@@ -609,6 +563,7 @@ def estornar(pid):
 
 # --------------------------------------------------------------- fechamento
 @caixa_bp.route("/api/caixa/fechar", methods=["POST"])
+@login_obrigatorio
 def fechar():
     """
     Fecha o caixa do operador. O valor informado é o DINHEIRO contado na
@@ -708,7 +663,7 @@ def emitir_nfce():
         #     resp = requests.post(url, json={}, headers={"Authorization": token})
         #     return jsonify(resp.json())
 
-        registrar_log(session["user_id"], "nfce_tentativa", f"financeiro={financeiro_id} modo=provedor")
+        registrar_log(session.get("user_id") or (_operador() or {}).get("id"), "nfce_tentativa", f"financeiro={financeiro_id} modo=provedor")
         return jsonify({
             "ok": False,
             "erro": f"Provedor '{provedor}' — implemente em api/caixa.py → emitir_nfce() → MODO 1.",
@@ -739,7 +694,7 @@ def emitir_nfce():
         # Libs necessárias no requirements.txt:
         #   cryptography, signxml, lxml, requests
 
-        registrar_log(session["user_id"], "nfce_tentativa", f"financeiro={financeiro_id} modo=certificado")
+        registrar_log(session.get("user_id") or (_operador() or {}).get("id"), "nfce_tentativa", f"financeiro={financeiro_id} modo=certificado")
         return jsonify({
             "ok": False,
             "erro": "Certificado A1 configurado — implemente em api/caixa.py → emitir_nfce() → MODO 2.",
