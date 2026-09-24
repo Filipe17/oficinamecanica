@@ -362,6 +362,42 @@ def init_db():
             criado_em TEXT
         )""",
 
+        # ---------------- Caixa: recebimentos de OS/orçamento ----------------
+        # Um recebimento por cobrança (financeiro). Nunca é apagado: estorno
+        # muda o status e grava quem/quando/por quê.
+        f"""CREATE TABLE IF NOT EXISTS caixa_pagamentos (
+            id {pk},
+            caixa_id INTEGER REFERENCES caixa(id),
+            financeiro_id INTEGER REFERENCES financeiro(id),
+            os_id INTEGER,
+            cliente_id INTEGER,
+            usuario_id INTEGER,
+            valor_total REAL DEFAULT 0,
+            troco REAL DEFAULT 0,
+            status TEXT DEFAULT 'pago',       -- pago, estornado
+            documento_fiscal TEXT,            -- número/chave, quando houver
+            criado_em TEXT,
+            estornado_por INTEGER,
+            estornado_em TEXT,
+            motivo_estorno TEXT
+        )""",
+
+        # Formas usadas em cada recebimento (permite pagamento misto).
+        # Sem dados sensíveis de cartão: só modalidade, bandeira e parcelas.
+        f"""CREATE TABLE IF NOT EXISTS caixa_pagamento_formas (
+            id {pk},
+            pagamento_id INTEGER REFERENCES caixa_pagamentos(id),
+            forma TEXT,                       -- dinheiro, pix, debito, credito, transferencia, outros
+            valor REAL DEFAULT 0,
+            valor_recebido REAL,              -- dinheiro: quanto o cliente entregou
+            parcelas INTEGER DEFAULT 1,
+            bandeira TEXT,
+            taxa REAL DEFAULT 0,
+            valor_liquido REAL,
+            confirmado_por INTEGER,           -- pix/transferência: quem confirmou
+            observacao TEXT
+        )""",
+
         # ---------------- Importações XML ----------------
         f"""CREATE TABLE IF NOT EXISTS xml_importacoes (
             id {pk},
@@ -623,6 +659,17 @@ def _migrar_colunas():
     _garantir_coluna("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
     # Login por nome de usuário (ex.: "admin") em vez de e-mail
     _garantir_coluna("usuarios", "usuario", "TEXT")
+    # Caixa integrado ao painel: forma e vínculo de cada movimentação
+    _garantir_coluna("caixa_mov", "forma_pagamento", "TEXT")
+    _garantir_coluna("caixa_mov", "pagamento_id", "INTEGER")
+    _garantir_coluna("caixa_mov", "usuario_id", "INTEGER")
+    # Situação financeira da OS/orçamento (o status operacional não muda)
+    _garantir_coluna("ordens_servico", "status_pagamento", "TEXT")   # NULL/pendente, pago
+    _garantir_coluna("ordens_servico", "pago_em", "TEXT")
+    # Resumo do fechamento do caixa (auditoria)
+    _garantir_coluna("caixa", "valor_esperado", "REAL")
+    _garantir_coluna("caixa", "diferenca", "REAL")
+    _garantir_coluna("caixa", "fechado_por", "INTEGER")
     _preencher_usuario_login()
 
 

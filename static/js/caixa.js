@@ -1,475 +1,702 @@
 /* =======================================================================
-   caixa.js — Tela do Caixa com LOGIN PRÓPRIO (token), independente do ERP.
-   O token fica em sessionStorage (isolado por aba), então o login do caixa
-   não se mistura com o do admin: sair de um não desloga o outro. As chamadas
-   vão para /api/caixa/* com o cabeçalho X-Caixa-Token.
+   caixa.js — Caixa integrado ao painel administrativo.
+   Usa o mesmo Layout, API (sessão), Modal e toast das outras telas.
+
+   - Aguardando pagamento: cobranças geradas pelo "Finalizar orçamento".
+   - Receber pagamento: formas simples ou mistas, troco, Pix manual,
+     cartão (sem dados sensíveis), documento fiscal conforme configuração.
+   - Histórico, estorno (admin/gerente), entradas/saídas e fechamento.
    ======================================================================= */
 (async () => {
-  const app = document.getElementById("app");
-  const TOKEN_KEY = "caixa_token";
-  const money = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const FORMAS = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito"];
+  await Layout.iniciar("caixa", "Caixa");
+  if (!Layout.usuario) return;
 
-  let cfg = {}, operador = "";
-  let marca = null;                  // {empresa_nome, empresa_logo} vindo de /api/marca
-  let autoTimer = null;              // timer do auto-refresh (caixa aberto)
-  const AUTO_INTERVALO = 12000;      // 12s: pega cobranças novas sem pesar
+  const money = (v) => fmt.moeda(v);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = (v) => {
+    if (typeof v === "number") return v;
+    const s = String(v || "").trim();
+    if (!s) return 0;
+    const n = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
+    return Math.round((parseFloat(n) || 0) * 100) / 100;
+  };
+  const hojeISO = () => new Date().toISOString().slice(0, 10);
 
-  // Marca pública (logo + razão social), igual ao login do admin. Endpoint
-  // público: funciona antes de logar.
-  async function carregarMarca() {
-    if (marca) return marca;
+  const FORMAS = [
+    { id: "dinheiro", nome: "Dinheiro", icone: "fa-money-bill-wave" },
+    { id: "pix", nome: "Pix", icone: "fa-brands fa-pix" },
+    { id: "debito", nome: "Cartão de débito", icone: "fa-credit-card" },
+    { id: "credito", nome: "Cartão de crédito", icone: "fa-credit-card" },
+    { id: "transferencia", nome: "Transferência", icone: "fa-building-columns" },
+    { id: "outros", nome: "Outros", icone: "fa-ellipsis" },
+  ];
+  const nomeForma = (id) => (FORMAS.find((f) => f.id === id) || { nome: id || "-" }).nome;
+  const iconeForma = (id) => {
+    const f = FORMAS.find((x) => x.id === id);
+    if (!f) return "fa-solid fa-circle";
+    return f.icone.startsWith("fa-brands") ? f.icone : "fa-solid " + f.icone;
+  };
+  const BANDEIRAS = ["Visa", "Mastercard", "Elo", "Hipercard", "American Express", "Outra"];
+
+  let st = null;          // status do caixa
+  let aba = "aguardando";
+  let aguardando = [];
+
+  /* ------------------------------------------------------------ carregar */
+  async function carregar() {
     try {
-      const resp = await fetch("/api/marca");
-      marca = resp.ok ? await resp.json() : {};
-    } catch (_) { marca = {}; }
-    return marca;
-  }
-
-  const getToken = () => sessionStorage.getItem(TOKEN_KEY) || "";
-  const setToken = (t) => sessionStorage.setItem(TOKEN_KEY, t);
-  const limparToken = () => sessionStorage.removeItem(TOKEN_KEY);
-
-  // fetch dedicado do caixa (token no cabeçalho, não depende do cookie do ERP)
-  async function cx(method, path, body) {
-    const resp = await fetch(path, {
-      method,
-      headers: { "Content-Type": "application/json", "X-Caixa-Token": getToken() },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) { const e = new Error(data.erro || "Erro"); e.status = resp.status; throw e; }
-    return data;
-  }
-
-  /* --------------------------------------------------------------- boot */
-  async function boot() {
-    pararAuto();   // evita timers duplicados a cada re-render
-    if (!getToken()) return await telaLogin();
-    try {
-      const st = await cx("GET", "/api/caixa/status");
-      cfg = st.config || {}; operador = st.operador || "";
-      if (!st.aberto) renderFechado(); else renderAberto(st);
+      st = await API.get("/api/caixa/status");
     } catch (e) {
-      limparToken();
-      await telaLogin(e.status === 401 ? null : e.message);
+      Layout.set(`<div class="empty"><i class="fa-solid fa-lock"></i>${esc(e.message)}</div>`);
+      return;
     }
+    render();
   }
 
-  /* ---------------------------------------------------- login do caixa */
-  async function telaLogin(aviso) {
-    await carregarMarca();
-    // Bloco de marca idêntico ao login do admin (mesmas classes do login.css).
-    const marcaCard = (marca && (marca.empresa_logo || marca.empresa_nome)) ? `
-            <div class="login-card__marca">
-              ${marca.empresa_logo ? `<img class="login-card__logo" src="${marca.empresa_logo}" alt="${marca.empresa_nome || "Empresa"}">` : ""}
-              ${marca.empresa_nome ? `<div class="login-card__nome">${marca.empresa_nome}</div>` : ""}
-            </div>` : "";
+  const podeOperar = () => (st?.nivel || 0) >= 2;
 
-    app.innerHTML = `
-      <div class="login-wrap">
-        <div class="login-side">
-          <svg class="login-side__s" viewBox="0 0 300 380" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><path d="M 40 320 L 40 60 L 150 240 L 260 60 L 260 320" fill="none" stroke="currentColor" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <div class="login-side__brand">
-            <div class="login-brand__nome">Mec<span>PRIME</span></div>
-            <p class="login-brand__tag">Seu negócio, nosso sistema</p>
-            <div class="login-brand__bar"></div>
-            <p class="login-brand__desc">Transforme a gestão do seu negócio com um sistema moderno, completo e fácil de usar.</p>
-          </div>
-        </div>
-        <div class="login-form-side">
-          <div class="login-card">
-            ${marcaCard}
-            <h1>Acesse o caixa</h1>
-            <p class="login-sub">Entre com seu usuário de caixa</p>
-            ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
-            <div class="field">
-              <label>Usuário</label>
-              <input class="login-input" id="lg-email" type="text" placeholder="Seu usuário" autocomplete="username" autocapitalize="none" spellcheck="false">
-            </div>
-            <div class="field">
-              <label>Senha</label>
-              <div class="login-inp">
-                <input class="login-input" id="lg-senha" type="password" placeholder="••••••••" autocomplete="current-password">
-                <button type="button" class="login-eye" id="lg-eye"><i class="fa-solid fa-eye"></i></button>
-              </div>
-            </div>
-            <button class="login-btn" id="lg-ok" style="margin-top:8px"><i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa</button>
-          </div>
-        </div>
-      </div>`;
-    const entrar = async () => {
-      const email = document.getElementById("lg-email").value.trim();
-      const senha = document.getElementById("lg-senha").value;
-      if (!email || !senha) { toast("Informe usuário e senha", "warning"); return; }
-      try {
-        const r = await cx("POST", "/api/caixa/login", { email, senha });
-        setToken(r.token);
-        boot();
-      } catch (e) { toast(e.message || "Falha no login", "error"); }
-    };
-    document.getElementById("lg-ok").onclick = entrar;
-    document.getElementById("lg-senha").addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); });
-    document.getElementById("lg-eye").onclick = () => {
-      const inp = document.getElementById("lg-senha");
-      const ic = document.querySelector("#lg-eye i");
-      if (inp.type === "password") { inp.type = "text"; ic.className = "fa-solid fa-eye-slash"; }
-      else { inp.type = "password"; ic.className = "fa-solid fa-eye"; }
-    };
-    const em = document.getElementById("lg-email"); if (em) em.focus();
-  }
-
-  /* --------------------------------------------------------- cabeçalho */
-  function cabecalho() {
-    return `
-      <header class="cx-top">
-        <div class="cx-marca">
-          ${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}" alt="logo">` : `<i class="fa-solid fa-cash-register"></i>`}
-          <div><b>${cfg.empresa_nome || "Caixa"}</b><span>Caixa</span></div>
-        </div>
-        <div class="cx-op">
-          <span><i class="fa-solid fa-user"></i> ${operador}</span>
-          <button class="btn btn--ghost btn--sm" id="cx-sair"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
-        </div>
-      </header>`;
-  }
-  function ligarComuns() {
-    document.getElementById("cx-sair").onclick = () => { pararAuto(); limparToken(); telaLogin(); };
-  }
-
-  /* ------------------------------------------------------------ FECHADO */
-  function renderFechado() {
-    app.innerHTML = cabecalho() + `
-      <div class="cx-centro">
-        <div class="cx-card cx-abrir">
-          <i class="fa-solid fa-cash-register cx-icone"></i>
-          <h2>Caixa fechado</h2>
-          <p class="text-muted">Informe o valor em dinheiro no início do turno (troco).</p>
-          <label class="cx-campo"><span>Valor de abertura</span>
-            <input id="cx-abertura" type="number" step="0.01" value="0" inputmode="decimal"></label>
-          <button class="btn btn--primary btn--lg" id="cx-btn-abrir"><i class="fa-solid fa-lock-open"></i> Abrir caixa</button>
-        </div>
-      </div>`;
-    ligarComuns();
-    document.getElementById("cx-btn-abrir").onclick = async () => {
-      const v = parseFloat(document.getElementById("cx-abertura").value) || 0;
-      try { await cx("POST", "/api/caixa/abrir", { valor_abertura: v }); toast("Caixa aberto"); boot(); }
-      catch (e) { toast(e.message, "error"); }
-    };
-  }
-
-  /* ------------------------------------------------ auto-refresh (aberto) */
-  function pararAuto() {
-    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
-  }
-
-  function iniciarAuto() {
-    pararAuto();
-    autoTimer = setInterval(atualizarSilencioso, AUTO_INTERVALO);
-  }
-
-  // Atualiza totais e a lista de cobranças SEM reconstruir a tela inteira.
-  // Pula o ciclo se houver um modal aberto (para não atrapalhar um recebimento
-  // em andamento) ou se a aba estiver em segundo plano.
-  async function atualizarSilencioso() {
-    if (document.hidden) return;
-    if (document.querySelector(".modal, .modal-backdrop, #modal")) return;
-    try {
-      const st = await cx("GET", "/api/caixa/status");
-      if (!st.aberto) { boot(); return; }   // caixa foi fechado em outro lugar
-      pintarTotais(st.totais || {});
-      const cob = (await cx("GET", "/api/caixa/receber")).dados || [];
-      pintarCobrancas(cob);
-    } catch (_) { /* silencioso: erro de rede não interrompe o operador */ }
-  }
-
-  function pintarTotais(t) {
-    const map = {
-      abertura: t.abertura, recebimentos: t.recebimentos,
-      suprimentos: t.suprimentos, sangrias: t.sangrias, saldo: t.saldo,
-    };
-    document.querySelectorAll("[data-tot]").forEach((el) => {
-      const k = el.getAttribute("data-tot");
-      if (k in map) el.textContent = money(map[k]);
-    });
-  }
-
-  function pintarCobrancas(cobrancas) {
-    const lista = document.getElementById("cx-lista");
-    if (!lista) return;
-    lista.innerHTML = cobrancas.length ? cobrancas.map((c) => `
-      <div class="cx-cob">
-        <div class="cx-cob__info">
-          <b>${c.cliente_nome || "Cliente"}</b>
-          <span>${c.descricao || "Cobrança"}${c.status === "atrasado" ? ` · <em class="cx-atraso">atrasado</em>` : ""}</span>
-        </div>
-        <div class="cx-cob__valor">${money(c.valor)}</div>
-        <button class="btn btn--success btn--sm" onclick="window.__cx.receber(${c.id}, ${c.valor})">
-          <i class="fa-solid fa-hand-holding-dollar"></i> Receber</button>
-        ${(Layout.config?.nfce_ativo === "1") ? `<button class="btn btn--outline btn--sm" onclick="window.__cx.emitirNFCe(${c.id})" title="Emitir NFC-e">
-          <i class="fa-solid fa-receipt"></i> NFC-e</button>` : ""}
-      </div>`).join("") : `<div class="cx-vazio-min">Nenhuma cobrança em aberto. 🎉</div>`;
-  }
-
-  /* ------------------------------------------------------------- ABERTO */
-  async function renderAberto(st) {
+  function render() {
+    const aberto = st.aberto;
+    const c = st.caixa || {};
     const t = st.totais || {};
-    let cobrancas = [];
-    try { cobrancas = (await cx("GET", "/api/caixa/receber")).dados || []; } catch (_) {}
-
-    app.innerHTML = cabecalho() + `
-      <div class="cx-painel">
-        <div class="cx-totais">
-          <div class="cx-tot"><span>Abertura</span><b data-tot="abertura">${money(t.abertura)}</b></div>
-          <div class="cx-tot cx-tot--in"><span>Recebido</span><b data-tot="recebimentos">${money(t.recebimentos)}</b></div>
-          <div class="cx-tot cx-tot--in"><span>Suprimentos</span><b data-tot="suprimentos">${money(t.suprimentos)}</b></div>
-          <div class="cx-tot cx-tot--out"><span>Sangrias</span><b data-tot="sangrias">${money(t.sangrias)}</b></div>
-          <div class="cx-tot cx-tot--saldo"><span>Saldo em caixa</span><b data-tot="saldo">${money(t.saldo)}</b></div>
+    Layout.set(`
+      <div class="page-head cx-head">
+        <div>
+          <h1><i class="fa-solid fa-cash-register"></i> Caixa</h1>
+          <div class="cx-info">
+            <span class="cx-status ${aberto ? "cx-status--on" : "cx-status--off"}">
+              <i class="fa-solid fa-circle"></i> Caixa ${aberto ? "aberto" : "fechado"}</span>
+            <span>Operador: <b>${esc(st.operador)}</b></span>
+            <span>Data: <b>${new Date().toLocaleDateString("pt-BR")}</b></span>
+            ${aberto ? `<span>Abertura: <b>${fmt.dataHora(c.aberto_em)}</b></span>
+                        <span>Saldo inicial: <b>${money(t.abertura)}</b></span>` : ""}
+          </div>
         </div>
-        <div class="cx-acoes">
-          <button class="btn btn--ghost" id="cx-suprimento"><i class="fa-solid fa-arrow-down"></i> Suprimento</button>
-          <button class="btn btn--ghost" id="cx-sangria"><i class="fa-solid fa-arrow-up"></i> Sangria</button>
-          <button class="btn btn--danger-ghost" id="cx-fechar"><i class="fa-solid fa-lock"></i> Fechar caixa</button>
-        </div>
-
-        <div class="cx-secao-tit"><i class="fa-solid fa-file-invoice-dollar"></i> Cobranças a receber</div>
-        <div class="cx-lista" id="cx-lista">
-          ${cobrancas.length ? cobrancas.map((c) => `
-            <div class="cx-cob">
-              <div class="cx-cob__info">
-                <b>${c.cliente_nome || "Cliente"}</b>
-                <span>${c.descricao || "Cobrança"}${c.status === "atrasado" ? ` · <em class="cx-atraso">atrasado</em>` : ""}</span>
-              </div>
-              <div class="cx-cob__valor">${money(c.valor)}</div>
-              <button class="btn btn--success btn--sm" onclick="window.__cx.receber(${c.id}, ${c.valor})">
-                <i class="fa-solid fa-hand-holding-dollar"></i> Receber</button>
-            </div>`).join("") : `<div class="cx-vazio-min">Nenhuma cobrança em aberto. 🎉</div>`}
-        </div>
-      </div>`;
-    ligarComuns();
-    document.getElementById("cx-suprimento").onclick = () => movimento("suprimento");
-    document.getElementById("cx-sangria").onclick = () => movimento("sangria");
-    document.getElementById("cx-fechar").onclick = () => fecharCaixa(t);
-    window.__cx = api;
-    iniciarAuto();   // liga o auto-refresh enquanto o caixa está aberto
-  }
-
-  /* ----------------------------------------------------------- receber */
-  function receber(fid, valor) {
-    let forma = FORMAS[0];
-    Modal.abrir("Receber cobrança", `
-      <p class="text-muted" style="margin-bottom:10px">Valor: <b>${money(valor)}</b></p>
-      <label class="cx-campo"><span>Valor recebido</span>
-        <input id="rc-valor" type="number" step="0.01" value="${Number(valor).toFixed(2)}"></label>
-      <div class="cx-campo"><span>Forma de pagamento</span>
-        <div class="cx-formas" id="rc-formas">
-          ${FORMAS.map((f, i) => `<button type="button" class="cx-forma ${i === 0 ? "ativa" : ""}" data-f="${f}">${f}</button>`).join("")}
+        <div class="cx-head__acoes">
+          ${podeOperar() && aberto ? `
+            <button class="btn btn--success" id="cx-entrada"><i class="fa-solid fa-plus"></i> Nova entrada</button>
+            <button class="btn btn--danger" id="cx-saida"><i class="fa-solid fa-minus"></i> Nova saída</button>
+            <button class="btn btn--primary" id="cx-fechar"><i class="fa-solid fa-lock"></i> Fechar caixa</button>` : ""}
+          ${podeOperar() && !aberto ? `
+            <button class="btn btn--primary" id="cx-abrir"><i class="fa-solid fa-lock-open"></i> Abrir caixa</button>` : ""}
         </div>
       </div>
-      <div id="rc-cartao" style="display:none;border-top:1px solid var(--border,#e5e7eb);margin-top:10px;padding-top:10px">
-        <div class="cx-campo"><span>Modalidade</span>
-          <select id="rc-modalidade" style="width:100%">
-            <option value="credito">Crédito</option><option value="debito">Débito</option>
-          </select></div>
-        <div class="cx-campo"><span>Bandeira</span>
-          <input id="rc-bandeira" placeholder="Visa, Master, Elo… (ou deixe vazio)"></div>
-        <div class="cx-campo"><span>Parcelas</span>
-          <input id="rc-parcelas" type="number" min="1" max="24" value="1"></div>
-        <p id="rc-liquido" class="text-muted" style="margin:6px 0 0;font-size:13px"></p>
-      </div>`,
-      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
-       <button class="btn btn--success" id="rc-ok"><i class="fa-solid fa-check"></i> Confirmar recebimento</button>`);
 
-    const blocoCartao = document.getElementById("rc-cartao");
-    let liquidoInfo = null;
+      ${aberto ? `
+      <div class="cx-cards">
+        <div class="cx-card"><span><i class="fa-solid fa-coins"></i> Saldo inicial</span><b>${money(t.abertura)}</b></div>
+        <div class="cx-card cx-card--in"><span><i class="fa-solid fa-arrow-down"></i> Entradas</span><b>${money(t.entradas)}</b></div>
+        <div class="cx-card cx-card--out"><span><i class="fa-solid fa-arrow-up"></i> Saídas</span><b>${money(t.saidas)}</b></div>
+        <div class="cx-card"><span><i class="fa-solid fa-hand-holding-dollar"></i> Total recebido</span><b>${money(t.total_recebido)}</b></div>
+        <div class="cx-card cx-card--saldo"><span><i class="fa-solid fa-wallet"></i> Saldo atual</span><b>${money(t.saldo)}</b></div>
+      </div>
+      <div class="cx-formas-resumo">
+        ${[["dinheiro", "Dinheiro"], ["pix", "Pix"], ["debito", "Débito"], ["credito", "Crédito"], ["outros", "Outros"]].map(([k, r]) => {
+          const v = k === "outros" ? (t.por_forma.outros + t.por_forma.transferencia) : t.por_forma[k];
+          return `<div class="cx-fr"><i class="${iconeForma(k)}"></i><span>${r}</span><b>${money(v)}</b></div>`;
+        }).join("")}
+      </div>` : `
+      <div class="card"><div class="card__body cx-fechado">
+        <i class="fa-solid fa-cash-register"></i>
+        <h3>O caixa está fechado</h3>
+        <p class="text-muted">${podeOperar()
+          ? "Abra o caixa informando o saldo inicial para começar a receber."
+          : "Você pode consultar as cobranças e o histórico, mas não tem permissão para operar o caixa."}</p>
+      </div></div>`}
 
-    async function recalcCartao() {
-      if (forma !== "cartao") { liquidoInfo = null; return; }
-      const valor_pago = parseFloat(document.getElementById("rc-valor").value) || 0;
-      const body = {
-        valor: valor_pago,
-        modalidade: document.getElementById("rc-modalidade").value,
-        parcelas: parseInt(document.getElementById("rc-parcelas").value) || 1,
-        bandeira: document.getElementById("rc-bandeira").value.trim(),
-      };
-      try {
-        const r = await cx("POST", "/api/caixa/cartao-calcular", body);
-        liquidoInfo = r;
-        const el = document.getElementById("rc-liquido");
-        el.innerHTML = r.sem_taxa_cadastrada
-          ? `<span style="color:#b91c1c">Sem taxa cadastrada para essa opção — líquido = bruto.</span>`
-          : `Taxa: <b>${(r.percentual || 0).toFixed(2)}%</b> · Desconto: ${money(r.desconto)} · Líquido: <b>${money(r.valor_liquido)}</b>`;
-      } catch (_) { liquidoInfo = null; }
-    }
+      <div class="card"><div class="card__body">
+        <div class="cx-tabs">
+          <button class="cx-tab ${aba === "aguardando" ? "ativa" : ""}" data-aba="aguardando">
+            <i class="fa-solid fa-hourglass-half"></i> Aguardando pagamento <span class="cx-tab__n" id="cx-n-ag"></span></button>
+          <button class="cx-tab ${aba === "historico" ? "ativa" : ""}" data-aba="historico">
+            <i class="fa-solid fa-clock-rotate-left"></i> Histórico de pagamentos</button>
+          ${aberto ? `<button class="cx-tab ${aba === "movimentos" ? "ativa" : ""}" data-aba="movimentos">
+            <i class="fa-solid fa-list"></i> Movimentações do caixa</button>` : ""}
+        </div>
+        <div id="cx-aba"></div>
+      </div></div>
+    `);
 
-    document.querySelectorAll("#rc-formas .cx-forma").forEach((b) => {
-      b.onclick = () => {
-        document.querySelectorAll("#rc-formas .cx-forma").forEach((x) => x.classList.remove("ativa"));
-        b.classList.add("ativa"); forma = b.dataset.f;
-        const ehCartao = forma === "cartao";
-        blocoCartao.style.display = ehCartao ? "" : "none";
-        if (ehCartao) recalcCartao();
-      };
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    on("cx-abrir", abrirCaixa);
+    on("cx-fechar", fecharCaixa);
+    on("cx-entrada", () => movimento("suprimento"));
+    on("cx-saida", () => movimento("sangria"));
+    document.querySelectorAll(".cx-tab").forEach((b) => b.onclick = () => {
+      aba = b.dataset.aba;
+      document.querySelectorAll(".cx-tab").forEach((x) => x.classList.toggle("ativa", x === b));
+      renderAba();
     });
-    ["rc-modalidade", "rc-bandeira", "rc-parcelas", "rc-valor"].forEach((id) =>
-      document.getElementById(id).addEventListener("change", recalcCartao));
-
-    document.getElementById("rc-ok").onclick = async () => {
-      const valor_pago = parseFloat(document.getElementById("rc-valor").value) || 0;
-      const body = { forma_pagamento: forma, valor_pago };
-      if (forma === "cartao") {
-        body.cartao_modalidade = document.getElementById("rc-modalidade").value;
-        body.cartao_bandeira = document.getElementById("rc-bandeira").value.trim();
-        body.cartao_parcelas = parseInt(document.getElementById("rc-parcelas").value) || 1;
-        body.cartao_taxa = liquidoInfo ? liquidoInfo.percentual : 0;
-        body.cartao_valor_liquido = liquidoInfo ? liquidoInfo.valor_liquido : valor_pago;
-      }
-      try {
-        await cx("POST", `/api/caixa/receber/${fid}`, body);
-        Modal.fechar(); toast("Recebimento registrado"); boot();
-      } catch (e) { toast(e.message, "error"); }
-    };
+    renderAba();
+    atualizarContador();
   }
 
-  /* ------------------------------------------------- sangria / suprimento */
-  function movimento(tipo) {
-    const titulo = tipo === "sangria" ? "Sangria (retirada)" : "Suprimento (reforço)";
-    Modal.abrir(titulo, `
-      <label class="cx-campo"><span>Valor</span>
-        <input id="mv-valor" type="number" step="0.01" value="0"></label>
-      <label class="cx-campo"><span>Motivo</span>
-        <input id="mv-motivo" placeholder="${tipo === "sangria" ? "Ex: retirada para banco" : "Ex: troco adicional"}"></label>`,
-      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
-       <button class="btn btn--primary" id="mv-ok"><i class="fa-solid fa-check"></i> Confirmar</button>`);
-    document.getElementById("mv-ok").onclick = async () => {
-      const valor = parseFloat(document.getElementById("mv-valor").value) || 0;
-      const motivo = document.getElementById("mv-motivo").value.trim();
-      try {
-        await cx("POST", "/api/caixa/movimento", { tipo, valor, motivo });
-        Modal.fechar(); toast(titulo + " registrada"); boot();
-      } catch (e) { toast(e.message, "error"); }
-    };
+  async function atualizarContador() {
+    try {
+      const r = await API.get("/api/caixa/receber");
+      const el = document.getElementById("cx-n-ag");
+      if (el) el.textContent = r.dados.length || "";
+    } catch (_) {}
   }
 
-  /* ----------------------------------------------------------- fechar */
-  function fecharCaixa(t) {
-    Modal.abrir("Fechar caixa", `
-      <p class="text-muted">Saldo esperado na gaveta: <b>${money(t.saldo)}</b></p>
-      <label class="cx-campo"><span>Valor conferido (contado na gaveta)</span>
-        <input id="fc-valor" type="number" step="0.01" value="${Number(t.saldo).toFixed(2)}"></label>`,
-      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
-       <button class="btn btn--danger-ghost" id="fc-ok"><i class="fa-solid fa-lock"></i> Fechar caixa</button>`);
-    document.getElementById("fc-ok").onclick = async () => {
-      const valor_informado = parseFloat(document.getElementById("fc-valor").value) || 0;
-      try {
-        const r = await cx("POST", "/api/caixa/fechar", { valor_informado });
-        Modal.fechar(); relatorioFechamento(r.relatorio);
-      } catch (e) { toast(e.message, "error"); }
-    };
+  function renderAba() {
+    if (aba === "historico") return abaHistorico();
+    if (aba === "movimentos") return abaMovimentos();
+    return abaAguardando();
   }
 
-  function relatorioFechamento(r) {
-    const dif = r.diferenca;
-    const corDif = dif === 0 ? "" : (dif > 0 ? "cx-dif--sobra" : "cx-dif--falta");
-    const rotuloDif = dif === 0 ? "Fechou certinho" : (dif > 0 ? "Sobra" : "Falta");
-    const html = `
-      <div class="cx-rel" id="cx-rel">
-        <h3>Relatório do caixa</h3>
-        <div class="cx-rel__l"><span>Abertura</span><b>${money(r.abertura)}</b></div>
-        <div class="cx-rel__l"><span>Recebimentos (${r.qtd_recebimentos})</span><b>${money(r.recebimentos)}</b></div>
-        ${r.vendas ? `<div class="cx-rel__l"><span>Vendas</span><b>${money(r.vendas)}</b></div>` : ""}
-        <div class="cx-rel__l"><span>Suprimentos</span><b>${money(r.suprimentos)}</b></div>
-        <div class="cx-rel__l"><span>Sangrias</span><b>- ${money(r.sangrias)}</b></div>
-        <div class="cx-rel__l cx-rel__esp"><span>Saldo esperado</span><b>${money(r.esperado)}</b></div>
-        <div class="cx-rel__l"><span>Valor conferido</span><b>${money(r.informado)}</b></div>
-        <div class="cx-rel__l cx-rel__dif ${corDif}"><span>${rotuloDif}</span><b>${money(Math.abs(dif))}</b></div>
-      </div>`;
-    Modal.abrir("Caixa fechado", html,
-      `<button class="btn btn--ghost" id="cx-imprimir-rel"><i class="fa-solid fa-print"></i> Imprimir</button>
-       <button class="btn btn--primary" onclick="Modal.fechar();window.__cx.recarregar()"><i class="fa-solid fa-check"></i> Concluir</button>`);
-    document.getElementById("cx-imprimir-rel").onclick = () => {
-      const w = window.open("", "_blank");
-      w.document.write(`<html><head><meta charset="utf-8"><title>Fechamento de caixa</title>
-        <style>body{font-family:Arial;padding:24px;max-width:360px}h3{color:#0d9488}
-        .l{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee}
-        .esp{font-weight:bold}.dif{font-weight:bold;color:${dif < 0 ? "#c0392b" : "#0d9488"}}</style></head>
-        <body><h3>${cfg.empresa_nome || "Caixa"} — Fechamento</h3>
-        <div class="l"><span>Operador</span><b>${operador}</b></div>
-        ${document.getElementById("cx-rel").innerHTML.replace(/cx-rel__l/g, "l").replace(/cx-rel__esp/g, "esp").replace(/cx-rel__dif [a-z-]*/g, "dif").replace("<h3>Relatório do caixa</h3>", "")}
-        </body></html>`);
-      w.document.close();
-      setTimeout(() => w.print(), 400);
-    };
+  /* ------------------------------------------------ aguardando pagamento */
+  function abaAguardando() {
+    document.getElementById("cx-aba").innerHTML = `
+      <div class="cx-filtros">
+        <div class="toolbar__search"><i class="fa-solid fa-magnifying-glass"></i>
+          <input id="ag-q" placeholder="Nº da OS, cliente ou placa…"></div>
+        <label class="cx-f"><span>Data</span><input type="date" id="ag-data"></label>
+      </div>
+      <div id="ag-lista"><div class="loading"><i class="fa-solid fa-spinner spin"></i> Carregando…</div></div>`;
+    const buscar = debounce(listarAguardando, 300);
+    document.getElementById("ag-q").oninput = buscar;
+    document.getElementById("ag-data").onchange = listarAguardando;
+    listarAguardando();
   }
 
-  /* ----------------------------------------------------------- NFC-e */
-  async function emitirNFCe(financeiro_id) {
-    const cfg = Layout.config || {};
-    if (cfg.nfce_ativo !== "1") {
-      toast("NFC-e não está ativa. Configure em Configurações → NFC-e.", "warning"); return;
+  async function listarAguardando() {
+    const q = document.getElementById("ag-q")?.value || "";
+    const data = document.getElementById("ag-data")?.value || "";
+    const box = document.getElementById("ag-lista");
+    try {
+      const r = await API.get(`/api/caixa/receber?q=${encodeURIComponent(q)}&data=${data}`);
+      aguardando = r.dados;
+    } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    if (!aguardando.length) {
+      box.innerHTML = `<div class="empty"><i class="fa-solid fa-circle-check"></i>Nenhum orçamento aguardando pagamento.</div>`;
+      return;
     }
-    if (!cfg.nfe_provedor || !cfg.nfe_token) {
-      toast("Configure o provedor e token da NF-e em Configurações.", "warning"); return;
-    }
+    box.innerHTML = `<div class="table-wrap"><table class="data">
+      <thead><tr><th>OS</th><th>Cliente</th><th>Veículo</th><th>Placa</th><th>Data</th>
+        <th class="text-right">Valor</th><th>Status</th><th></th></tr></thead>
+      <tbody>${aguardando.map((c) => `<tr>
+        <td><b>${esc(c.os_numero)}</b></td>
+        <td>${esc(c.cliente_nome || "-")}</td>
+        <td>${esc([c.veiculo_marca, c.veiculo_modelo].filter(Boolean).join(" ") || "-")}</td>
+        <td>${esc(c.veiculo_placa || "-")}</td>
+        <td>${fmt.data(c.criado_em)}</td>
+        <td class="text-right"><b>${money(c.restante)}</b></td>
+        <td>${c.status === "parcial" ? `<span class="badge badge--warning">Pago parcialmente</span>`
+             : c.status === "atrasado" ? `<span class="badge badge--danger">Vencido</span>`
+             : `<span class="badge badge--warning">Aguardando pagamento</span>`}</td>
+        <td class="text-right">${st.aberto && podeOperar()
+          ? `<button class="btn btn--success btn--sm" onclick="window.__cx.receber(${c.id})">
+               <i class="fa-solid fa-hand-holding-dollar"></i> Receber pagamento</button>`
+          : `<span class="text-muted" title="${st.aberto ? "Sem permissão" : "Abra o caixa para receber"}">
+               <i class="fa-solid fa-lock"></i></span>`}</td>
+      </tr>`).join("")}</tbody></table></div>`;
+  }
 
-    Modal.abrir(
-      `<i class="fa-solid fa-receipt"></i> Emitir NFC-e`,
-      `<div style="padding:.5rem 0">
-        <p style="margin-bottom:1rem;color:var(--text-muted);font-size:.85rem">
-          Confirme os dados antes de emitir o cupom fiscal eletrônico.
-        </p>
-        <div class="form-grid">
-          <div class="field col-2"><label>CPF/CNPJ do consumidor (opcional)</label>
-            <input id="nfce-cpf" placeholder="Deixe vazio para consumidor não identificado"
-              maxlength="18">
+  /* ------------------------------------------------------ receber pagamento */
+  async function receber(fid) {
+    let c;
+    try { c = await API.get(`/api/caixa/receber/${fid}`); }
+    catch (e) { toast(e.message, "error"); return; }
+    const total = c.resumo.total;
+    const linhas = [];          // formas escolhidas
+    const nfceAtiva = Layout.config?.nfce_ativo === "1";
+    const veiculo = [c.veiculo_marca, c.veiculo_modelo].filter(Boolean).join(" ");
+
+    Modal.abrir(`Receber pagamento — ${esc(c.os_numero)}`, `
+      <div class="rc">
+        <div class="rc__main">
+          <div class="rc-id">
+            <div><span>OS</span><b>${esc(c.os_numero)}</b></div>
+            <div><span>Cliente</span><b>${esc(c.cliente_nome || "-")}</b>
+              ${c.cliente_doc ? `<small>${esc(c.cliente_doc)}</small>` : ""}</div>
+            <div><span>Veículo</span><b>${esc(veiculo || "-")}</b>
+              ${c.veiculo_placa ? `<small>Placa ${esc(c.veiculo_placa)}</small>` : ""}</div>
+            <div><span>Data da OS</span><b>${fmt.data(c.os_data || c.criado_em)}</b></div>
           </div>
-          <div class="field col-2">
-            <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.75rem;font-size:.83rem">
-              <strong>⚠️ Atenção:</strong> A emissão de NFC-e é irreversível e tem validade fiscal.
-              Certifique-se de que os dados estão corretos antes de emitir.
-            </div>
+
+          <div class="rc-tit">Forma de pagamento <small>clique em mais de uma para pagamento misto</small></div>
+          <div class="rc-formas">
+            ${FORMAS.map((f) => `<button type="button" class="rc-forma" data-forma="${f.id}">
+              <i class="${iconeForma(f.id)}"></i><span>${f.nome}</span></button>`).join("")}
           </div>
-          <div class="field col-2">
-            <div style="background:#e0f2fe;border:1px solid #0d9488;border-radius:8px;padding:.75rem;font-size:.83rem">
-              <strong>Provedor:</strong> ${cfg.nfe_provedor} &nbsp;|&nbsp;
-              <strong>Ambiente:</strong> ${cfg.nfe_ambiente === "producao" ? "🟢 Produção" : "🟡 Homologação (teste)"}
-            </div>
+          <div id="rc-linhas"></div>
+
+          <div class="rc-tit">Documento fiscal</div>
+          <div class="rc-fiscal">
+            <label><input type="radio" name="rc-nf" value="nao" checked> Não emitir agora</label>
+            <label class="${nfceAtiva ? "" : "rc-off"}" title="${nfceAtiva ? "" : "A emissão de NFC-e não está ativa em Configurações"}">
+              <input type="radio" name="rc-nf" value="nfce" ${nfceAtiva ? "" : "disabled"}> Emitir NFC-e</label>
+            ${nfceAtiva ? "" : `<small class="text-muted">A emissão fiscal segue a configuração da oficina. Ative e configure em Configurações → Nota Fiscal.</small>`}
           </div>
         </div>
+
+        <aside class="rc__lado">
+          <div class="rc-tit">Resumo do orçamento</div>
+          <div class="rc-l"><span>Serviços</span><b>${money(c.resumo.servicos)}</b></div>
+          <div class="rc-l"><span>Peças</span><b>${money(c.resumo.pecas)}</b></div>
+          <div class="rc-l"><span>Desconto</span><b>− ${money(c.resumo.desconto)}</b></div>
+          <div class="rc-l"><span>Acréscimo</span><b>+ ${money(c.resumo.acrescimo)}</b></div>
+          ${c.resumo.ja_pago ? `<div class="rc-l"><span>Já pago</span><b>− ${money(c.resumo.ja_pago)}</b></div>` : ""}
+          <div class="rc-l rc-l--total"><span>Total</span><b>${money(total)}</b></div>
+          <div class="rc-sep"></div>
+          <div class="rc-l"><span>Total informado</span><b id="rc-inf">${money(0)}</b></div>
+          <div class="rc-l"><span id="rc-falta-l">Falta</span><b id="rc-falta">${money(total)}</b></div>
+          <div class="rc-l" id="rc-troco-l" style="display:none"><span>Troco</span><b id="rc-troco"></b></div>
+          <div class="rc-situacao" id="rc-sit">Escolha a forma de pagamento</div>
+          <p class="rc-aviso"><i class="fa-solid fa-circle-info"></i> Os itens do orçamento não podem ser alterados no caixa.</p>
+        </aside>
       </div>`,
       `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
-       <button class="btn btn--primary" id="nfce-emitir-btn">
-         <i class="fa-solid fa-paper-plane"></i> Emitir NFC-e
-       </button>`
-    );
+       <button class="btn btn--success" id="rc-ok" disabled><i class="fa-solid fa-check"></i> Confirmar pagamento</button>`,
+      true);
 
-    document.getElementById("nfce-emitir-btn").onclick = async () => {
-      const btn = document.getElementById("nfce-emitir-btn");
-      const cpf = document.getElementById("nfce-cpf")?.value.trim() || "";
-      btn.disabled = true;
-      btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Emitindo…`;
-      try {
-        const r = await API.post("/api/nfce/emitir", {
-          financeiro_id,
-          cpf_cnpj_consumidor: cpf,
-        });
-        Modal.fechar();
-        if (r.danfe_url) {
-          window.open(r.danfe_url, "_blank");
-          toast("NFC-e emitida! DANFE aberto em nova aba.");
-        } else if (r.xml) {
-          toast("NFC-e emitida com sucesso!");
+    const restante = () => Math.round((total - linhas.reduce((s, l) => s + num(l.valor), 0)) * 100) / 100;
+
+    function addForma(forma) {
+      const falta = Math.max(restante(), 0);
+      linhas.push({ forma, valor: falta || 0, valor_recebido: "", parcelas: 1, bandeira: "", confirmado: false, observacao: "" });
+      pintarLinhas();
+    }
+    document.querySelectorAll(".rc-forma").forEach((b) => b.onclick = () => addForma(b.dataset.forma));
+
+    function pintarLinhas() {
+      const box = document.getElementById("rc-linhas");
+      box.innerHTML = linhas.map((l, i) => {
+        const v = (x) => (x === "" || x == null) ? "" : Number(x).toFixed(2).replace(".", ",");
+        let extra = "";
+        if (l.forma === "dinheiro") {
+          const troco = Math.max(num(l.valor_recebido) - num(l.valor), 0);
+          extra = `
+            <label class="cx-f"><span>Valor recebido</span>
+              <input data-i="${i}" data-c="valor_recebido" inputmode="decimal" value="${v(l.valor_recebido)}" placeholder="${v(l.valor)}"></label>
+            <div class="rc-troco"><span>Troco</span><b id="rc-tr-${i}">${money(troco)}</b></div>`;
+        } else if (l.forma === "pix" || l.forma === "transferencia") {
+          extra = `
+            <div class="rc-pix ${l.confirmado ? "ok" : ""}">
+              <span>${l.confirmado ? `<i class="fa-solid fa-circle-check"></i> Confirmado por ${esc(st.operador)}`
+                                   : `<i class="fa-solid fa-clock"></i> Aguardando confirmação`}</span>
+              <label><input type="checkbox" data-i="${i}" data-c="confirmado" ${l.confirmado ? "checked" : ""}>
+                Confirmo que o valor foi recebido na conta</label>
+            </div>`;
+        } else if (l.forma === "debito" || l.forma === "credito") {
+          extra = `
+            <label class="cx-f"><span>Bandeira</span>
+              <select data-i="${i}" data-c="bandeira"><option value="">Selecione</option>
+                ${BANDEIRAS.map((b) => `<option ${l.bandeira === b ? "selected" : ""}>${b}</option>`).join("")}</select></label>
+            ${l.forma === "credito" ? `<label class="cx-f"><span>Parcelas</span>
+              <select data-i="${i}" data-c="parcelas">
+                ${Array.from({ length: 12 }, (_, k) => k + 1).map((p) =>
+                  `<option value="${p}" ${Number(l.parcelas) === p ? "selected" : ""}>${p}x de ${money(num(l.valor) / p)}</option>`).join("")}
+              </select></label>` : ""}`;
         } else {
-          toast("NFC-e emitida! Consulte o provedor para o DANFE.");
+          extra = `<label class="cx-f rc-grow"><span>Observação</span>
+            <input data-i="${i}" data-c="observacao" value="${esc(l.observacao)}" placeholder="Ex.: cheque, vale…"></label>`;
         }
-      } catch(e) {
-        toast(e.message || "Erro ao emitir NFC-e", "error");
-        btn.disabled = false;
-        btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Emitir NFC-e`;
+        return `<div class="rc-linha">
+          <div class="rc-linha__tit"><i class="${iconeForma(l.forma)}"></i> ${nomeForma(l.forma)}
+            <button type="button" class="icon-btn btn--sm" data-rm="${i}" title="Remover"><i class="fa-solid fa-xmark"></i></button></div>
+          <div class="rc-linha__campos">
+            <label class="cx-f"><span>Valor</span>
+              <input data-i="${i}" data-c="valor" inputmode="decimal" value="${v(l.valor)}"></label>
+            ${extra}
+          </div></div>`;
+      }).join("");
+      box.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { linhas.splice(+b.dataset.rm, 1); pintarLinhas(); });
+      box.querySelectorAll("[data-c]").forEach((el) => {
+        const i = +el.dataset.i, campo = el.dataset.c;
+        const ev = el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input";
+        el.addEventListener(ev, () => {
+          linhas[i][campo] = el.type === "checkbox" ? el.checked : el.value;
+          if (el.type === "checkbox") return pintarLinhas();
+          const l = linhas[i];
+          const tr = document.getElementById(`rc-tr-${i}`);
+          if (tr) tr.textContent = money(Math.max(num(l.valor_recebido) - num(l.valor), 0));
+          const parc = document.querySelector(`select[data-i="${i}"][data-c="parcelas"]`);
+          if (parc && campo === "valor") [...parc.options].forEach((o) =>
+            o.textContent = `${o.value}x de ${money(num(l.valor) / Number(o.value))}`);
+          atualizarResumo();
+        });
+      });
+      atualizarResumo();
+    }
+
+    function validar() {
+      if (!linhas.length) return "Escolha a forma de pagamento";
+      for (const l of linhas) {
+        if (num(l.valor) <= 0) return `Informe o valor em ${nomeForma(l.forma)}`;
+        if (l.forma === "dinheiro" && l.valor_recebido !== "" && num(l.valor_recebido) < num(l.valor))
+          return "Valor recebido em dinheiro menor que o valor da compra";
+        if ((l.forma === "pix" || l.forma === "transferencia") && !l.confirmado)
+          return `${nomeForma(l.forma)} aguardando confirmação`;
       }
+      const r = restante();
+      if (r > 0.009) return `Faltam ${money(r)}`;
+      if (r < -0.009) return `Valor informado passa ${money(-r)} do total`;
+      return "";
+    }
+
+    function atualizarResumo() {
+      const inf = linhas.reduce((s, l) => s + num(l.valor), 0);
+      const r = restante();
+      const troco = linhas.filter((l) => l.forma === "dinheiro")
+        .reduce((s, l) => s + Math.max(num(l.valor_recebido) - num(l.valor), 0), 0);
+      document.getElementById("rc-inf").textContent = money(inf);
+      document.getElementById("rc-falta-l").textContent = r >= 0 ? "Falta" : "Excedente";
+      document.getElementById("rc-falta").textContent = money(Math.abs(r));
+      document.getElementById("rc-troco-l").style.display = troco > 0 ? "" : "none";
+      document.getElementById("rc-troco").textContent = money(troco);
+      const erro = validar();
+      const sit = document.getElementById("rc-sit");
+      sit.className = "rc-situacao " + (erro ? "" : "ok");
+      sit.innerHTML = erro ? esc(erro) : `<i class="fa-solid fa-circle-check"></i> Pagamento completo`;
+      document.getElementById("rc-ok").disabled = !!erro;
+    }
+
+    document.getElementById("rc-ok").onclick = async () => {
+      const btn = document.getElementById("rc-ok");
+      if (validar()) return;
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner spin"></i> Registrando…`;
+      const nf = document.querySelector("input[name=rc-nf]:checked")?.value;
+      try {
+        const r = await API.post(`/api/caixa/receber/${fid}`, {
+          formas: linhas.map((l) => ({
+            forma: l.forma, valor: num(l.valor),
+            valor_recebido: l.forma === "dinheiro" ? (l.valor_recebido === "" ? num(l.valor) : num(l.valor_recebido)) : null,
+            parcelas: Number(l.parcelas) || 1, bandeira: l.bandeira || null,
+            confirmado: !!l.confirmado, observacao: l.observacao || null,
+          })),
+        });
+        let nfMsg = "";
+        if (nf === "nfce") {
+          try {
+            const e = await API.post("/api/nfce/emitir", { financeiro_id: fid, cpf_cnpj_consumidor: c.cliente_doc || "" });
+            nfMsg = e?.ok ? "NFC-e enviada para emissão." : (e?.erro || "");
+          } catch (e) { nfMsg = "Documento fiscal não emitido: " + e.message; }
+        }
+        toast("Pagamento registrado");
+        posPagamento(r.pagamento_id, r.troco, nfMsg);
+        st.totais = r.totais;
+      } catch (e) {
+        toast(e.message, "error");
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-check"></i> Confirmar pagamento`;
+      }
+    };
+    atualizarResumo();
+  }
+
+  function posPagamento(pid, troco, nfMsg) {
+    Modal.abrir("Pagamento confirmado", `
+      <div class="cx-ok">
+        <i class="fa-solid fa-circle-check"></i>
+        <h3>Pagamento registrado com sucesso</h3>
+        <p>A OS foi marcada como <b>paga</b> e saiu da lista de aguardando pagamento.</p>
+        ${troco > 0 ? `<div class="cx-ok__troco">Troco a devolver: <b>${money(troco)}</b></div>` : ""}
+        ${nfMsg ? `<p class="text-muted"><i class="fa-solid fa-file-invoice"></i> ${esc(nfMsg)}</p>` : ""}
+      </div>`,
+      `<button class="btn btn--outline" onclick="window.__cx.imprimir(${pid})"><i class="fa-solid fa-print"></i> Imprimir comprovante</button>
+       <button class="btn btn--outline" onclick="window.__cx.enviar(${pid})"><i class="fa-brands fa-whatsapp"></i> Enviar comprovante</button>
+       <button class="btn btn--primary" onclick="Modal.fechar();window.__cx.recarregar()"><i class="fa-solid fa-check"></i> Finalizar</button>`);
+  }
+
+  /* ------------------------------------------------------------ comprovante */
+  async function dadosPagamento(pid) {
+    try { return await API.get(`/api/caixa/pagamento/${pid}`); }
+    catch (e) { toast(e.message, "error"); return null; }
+  }
+
+  function textoFormas(p) {
+    return p.formas.map((f) => {
+      let t = `${nomeForma(f.forma)}: ${money(f.valor)}`;
+      if (f.forma === "credito" && f.parcelas > 1) t += ` (${f.parcelas}x)`;
+      if (f.bandeira) t += ` ${f.bandeira}`;
+      return t;
+    });
+  }
+
+  async function imprimir(pid) {
+    const p = await dadosPagamento(pid);
+    if (!p) return;
+    const cfg = Layout.config || {};
+    const serv = p.itens.filter((i) => i.tipo === "servico");
+    const pecas = p.itens.filter((i) => i.tipo !== "servico");
+    const bloco = (tit, it) => it.length ? `<div class="t">${tit}</div>${it.map((i) =>
+      `<div class="l"><span>${esc(i.quantidade)}x ${esc(i.descricao)}</span><span>${money(i.subtotal)}</span></div>`).join("")}` : "";
+    const w = window.open("", "_blank", "width=420,height=700");
+    if (!w) { toast("Permita pop-ups para imprimir", "error"); return; }
+    w.document.write(`<html><head><title>Comprovante ${esc(p.os_numero || "")}</title><style>
+      body{font-family:Arial,sans-serif;font-size:12px;width:300px;margin:10px auto;color:#000}
+      h2{font-size:14px;margin:0;text-align:center} .c{text-align:center} .t{font-weight:bold;margin-top:8px;border-top:1px dashed #000;padding-top:6px}
+      .l{display:flex;justify-content:space-between;gap:8px} .tot{font-size:14px;font-weight:bold}
+      .est{border:2px solid #000;text-align:center;font-weight:bold;padding:4px;margin:8px 0}
+    </style></head><body>
+      <h2>${esc(cfg.empresa_nome || "Oficina")}</h2>
+      <div class="c">${cfg.empresa_cnpj ? "CNPJ: " + esc(cfg.empresa_cnpj) + "<br>" : ""}
+        ${Layout.enderecoLinhas().map(esc).join("<br>")}${cfg.empresa_telefone ? "<br>Tel: " + esc(cfg.empresa_telefone) : ""}</div>
+      <div class="t c">COMPROVANTE DE PAGAMENTO<br><small>Não é documento fiscal</small></div>
+      ${p.status === "estornado" ? `<div class="est">PAGAMENTO ESTORNADO</div>` : ""}
+      <div class="l"><span>OS</span><span>${esc(p.os_numero || "-")}</span></div>
+      <div class="l"><span>Cliente</span><span>${esc(p.cliente_nome || "-")}</span></div>
+      <div class="l"><span>Veículo</span><span>${esc([p.veiculo_marca, p.veiculo_modelo].filter(Boolean).join(" ") || "-")}</span></div>
+      <div class="l"><span>Placa</span><span>${esc(p.veiculo_placa || "-")}</span></div>
+      ${bloco("Serviços", serv)}${bloco("Peças", pecas)}
+      <div class="t l tot"><span>TOTAL PAGO</span><span>${money(p.valor_total)}</span></div>
+      ${textoFormas(p).map((t) => `<div>${esc(t)}</div>`).join("")}
+      ${p.troco > 0 ? `<div class="l"><span>Troco</span><span>${money(p.troco)}</span></div>` : ""}
+      <div class="t l"><span>Data/hora</span><span>${fmt.dataHora(p.criado_em)}</span></div>
+      <div class="l"><span>Operador</span><span>${esc(p.operador_nome || "-")}</span></div>
+      ${p.documento_fiscal ? `<div class="l"><span>Doc. fiscal</span><span>${esc(p.documento_fiscal)}</span></div>` : ""}
+      <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+    w.document.close();
+  }
+
+  async function enviar(pid) {
+    const p = await dadosPagamento(pid);
+    if (!p) return;
+    const cfg = Layout.config || {};
+    const msg = [
+      `*${cfg.empresa_nome || "Oficina"}* — Comprovante de pagamento`,
+      `OS: ${p.os_numero || "-"}`,
+      `Cliente: ${p.cliente_nome || "-"}`,
+      `Veículo: ${[p.veiculo_marca, p.veiculo_modelo].filter(Boolean).join(" ")} ${p.veiculo_placa || ""}`.trim(),
+      `Total pago: ${money(p.valor_total)}`,
+      ...textoFormas(p),
+      `Data: ${fmt.dataHora(p.criado_em)}`,
+      "Obrigado pela preferência!",
+    ].join("\n");
+    const fone = String(p.cliente_whatsapp || p.cliente_telefone || "").replace(/\D/g, "");
+    const alvo = fone ? (fone.length <= 11 ? "55" + fone : fone) : "";
+    window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(msg)}`, "_blank");
+  }
+
+  /* -------------------------------------------------------------- histórico */
+  function abaHistorico() {
+    document.getElementById("cx-aba").innerHTML = `
+      <div class="cx-filtros">
+        <div class="toolbar__search"><i class="fa-solid fa-magnifying-glass"></i>
+          <input id="h-q" placeholder="Nº da OS, cliente ou placa…"></div>
+        <label class="cx-f"><span>De</span><input type="date" id="h-ini" value="${hojeISO()}"></label>
+        <label class="cx-f"><span>Até</span><input type="date" id="h-fim" value="${hojeISO()}"></label>
+        <label class="cx-f"><span>Forma</span><select id="h-forma"><option value="">Todas</option>
+          ${FORMAS.map((f) => `<option value="${f.id}">${f.nome}</option>`).join("")}</select></label>
+        <label class="cx-f"><span>Status</span><select id="h-status"><option value="">Todos</option>
+          <option value="pago">Pago</option><option value="estornado">Estornado</option></select></label>
+      </div>
+      <div id="h-lista"></div>`;
+    ["h-ini", "h-fim", "h-forma", "h-status"].forEach((id) => document.getElementById(id).onchange = listarHistorico);
+    document.getElementById("h-q").oninput = debounce(listarHistorico, 300);
+    listarHistorico();
+  }
+
+  async function listarHistorico() {
+    const g = (id) => encodeURIComponent(document.getElementById(id)?.value || "");
+    const box = document.getElementById("h-lista");
+    let dados;
+    try {
+      dados = (await API.get(`/api/caixa/historico?q=${g("h-q")}&data_ini=${g("h-ini")}&data_fim=${g("h-fim")}&forma=${g("h-forma")}&status=${g("h-status")}`)).dados;
+    } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    if (!dados.length) { box.innerHTML = `<div class="empty"><i class="fa-solid fa-receipt"></i>Nenhum pagamento no período.</div>`; return; }
+    box.innerHTML = `<div class="table-wrap"><table class="data">
+      <thead><tr><th>Data</th><th>Hora</th><th>OS</th><th>Cliente</th><th>Forma</th>
+        <th class="text-right">Valor</th><th>Operador</th><th>Status</th><th>Doc. fiscal</th><th></th></tr></thead>
+      <tbody>${dados.map((p) => `<tr class="${p.status === "estornado" ? "cx-riscado" : ""}">
+        <td>${fmt.data(p.criado_em)}</td>
+        <td>${(p.criado_em || "").slice(11, 16)}</td>
+        <td><b>${esc(p.os_numero || "-")}</b></td>
+        <td>${esc(p.cliente_nome || "-")}</td>
+        <td>${p.formas.length > 1 ? `<span title="${esc(textoFormas(p).join(" | "))}">Misto (${p.formas.length})</span>`
+             : `<i class="${iconeForma(p.formas[0]?.forma)}"></i> ${nomeForma(p.formas[0]?.forma)}`}</td>
+        <td class="text-right"><b>${money(p.valor_total)}</b></td>
+        <td>${esc(p.operador_nome || "-")}</td>
+        <td>${p.status === "estornado" ? `<span class="badge badge--danger">Estornado</span>` : `<span class="badge badge--success">Pago</span>`}</td>
+        <td>${esc(p.documento_fiscal || "—")}</td>
+        <td class="text-right"><button class="btn btn--outline btn--sm" onclick="window.__cx.detalhes(${p.id})">
+          <i class="fa-solid fa-eye"></i> Ver detalhes</button></td>
+      </tr>`).join("")}</tbody></table></div>`;
+  }
+
+  async function detalhes(pid) {
+    const p = await dadosPagamento(pid);
+    if (!p) return;
+    const podeEstornar = st.pode_estornar && p.status === "pago";
+    Modal.abrir(`Pagamento — ${esc(p.os_numero || "")}`, `
+      <div class="cx-det">
+        <div class="rc-l"><span>Cliente</span><b>${esc(p.cliente_nome || "-")}</b></div>
+        <div class="rc-l"><span>Veículo</span><b>${esc([p.veiculo_marca, p.veiculo_modelo, p.veiculo_placa].filter(Boolean).join(" ") || "-")}</b></div>
+        <div class="rc-l"><span>Data/hora</span><b>${fmt.dataHora(p.criado_em)}</b></div>
+        <div class="rc-l"><span>Operador</span><b>${esc(p.operador_nome || "-")}</b></div>
+        <div class="rc-l"><span>Status</span><b>${p.status === "estornado" ? "Estornado" : "Pago"}</b></div>
+        <div class="rc-tit">Formas de pagamento</div>
+        ${p.formas.map((f) => `<div class="rc-l"><span><i class="${iconeForma(f.forma)}"></i> ${nomeForma(f.forma)}
+            ${f.forma === "credito" && f.parcelas > 1 ? ` · ${f.parcelas}x` : ""}${f.bandeira ? ` · ${esc(f.bandeira)}` : ""}
+            ${f.confirmado_por_nome ? ` · confirmado por ${esc(f.confirmado_por_nome)}` : ""}
+            ${f.forma === "dinheiro" && f.valor_recebido ? ` · recebido ${money(f.valor_recebido)}` : ""}</span>
+            <b>${money(f.valor)}</b></div>`).join("")}
+        ${p.troco > 0 ? `<div class="rc-l"><span>Troco</span><b>${money(p.troco)}</b></div>` : ""}
+        <div class="rc-l rc-l--total"><span>Total</span><b>${money(p.valor_total)}</b></div>
+        ${p.status === "estornado" ? `<div class="cx-estorno-info"><b>Estornado</b> por ${esc(p.estornado_por_nome || "-")}
+          em ${fmt.dataHora(p.estornado_em)}<br>Motivo: ${esc(p.motivo_estorno)}</div>` : ""}
+      </div>`,
+      `${podeEstornar ? `<button class="btn btn--danger" onclick="window.__cx.estornar(${p.id})"><i class="fa-solid fa-rotate-left"></i> Estornar</button>` : ""}
+       <button class="btn btn--outline" onclick="window.__cx.imprimir(${p.id})"><i class="fa-solid fa-print"></i> Imprimir</button>
+       <button class="btn btn--primary" onclick="Modal.fechar()">Fechar</button>`);
+  }
+
+  function estornar(pid) {
+    if (!st.aberto) { toast("Abra o seu caixa para registrar o estorno", "error"); return; }
+    Modal.abrir("Estornar pagamento", `
+      <p>O pagamento <b>não será apagado</b>: ele fica marcado como estornado, a saída é lançada no seu caixa
+         e a cobrança volta para "Aguardando pagamento".</p>
+      <label class="cx-f"><span>Motivo do estorno *</span>
+        <textarea id="est-motivo" rows="3" placeholder="Descreva o motivo"></textarea></label>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--danger" id="est-ok"><i class="fa-solid fa-rotate-left"></i> Confirmar estorno</button>`);
+    document.getElementById("est-ok").onclick = async () => {
+      const motivo = document.getElementById("est-motivo").value.trim();
+      if (motivo.length < 5) { toast("Informe o motivo do estorno", "error"); return; }
+      try {
+        await API.post(`/api/caixa/pagamento/${pid}/estornar`, { motivo });
+        Modal.fechar();
+        toast("Pagamento estornado");
+        recarregar();
+      } catch (e) { toast(e.message, "error"); }
     };
   }
 
-  const api = { receber, recarregar: boot, emitirNFCe };
-  await boot();
+  /* ----------------------------------------------------------- movimentações */
+  async function abaMovimentos() {
+    const box = document.getElementById("cx-aba");
+    box.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i> Carregando…</div>`;
+    let dados;
+    try { dados = (await API.get("/api/caixa/movimentos")).dados; }
+    catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    const TIPO = {
+      recebimento: ["Entrada", "badge--success"], suprimento: ["Entrada", "badge--success"],
+      sangria: ["Saída", "badge--danger"], estorno: ["Estorno", "badge--danger"],
+    };
+    box.innerHTML = dados.length ? `<div class="table-wrap"><table class="data">
+      <thead><tr><th>Data/hora</th><th>Tipo</th><th>Descrição</th><th>Forma</th><th class="text-right">Valor</th><th>Usuário</th></tr></thead>
+      <tbody>${dados.map((m) => {
+        const [r, cls] = TIPO[m.tipo] || [m.tipo, ""];
+        const saida = m.tipo === "sangria" || m.tipo === "estorno";
+        return `<tr><td>${fmt.dataHora(m.criado_em)}</td>
+          <td><span class="badge ${cls}">${r}</span></td>
+          <td>${esc(m.motivo || "-")}</td>
+          <td>${m.forma_pagamento ? `<i class="${iconeForma(m.forma_pagamento)}"></i> ${nomeForma(m.forma_pagamento)}` : "-"}</td>
+          <td class="text-right ${saida ? "cx-neg" : "cx-pos"}"><b>${saida ? "− " : ""}${money(m.valor)}</b></td>
+          <td>${esc(m.usuario_nome || "-")}</td></tr>`;
+      }).join("")}</tbody></table></div>`
+      : `<div class="empty"><i class="fa-solid fa-list"></i>Nenhuma movimentação neste caixa.</div>`;
+  }
+
+  /* --------------------------------------------- abrir / entrada / saída */
+  function abrirCaixa() {
+    Modal.abrir("Abrir caixa", `
+      <label class="cx-f"><span>Saldo inicial em dinheiro (troco)</span>
+        <input id="ab-valor" inputmode="decimal" placeholder="0,00" autofocus></label>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--primary" id="ab-ok"><i class="fa-solid fa-lock-open"></i> Abrir caixa</button>`);
+    document.getElementById("ab-ok").onclick = async () => {
+      try {
+        await API.post("/api/caixa/abrir", { valor_abertura: num(document.getElementById("ab-valor").value) });
+        Modal.fechar(); toast("Caixa aberto"); recarregar();
+      } catch (e) { toast(e.message, "error"); }
+    };
+  }
+
+  function movimento(tipo) {
+    const entrada = tipo === "suprimento";
+    Modal.abrir(entrada ? "Nova entrada (suprimento)" : "Nova saída (sangria)", `
+      <p class="text-muted">${entrada ? "Dinheiro colocado na gaveta (ex.: reforço de troco)."
+        : "Dinheiro retirado da gaveta (ex.: compra de material, depósito)."}</p>
+      <label class="cx-f"><span>Descrição *</span><input id="mv-motivo" placeholder="${entrada ? "Ex.: reforço de troco" : "Ex.: compra de material"}"></label>
+      <label class="cx-f"><span>Valor *</span><input id="mv-valor" inputmode="decimal" placeholder="0,00"></label>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn ${entrada ? "btn--success" : "btn--danger"}" id="mv-ok">Registrar ${entrada ? "entrada" : "saída"}</button>`);
+    document.getElementById("mv-ok").onclick = async () => {
+      try {
+        await API.post("/api/caixa/movimento", {
+          tipo, motivo: document.getElementById("mv-motivo").value,
+          valor: num(document.getElementById("mv-valor").value),
+        });
+        Modal.fechar(); toast(entrada ? "Entrada registrada" : "Saída registrada"); recarregar();
+      } catch (e) { toast(e.message, "error"); }
+    };
+  }
+
+  /* --------------------------------------------------------------- fechar */
+  async function fecharCaixa() {
+    try { st = await API.get("/api/caixa/status"); } catch (_) {}
+    const t = st.totais;
+    const pf = t.por_forma;
+    Modal.abrir("Fechar caixa — conferência", `
+      <div class="cx-rel">
+        <div class="rc-l"><span>Saldo inicial</span><b>${money(t.abertura)}</b></div>
+        <div class="rc-l"><span>+ Dinheiro recebido</span><b>${money(pf.dinheiro)}</b></div>
+        <div class="rc-l"><span>+ Pix recebido</span><b>${money(pf.pix)}</b></div>
+        <div class="rc-l"><span>+ Débito</span><b>${money(pf.debito)}</b></div>
+        <div class="rc-l"><span>+ Crédito</span><b>${money(pf.credito)}</b></div>
+        <div class="rc-l"><span>+ Outros / transferência</span><b>${money(pf.outros + pf.transferencia)}</b></div>
+        <div class="rc-l"><span>+ Entradas avulsas</span><b>${money(t.suprimentos)}</b></div>
+        <div class="rc-l"><span>− Saídas</span><b>${money(t.sangrias)}</b></div>
+        <div class="rc-l rc-l--total"><span>= Saldo final</span><b>${money(t.saldo)}</b></div>
+        <div class="rc-l"><span>Transações</span><b>${t.qtd_transacoes}</b></div>
+        <div class="rc-sep"></div>
+        <div class="rc-l"><span>Dinheiro esperado na gaveta</span><b>${money(t.dinheiro_gaveta)}</b></div>
+        <label class="cx-f"><span>Dinheiro contado na gaveta</span>
+          <input id="fc-valor" inputmode="decimal" value="${t.dinheiro_gaveta.toFixed(2).replace(".", ",")}"></label>
+        <div class="rc-l" id="fc-dif-l"><span>Diferença</span><b id="fc-dif">${money(0)}</b></div>
+        <p class="text-muted">Depois de fechado, novos lançamentos só com uma nova abertura de caixa.</p>
+      </div>`,
+      `<button class="btn btn--ghost" onclick="Modal.fechar()">Cancelar</button>
+       <button class="btn btn--primary" id="fc-ok"><i class="fa-solid fa-lock"></i> Confirmar fechamento</button>`);
+    const inp = document.getElementById("fc-valor");
+    inp.oninput = () => {
+      const d = Math.round((num(inp.value) - t.dinheiro_gaveta) * 100) / 100;
+      const el = document.getElementById("fc-dif");
+      el.textContent = (d > 0 ? "+ " : d < 0 ? "− " : "") + money(Math.abs(d));
+      el.className = d < 0 ? "cx-neg" : d > 0 ? "cx-pos" : "";
+    };
+    document.getElementById("fc-ok").onclick = async () => {
+      try {
+        const r = await API.post("/api/caixa/fechar", { valor_informado: num(inp.value) });
+        relatorio(r.relatorio);
+      } catch (e) { toast(e.message, "error"); }
+    };
+  }
+
+  function relatorio(r) {
+    const pf = r.por_forma;
+    const linhas = [
+      ["Operador", r.operador], ["Abertura", fmt.dataHora(r.aberto_em)], ["Fechamento", fmt.dataHora(r.fechado_em)],
+      ["Saldo inicial", money(r.abertura)], ["Dinheiro", money(pf.dinheiro)], ["Pix", money(pf.pix)],
+      ["Débito", money(pf.debito)], ["Crédito", money(pf.credito)], ["Outros", money(pf.outros + pf.transferencia)],
+      ["Entradas avulsas", money(r.suprimentos)], ["Saídas", money(r.sangrias + r.estornos)],
+      ["Saldo final", money(r.saldo)], ["Transações", r.qtd_transacoes],
+      ["Dinheiro esperado", money(r.esperado)], ["Dinheiro contado", money(r.informado)], ["Diferença", money(r.diferenca)],
+    ];
+    Modal.abrir("Caixa fechado", `<div class="cx-rel" id="rel-fech">
+      ${linhas.map(([a, b]) => `<div class="rc-l"><span>${a}</span><b>${esc(b)}</b></div>`).join("")}</div>`,
+      `<button class="btn btn--outline" id="rel-print"><i class="fa-solid fa-print"></i> Imprimir</button>
+       <button class="btn btn--primary" onclick="Modal.fechar();window.__cx.recarregar()">Concluir</button>`);
+    document.getElementById("rel-print").onclick = () => {
+      const w = window.open("", "_blank", "width=420,height=700");
+      if (!w) return;
+      w.document.write(`<html><head><title>Fechamento de caixa</title><style>
+        body{font-family:Arial;font-size:12px;width:300px;margin:10px auto} h2{text-align:center;font-size:14px}
+        .l{display:flex;justify-content:space-between;border-bottom:1px dashed #999;padding:3px 0}</style></head><body>
+        <h2>${esc(Layout.config?.empresa_nome || "Oficina")}<br>Fechamento de caixa</h2>
+        ${linhas.map(([a, b]) => `<div class="l"><span>${a}</span><b>${esc(b)}</b></div>`).join("")}
+        <script>window.onload=()=>window.print()<\/script></body></html>`);
+      w.document.close();
+    };
+  }
+
+  function recarregar() { carregar(); }
+
+  window.__cx = { receber, imprimir, enviar, detalhes, estornar, recarregar };
+  carregar();
 })();
