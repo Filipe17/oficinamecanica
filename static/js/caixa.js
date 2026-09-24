@@ -86,47 +86,99 @@ function debounce(fn, ms = 350) {
     let marca = {};
     try { marca = await fetch("/api/marca").then((r) => r.json()); } catch (_) {}
     document.body.innerHTML = `
-      <div class="login-wrap">
-        <div class="login-side">
-          <svg class="login-side__s" viewBox="0 0 300 380" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
-            <path d="M 40 320 L 40 60 L 150 240 L 260 60 L 260 320" fill="none" stroke="currentColor"
-              stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <div class="login-side__brand">
-            <div class="login-brand__nome">Mec<span>PRIME</span></div>
-            <p class="login-brand__tag">Seu negócio, nosso sistema</p>
-            <div class="login-brand__bar"></div>
-            <p class="login-brand__desc">Módulo de Caixa — gestão de recebimentos e pagamentos.</p>
-          </div>
+      <style>
+        .cx-login-bg {
+          min-height: 100vh; display: flex;
+          background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+        }
+        .cx-login-lado {
+          flex: 1; display: flex; flex-direction: column; align-items: center;
+          justify-content: center; color: #fff; padding: 40px; gap: 18px;
+        }
+        .cx-login-lado svg { width: 120px; opacity: .15; }
+        .cx-login-brand { font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; }
+        .cx-login-brand span { color: #3b82f6; }
+        .cx-login-tag { color: rgba(255,255,255,.55); font-size: .95rem; margin: 0; }
+        .cx-login-bar { width: 48px; height: 3px; background: #3b82f6; border-radius: 2px; }
+        .cx-login-desc { color: rgba(255,255,255,.45); font-size: .85rem; margin: 0; text-align: center; max-width: 260px; }
+        .cx-login-form-side {
+          width: 480px; display: flex; align-items: center; justify-content: center;
+          background: #fff; padding: 48px 40px; min-height: 100vh;
+        }
+        .cx-login-card { width: 100%; max-width: 380px; }
+        .cx-login-marca { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+        .cx-login-marca img { height: 48px; max-width: 120px; object-fit: contain; }
+        .cx-login-marca-nome { font-size: 1.1rem; font-weight: 700; color: #1b2230; }
+        .cx-login-titulo { font-size: 1.6rem; font-weight: 800; color: #1b2230; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+        .cx-login-titulo i { color: #3b82f6; }
+        .cx-login-sub { color: #6b7385; font-size: .9rem; margin: 0 0 24px; }
+        .cx-login-erro { background: #fdecec; color: #dc2626; padding: 10px 14px; border-radius: 10px; font-size: .88rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .cx-login-grupo { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+        .cx-login-label { font-size: .82rem; font-weight: 700; color: #1b2230; letter-spacing: .3px; }
+        .cx-login-input {
+          padding: 11px 14px; border: 1.5px solid #e3e5ea; border-radius: 10px;
+          font: inherit; font-size: .97rem; color: #1b2230; background: #f8f9fb;
+          outline: none; transition: border-color .15s;
+        }
+        .cx-login-input:focus { border-color: #3b82f6; background: #fff; }
+        .cx-login-inp { position: relative; }
+        .cx-login-inp .cx-login-input { width: 100%; box-sizing: border-box; padding-right: 44px; }
+        .cx-login-eye {
+          position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+          background: none; border: none; cursor: pointer; color: #9ca3af; font-size: 1rem;
+        }
+        .cx-login-btn {
+          width: 100%; padding: 13px; border: none; border-radius: 12px; margin-top: 6px;
+          background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff;
+          font: inherit; font-size: 1rem; font-weight: 700; cursor: pointer;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          box-shadow: 0 4px 14px rgba(37,99,235,.35); transition: filter .15s;
+        }
+        .cx-login-btn:hover { filter: brightness(1.08); }
+        @media (max-width: 700px) {
+          .cx-login-bg { flex-direction: column; }
+          .cx-login-lado { display: none; }
+          .cx-login-form-side { width: 100%; min-height: auto; padding: 40px 24px; }
+        }
+      </style>
+      <div class="cx-login-bg">
+        <div class="cx-login-lado">
+          <svg viewBox="0 0 300 380" aria-hidden="true">
+            <path d="M 40 320 L 40 60 L 150 240 L 260 60 L 260 320" fill="none" stroke="white"
+              stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div class="cx-login-brand">Mec<span>PRIME</span></div>
+          <p class="cx-login-tag">Seu negócio, nosso sistema</p>
+          <div class="cx-login-bar"></div>
+          <p class="cx-login-desc">Módulo de Caixa — gestão de recebimentos e pagamentos.</p>
         </div>
-        <div class="login-form-side">
-          <div class="login-card">
-            <div class="login-card__marca">
+        <div class="cx-login-form-side">
+          <div class="cx-login-card">
+            <div class="cx-login-marca">
               ${marca.empresa_logo
-                ? `<img class="login-card__logo" src="${marca.empresa_logo}" alt="${marca.empresa_nome || ''}">`
-                : `<i class="fa-solid fa-cash-register" style="font-size:2.2rem;color:var(--primary)"></i>`}
-              ${marca.empresa_nome ? `<div class="login-card__nome">${marca.empresa_nome}</div>` : ""}
+                ? `<img src="${marca.empresa_logo}" alt="${marca.empresa_nome || ''}">`
+                : `<i class="fa-solid fa-cash-register" style="font-size:2rem;color:#2563eb"></i>`}
+              ${marca.empresa_nome ? `<div class="cx-login-marca-nome">${marca.empresa_nome}</div>` : ""}
             </div>
-            <h2 class="login-title" style="margin-top:18px">
-              <i class="fa-solid fa-cash-register" style="color:var(--primary);margin-right:8px"></i>Caixa
-            </h2>
-            <p class="login-sub">Entre com seu usuário e senha para acessar o caixa</p>
-            ${aviso ? `<div class="cx-erro"><i class="fa-solid fa-triangle-exclamation"></i> ${aviso}</div>` : ""}
-            <div class="login-group">
-              <label class="login-label">Usuário</label>
-              <input class="login-input" id="lg-user" type="text"
+            <h2 class="cx-login-titulo"><i class="fa-solid fa-cash-register"></i> Caixa</h2>
+            <p class="cx-login-sub">Entre com seu usuário e senha</p>
+            ${aviso ? `<div class="cx-login-erro"><i class="fa-solid fa-triangle-exclamation"></i> ${aviso}</div>` : ""}
+            <div class="cx-login-grupo">
+              <label class="cx-login-label">Usuário</label>
+              <input class="cx-login-input" id="lg-user" type="text"
                 autocomplete="username" autocapitalize="none" spellcheck="false"
                 placeholder="Seu usuário" autofocus>
             </div>
-            <div class="login-group">
-              <label class="login-label">Senha</label>
-              <div class="login-inp">
-                <input class="login-input" id="lg-senha" type="password"
+            <div class="cx-login-grupo">
+              <label class="cx-login-label">Senha</label>
+              <div class="cx-login-inp">
+                <input class="cx-login-input" id="lg-senha" type="password"
                   autocomplete="current-password" placeholder="••••••••">
-                <button type="button" class="login-eye" id="lg-eye">
+                <button type="button" class="cx-login-eye" id="lg-eye">
                   <i class="fa-solid fa-eye"></i></button>
               </div>
             </div>
-            <button class="login-btn" id="lg-ok" style="margin-top:8px">
+            <button class="cx-login-btn" id="lg-ok">
               <i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa
             </button>
           </div>
@@ -135,6 +187,8 @@ function debounce(fn, ms = 350) {
     document.getElementById("lg-eye").onclick = () => {
       const i = document.getElementById("lg-senha");
       i.type = i.type === "password" ? "text" : "password";
+      document.getElementById("lg-eye").innerHTML = i.type === "password"
+        ? `<i class="fa-solid fa-eye"></i>` : `<i class="fa-solid fa-eye-slash"></i>`;
     };
     const entrar = async () => {
       const email = document.getElementById("lg-user").value.trim();
