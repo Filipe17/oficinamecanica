@@ -1,6 +1,7 @@
 /* =======================================================================
    caixa.js — Caixa integrado ao painel administrativo.
-   Usa o mesmo Layout, API (sessão), Modal e toast das outras telas.
+   Abre em aba separada com login próprio (token em sessionStorage).
+   Usa o mesmo banco, Modal e toast do painel.
 
    - Aguardando pagamento: cobranças geradas pelo "Finalizar orçamento".
    - Receber pagamento: formas simples ou mistas, troco, Pix manual,
@@ -8,8 +9,144 @@
    - Histórico, estorno (admin/gerente), entradas/saídas e fechamento.
    ======================================================================= */
 (async () => {
-  await Layout.iniciar("caixa", "Caixa");
-  if (!Layout.usuario) return;
+  /* ---------- token e fetch próprios do caixa ---------- */
+  const TOKEN_KEY = "cx_token";
+  const getToken = () => sessionStorage.getItem(TOKEN_KEY);
+  const setToken = (t) => sessionStorage.setItem(TOKEN_KEY, t);
+  const delToken = () => sessionStorage.removeItem(TOKEN_KEY);
+
+  async function cx(method, path, body) {
+    const opts = {
+      method,
+      headers: { "Content-Type": "application/json", "X-Caixa-Token": getToken() || "" },
+      credentials: "same-origin",
+    };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const resp = await fetch(path, opts);
+    let dados = null;
+    try { dados = await resp.json(); } catch (_) {}
+    if (resp.status === 401) { delToken(); location.reload(); return; }
+    if (!resp.ok) throw new Error((dados && dados.erro) || `Erro ${resp.status}`);
+    return dados;
+  }
+
+  // Sobrescreve API para usar o token do caixa
+  const API = {
+    get: (u) => cx("GET", u),
+    post: (u, b) => cx("POST", u, b),
+    put: (u, b) => cx("PUT", u, b),
+    del: (u) => cx("DELETE", u),
+  };
+
+  /* ---------- login próprio ---------- */
+  async function telaLogin(aviso) {
+    // Busca marca da empresa
+    let marca = {};
+    try { marca = await fetch("/api/marca").then((r) => r.json()); } catch (_) {}
+    document.body.innerHTML = `
+      <div class="login-wrap">
+        <div class="login-side">
+          <svg class="login-side__s" viewBox="0 0 300 380" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+            <path d="M 40 320 L 40 60 L 150 240 L 260 60 L 260 320" fill="none" stroke="currentColor"
+              stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="login-side__brand">
+            <div class="login-brand__nome">Mec<span>PRIME</span></div>
+            <p class="login-brand__tag">Seu negócio, nosso sistema</p>
+          </div>
+        </div>
+        <div class="login-form-side">
+          <div class="login-card">
+            <div class="login-card__marca">
+              ${marca.empresa_logo ? `<img class="login-card__logo" src="${marca.empresa_logo}" alt="">` : ""}
+              ${marca.empresa_nome ? `<div class="login-card__nome">${marca.empresa_nome}</div>` : ""}
+            </div>
+            <h2 class="login-title">Caixa</h2>
+            <p class="login-sub">Entre com seu usuário de caixa</p>
+            ${aviso ? `<div class="cx-erro">${aviso}</div>` : ""}
+            <div class="login-group"><label>Usuário</label>
+              <input class="login-input" id="lg-user" type="text" autocomplete="username" autocapitalize="none"></div>
+            <div class="login-group"><label>Senha</label>
+              <div class="login-inp">
+                <input class="login-input" id="lg-senha" type="password" autocomplete="current-password">
+                <button type="button" class="login-eye" id="lg-eye"><i class="fa-solid fa-eye"></i></button>
+              </div></div>
+            <button class="login-btn" id="lg-ok"><i class="fa-solid fa-right-to-bracket"></i> Entrar no caixa</button>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById("lg-eye").onclick = () => {
+      const i = document.getElementById("lg-senha");
+      i.type = i.type === "password" ? "text" : "password";
+    };
+    const entrar = async () => {
+      const email = document.getElementById("lg-user").value.trim();
+      const senha = document.getElementById("lg-senha").value;
+      try {
+        const r = await fetch("/api/caixa/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, senha }),
+        }).then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.erro); return d; }));
+        setToken(r.token);
+        location.reload();
+      } catch (e) { telaLogin(e.message || "Falha no login"); }
+    };
+    document.getElementById("lg-ok").onclick = entrar;
+    document.addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); }, { once: true });
+  }
+
+  /* ---------- verificar se tem token válido ---------- */
+  if (!getToken()) { telaLogin(); return; }
+  // testa o token silenciosamente
+  let st;
+  try { st = await cx("GET", "/api/caixa/status"); }
+  catch (_) { telaLogin("Sessão expirada. Faça login novamente."); return; }
+
+  /* ---------- montar casca da página com Layout mínimo ---------- */
+  let marca = {};
+  try { marca = await fetch("/api/marca").then((r) => r.json()); } catch (_) {}
+  const cfg = st.config || marca;
+
+  function montarCasca() {
+    document.body.innerHTML = `
+      <div class="caixa-body" style="min-height:100vh;background:var(--bg)">
+        <header class="cx-top">
+          <div class="cx-marca">
+            ${cfg.empresa_logo ? `<img src="${cfg.empresa_logo}" alt="">` : `<i class="fa-solid fa-cash-register"></i>`}
+            <div><b>${cfg.empresa_nome || "Caixa"}</b><span>Sistema de Caixa</span></div>
+          </div>
+          <div class="cx-op">
+            <span><i class="fa-solid fa-user"></i> ${st.operador || ""}</span>
+            <span><i class="fa-solid fa-calendar"></i> ${new Date().toLocaleDateString("pt-BR")}</span>
+            <button class="btn btn--outline btn--sm" onclick="window.__cx.sair()">
+              <i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+          </div>
+        </header>
+        <div id="cx-corpo" style="max-width:1200px;margin:0 auto;padding:20px"></div>
+      </div>`;
+  }
+  montarCasca();
+
+  // Adaptar Layout.set para o container do caixa
+  const Layout = {
+    usuario: { nome: st.operador, perfil: "caixa" },
+    config: cfg,
+    permissoes: {},
+    set: (html) => { document.getElementById("cx-corpo").innerHTML = html; },
+    enderecoLinhas: () => {
+      const c = cfg;
+      const rua = [c.empresa_endereco, c.empresa_numero].filter(Boolean).join(", ");
+      const l1 = [rua, c.empresa_bairro].filter(Boolean).join(" - ");
+      const cidUf = [c.empresa_cidade, c.empresa_estado].filter(Boolean).join("/");
+      const l2 = [c.empresa_cep ? "CEP: " + c.empresa_cep : "", cidUf].filter(Boolean).join(" - ");
+      return [l1, l2].filter(Boolean);
+    },
+  };
+  const fmt = {
+    moeda: (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+    data: (v) => { if (!v) return "-"; const d = new Date(v.replace(" ", "T")); return isNaN(d) ? v : d.toLocaleDateString("pt-BR"); },
+    dataHora: (v) => { if (!v) return "-"; const d = new Date(v.replace(" ", "T")); return isNaN(d) ? v : d.toLocaleString("pt-BR"); },
+  };
 
   const money = (v) => fmt.moeda(v);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
@@ -39,22 +176,16 @@
   };
   const BANDEIRAS = ["Visa", "Mastercard", "Elo", "Hipercard", "American Express", "Outra"];
 
-  let st = null;          // status do caixa
+  // st já declarado no boot
   let aba = "aguardando";
   let aguardando = [];
 
   /* ------------------------------------------------------------ carregar */
-  async function carregar() {
-    try {
-      st = await API.get("/api/caixa/status");
-    } catch (e) {
-      Layout.set(`<div class="empty"><i class="fa-solid fa-lock"></i>${esc(e.message)}</div>`);
-      return;
-    }
-    render();
-  }
+  // carregar definido acima
 
   const podeOperar = () => (st?.nivel || 0) >= 2;
+
+  function sair() { delToken(); location.reload(); }
 
   function render() {
     const aberto = st.aberto;
@@ -697,6 +828,12 @@
 
   function recarregar() { carregar(); }
 
-  window.__cx = { receber, imprimir, enviar, detalhes, estornar, recarregar };
+  async function carregar() {
+    try { st = await cx("GET", "/api/caixa/status"); }
+    catch (e) { document.getElementById("cx-corpo").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    render();
+  }
+
+  window.__cx = { receber, imprimir, enviar, detalhes, estornar, recarregar, sair };
   carregar();
 })();
