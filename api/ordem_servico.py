@@ -248,6 +248,27 @@ def orc_finalizado_lido(oid):
     return jsonify({"ok": True})
 
 
+def _data_iso(v):
+    """
+    Devolve a data no formato YYYY-MM-DD, que é o único que o <input type="date">
+    entende. No PostgreSQL a coluna pode vir como date/datetime, e o jsonify do
+    Flask transforma isso em "Wed, 30 Sep 2026 00:00:00 GMT": o campo aparece
+    vazio na tela e, ao salvar, a previsão era apagada.
+    """
+    if not v:
+        return None
+    from datetime import date, datetime
+    if isinstance(v, (date, datetime)):
+        return v.strftime("%Y-%m-%d")
+    t = str(v).strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%a, %d %b %Y %H:%M:%S GMT"):
+        try:
+            return datetime.strptime(t[:len(t) if "GMT" in t else 10], fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return t[:10]
+
+
 @os_bp.route("/api/os/<int:oid>", methods=["GET"])
 @login_obrigatorio
 def detalhe(oid):
@@ -264,6 +285,7 @@ def detalhe(oid):
     if not o:
         return jsonify({"erro": "OS não encontrada"}), 404
     o = dict(o)
+    o["previsao"] = _data_iso(o.get("previsao"))
     o["itens"] = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
     import json as _json
     try: o["os_referencia"] = _json.loads(o.get("os_referencia") or "[]")
@@ -312,6 +334,14 @@ def editar(oid):
     d = request.get_json(force=True)
     if d.get("status") and d["status"] not in STATUS_VALIDOS:
         return jsonify({"erro": "Status inválido"}), 400
+    # Campo que não veio na requisição mantém o valor atual (antes virava NULL).
+    atual = query("SELECT * FROM ordens_servico WHERE id=?", (oid,), fetchone=True) or {}
+    for k in ("cliente_id", "veiculo_id", "mecanico_id", "previsao", "problema",
+              "diagnostico", "diagnostico_tecnico", "garantia", "observacoes",
+              "validade", "forma_pagamento", "condicoes", "obs_finais"):
+        if k not in d:
+            d[k] = atual.get(k)
+    d["previsao"] = _data_iso(d.get("previsao"))
     query(
         "UPDATE ordens_servico SET cliente_id=?, veiculo_id=?, mecanico_id=?, "
         "previsao=?, status=?, problema=?, diagnostico=?, diagnostico_tecnico=?, horas_trabalhadas=?, "
