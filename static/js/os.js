@@ -811,9 +811,10 @@
     { status: "finalizada_mecanico",  label: "Finaliz. Mecânico",  cor: "#10b981" },
   ];
 
-  async function carregarKanban() {
+  async function carregarKanban(silencioso = false) {
     const alvo = document.getElementById("os-tabela");
-    alvo.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
+    if (!alvo) return;
+    if (!silencioso) alvo.innerHTML = `<div class="loading"><i class="fa-solid fa-spinner spin"></i></div>`;
     try {
       // Carrega todas as OS abertas (sem filtro de status para preencher todas as colunas)
       const params = new URLSearchParams({ orcamento: "0", por_pagina: "500" });
@@ -1352,6 +1353,13 @@
     const alvo = document.getElementById("os-tabela");
     if (!alvo) return;                          // tela diferente, ignora
     if (document.getElementById("os-editor")) return; // editor aberto, não interrompe
+    if (document.getElementById("modal-atual")) return; // modal aberto, não interrompe
+    // No Kanban atualiza o próprio Kanban (antes a lista era desenhada por cima
+    // dele). Não mexe enquanto um card está sendo arrastado.
+    if (viewAtual === "kanban") {
+      if (document.querySelector(".dragging")) return;
+      return carregarKanban(true);
+    }
     const p = new URLSearchParams({ orcamento: EH_ORC });
     if (filtroStatus) p.set("status", filtroStatus);
     if (busca) p.set("q", busca);
@@ -1360,6 +1368,7 @@
       const lista = r.dados || [];
       if (!lista.length) { alvo.innerHTML = `<div class="empty"><i class="fa-solid fa-inbox"></i>Nenhum registro</div>`; return; }
       const semPrefixo = (n) => (n && n.includes("-")) ? n.slice(n.indexOf("-") + 1) : (n || "-");
+      if (viewAtual === "kanban" || document.getElementById("modal-atual")) return; // mudou durante a busca
       alvo.innerHTML = `<div class="table-wrap"><table class="data">
         <thead><tr><th>ID</th><th>Cliente</th><th>Veículo</th><th>Status</th><th>Mecânico</th><th></th></tr></thead>
         <tbody>${lista.map((o) => `<tr>
