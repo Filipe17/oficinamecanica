@@ -553,7 +553,7 @@
     // Abre o WhatsApp com a mensagem de "veículo pronto" e registra o aviso.
     async avisarRetirada(id) {
       // Abre a aba já no clique: depois de um await o navegador bloqueia o pop-up.
-      const janela = window.open("", "_blank");
+      const janela = window.WhatsApp ? WhatsApp.reservar() : window.open("", "_blank");
       let o;
       try { o = await API.get(`/api/os/${id}`); }
       catch (e) { janela?.close(); toast(e.message, "error"); return; }
@@ -573,8 +573,12 @@
         `Pode vir buscar quando quiser!\n\n` +
         (cfg.empresa_telefone ? `Qualquer dúvida, fale com a gente: ${cfg.empresa_telefone}.\n` : "") +
         `Obrigado pela confiança!`;
-      const url = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
-      if (janela) janela.location.href = url; else window.open(url, "_blank");
+      if (window.WhatsApp) {
+        WhatsApp.enviar(janela, fone, msg);         // WhatsApp Web direto, sem página intermediária
+      } else {
+        const url = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
+        if (janela) janela.location.href = url; else window.open(url, "_blank");
+      }
       try {
         await API.post(`/api/os/${id}/avisar-retirada`);
         toast("Aviso registrado");
