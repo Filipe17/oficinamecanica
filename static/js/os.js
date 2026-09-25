@@ -570,6 +570,7 @@
         `Olá${nome ? ", " + nome : ""}! Aqui é da ${oficina}.\n\n` +
         `O serviço da ${o.numero || "sua OS"}${veiculo ? ` (${veiculo})` : ""} foi concluído ` +
         `e o seu veículo já está pronto para retirada. 🚗✅\n\n` +
+        `Pode vir buscar quando quiser!\n\n` +
         (cfg.empresa_telefone ? `Qualquer dúvida, fale com a gente: ${cfg.empresa_telefone}.\n` : "") +
         `Obrigado pela confiança!`;
       const url = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
