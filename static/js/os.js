@@ -550,7 +550,13 @@
     const f = document.getElementById("os-form");
     // O container é uma <div>, então lemos cada campo por [name="..."].
     const g = (n) => f.querySelector(`[name="${n}"]`);
-    const val = (n) => { const el = g(n); return el ? el.value : ""; };
+    // Campo que não existe na tela (ex.: Previsão para o mecânico, que só vê
+    // o texto) mantém o valor já gravado. Antes voltava "" e apagava no banco.
+    const val = (n) => {
+      const el = g(n);
+      if (el) return el.value;
+      return original && original[n] != null ? String(original[n]) : "";
+    };
 
     if (!val("cliente_id")) { toast("Selecione o cliente", "warning"); return; }
     const dados = {
@@ -558,7 +564,7 @@
       veiculo_id: val("veiculo_id") || null,
       mecanico_id: val("mecanico_id") || null,
       status: val("status"),
-      previsao: val("previsao") || null,
+      previsao: val("previsao").slice(0, 10) || null,
       problema: val("problema"),
       diagnostico: val("diagnostico"),
       diagnostico_tecnico: val("diagnostico_tecnico"),
