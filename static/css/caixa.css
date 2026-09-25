@@ -155,11 +155,13 @@
 }
 
 /* Layout de duas colunas: conteúdo principal + painel lateral */
-.cx-layout-2col { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
+.cx-layout-2col { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: stretch; }
 .cx-col-main { display: flex; flex-direction: column; gap: 14px; }
+.cx-col-lado { height: 100%; }
 .cx-col-lado { display: flex; flex-direction: column; gap: 14px; }
 
 /* Painel lateral */
+.cx-col-lado { display: flex; flex-direction: column; gap: 14px; }
 .cx-lado__resumo, .cx-lado__form {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 16px; box-shadow: var(--shadow);
