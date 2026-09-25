@@ -64,6 +64,94 @@ def _proximo_numero(eh_orcamento=0):
     return f"OS-{(r['n'] + 1):06d}"
 
 
+def _chave_item(it):
+    """Identifica um item para casar OS x orçamento (produto/serviço + id ou nome)."""
+    ref = it.get("referencia_id")
+    nome = (it.get("descricao") or "").strip().lower()
+    return (it.get("tipo"), ref if ref else nome)
+
+
+def _copiar_itens_os(oid, orc_id, precos=None):
+    """
+    Copia os itens da OS para o orçamento, preenchendo código e valor de venda
+    a partir do cadastro (na OS as peças ficam com valor_unitario=0 e
+    codigo=null). A peça pode ter sido digitada pelo mecânico sem vínculo
+    (referencia_id nulo); nesse caso localizamos o produto pelo nome.
+
+    precos: {chave_item: (valor_unitario, desconto)} já definidos no orçamento,
+    para não perder preço/desconto ajustados à mão ao sincronizar de novo.
+    """
+    precos = precos or {}
+    itens = query("SELECT * FROM os_itens WHERE os_id=? ORDER BY id", (oid,))
+    for it in itens:
+        ref_id = it.get("referencia_id")
+        codigo = it.get("codigo")
+        unidade = it.get("unidade")
+        vu = float(it.get("valor_unitario") or 0)
+        qtd = float(it.get("quantidade") or 1)
+        desc = float(it.get("desconto") or 0)
+        chave_os = _chave_item(it)
+        if it.get("tipo") == "produto":
+            prod = None
+            if ref_id:
+                prod = query("SELECT id, codigo, preco_venda FROM produtos WHERE id=?",
+                             (ref_id,), fetchone=True)
+            if not prod and (it.get("descricao") or "").strip():
+                prod = query("SELECT id, codigo, preco_venda FROM produtos "
+                             "WHERE lower(trim(nome))=lower(trim(?))",
+                             (it["descricao"],), fetchone=True)
+            if prod:
+                ref_id = prod.get("id")
+                codigo = prod.get("codigo")
+                unidade = unidade or "UN"
+                if not vu:
+                    vu = float(prod.get("preco_venda") or 0)
+        # Preço/desconto já ajustado no orçamento tem prioridade
+        chave_orc = (it.get("tipo"), ref_id) if ref_id else chave_os
+        for k in (chave_orc, chave_os):
+            if k in precos:
+                vu, desc = precos[k]
+                break
+        subtotal = round(qtd * vu - desc, 2)
+        query(
+            "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, codigo, "
+            "unidade, quantidade, valor_unitario, desconto, subtotal, comissao_percentual) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (orc_id, it.get("tipo"), ref_id, it.get("descricao"), codigo, unidade,
+             qtd, vu, desc, subtotal, float(it.get("comissao_percentual") or 0)),
+            commit=True,
+        )
+
+
+def _sincronizar_orcamentos_da_os(oid):
+    """
+    Quando os itens de uma OS mudam, atualiza os orçamentos gerados a partir
+    dela que ainda não foram finalizados. Mantém preço e desconto que já
+    tinham sido ajustados no orçamento.
+    """
+    import json as _json
+    cands = query(
+        "SELECT id, os_referencia FROM ordens_servico "
+        "WHERE eh_orcamento=1 AND status<>'finalizada' AND os_referencia LIKE ?",
+        (f"%{oid}%",))
+    for orc in cands:
+        try:
+            refs = _json.loads(orc.get("os_referencia") or "[]")
+        except Exception:
+            continue
+        ids = [(r.get("id") if isinstance(r, dict) else r) for r in refs]
+        if oid not in ids:
+            continue
+        atuais = query("SELECT * FROM os_itens WHERE os_id=?", (orc["id"],))
+        precos = {}
+        for a in atuais:
+            precos[_chave_item(a)] = (float(a.get("valor_unitario") or 0),
+                                      float(a.get("desconto") or 0))
+        query("DELETE FROM os_itens WHERE os_id=?", (orc["id"],), commit=True)
+        _copiar_itens_os(oid, orc["id"], precos)
+        _recalcular_total(orc["id"])
+
+
 def _recalcular_total(os_id):
     """Soma os itens, aplica o desconto e grava o total na OS."""
     itens = query("SELECT subtotal FROM os_itens WHERE os_id=?", (os_id,))
@@ -244,6 +332,17 @@ def editar(oid):
         query("UPDATE ordens_servico SET os_referencia=? WHERE id=?",
               (_json.dumps(d["os_referencia"]), oid), commit=True)
     _recalcular_total(oid)
+    # Itens da OS mudaram: leva as alterações para o orçamento gerado dela
+    # (só orçamentos ainda não finalizados). Falha aqui não quebra a edição.
+    if "itens" in d:
+        try:
+            eh_orc = query("SELECT eh_orcamento FROM ordens_servico WHERE id=?",
+                           (oid,), fetchone=True)
+            if eh_orc and eh_orc.get("eh_orcamento") != 1:
+                _sincronizar_orcamentos_da_os(oid)
+        except Exception:
+            import traceback
+            traceback.print_exc()
     # Se mecânico preencheu diagnóstico, notifica admin/gerente
     if session.get("perfil") == "mecanico" and (d.get("diagnostico") or "").strip():
         query("UPDATE ordens_servico SET diagnostico_notificado=1 WHERE id=? AND (diagnostico_notificado IS NULL OR diagnostico_notificado=0)",
@@ -462,19 +561,21 @@ def para_orcamento(oid):
     if o.get("eh_orcamento") == 1:
         return jsonify({"erro": "Este registro já é um orçamento", "ja_orcamento": True}), 400
 
+    import json as _json
     # 1) Cria o registro do orçamento (cópia da OS), com número próprio.
     novo_numero = _proximo_numero(eh_orcamento=1)
     r = query(
         "INSERT INTO ordens_servico (numero, cliente_id, veiculo_id, mecanico_id, "
         "data, previsao, status, problema, diagnostico, horas_trabalhadas, garantia, "
         "observacoes, validade, forma_pagamento, condicoes, obs_finais, eh_orcamento, "
-        "desconto, total, criado_em) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "desconto, total, criado_em, os_referencia) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (novo_numero, o.get("cliente_id"), o.get("veiculo_id"), o.get("mecanico_id"),
          now(), o.get("previsao"), "aberta", o.get("problema"), o.get("diagnostico"),
          o.get("horas_trabalhadas", 0), o.get("garantia"), o.get("observacoes"),
          o.get("validade"), o.get("forma_pagamento"), o.get("condicoes"),
-         o.get("obs_finais"), 1, o.get("desconto", 0), 0, now()),
+         o.get("obs_finais"), 1, o.get("desconto", 0), 0, now(),
+         _json.dumps([{"id": oid, "numero": o.get("numero"), "cliente": ""}])),
         commit=True,
     )
     orc_id = r["_lastid"]
@@ -487,38 +588,7 @@ def para_orcamento(oid):
         #    venda a partir do cadastro (na OS as peças ficam com valor_unitario=0
         #    e codigo=null). A peça pode ter sido digitada pelo mecânico sem vínculo
         #    (referencia_id nulo); nesse caso localizamos o produto pelo nome.
-        itens = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
-        for it in itens:
-            ref_id = it.get("referencia_id")
-            codigo = it.get("codigo")
-            unidade = it.get("unidade")
-            vu = float(it.get("valor_unitario") or 0)
-            qtd = float(it.get("quantidade") or 1)
-            if it.get("tipo") == "produto":
-                prod = None
-                if ref_id:
-                    prod = query("SELECT id, codigo, preco_venda FROM produtos WHERE id=?",
-                                 (ref_id,), fetchone=True)
-                if not prod and (it.get("descricao") or "").strip():
-                    prod = query("SELECT id, codigo, preco_venda FROM produtos "
-                                 "WHERE lower(trim(nome))=lower(trim(?))",
-                                 (it["descricao"],), fetchone=True)
-                if prod:
-                    ref_id = prod.get("id")
-                    codigo = prod.get("codigo")
-                    unidade = unidade or "UN"
-                    if not vu:
-                        vu = float(prod.get("preco_venda") or 0)
-            desc = float(it.get("desconto") or 0)
-            subtotal = round(qtd * vu - desc, 2)
-            query(
-                "INSERT INTO os_itens (os_id, tipo, referencia_id, descricao, codigo, "
-                "unidade, quantidade, valor_unitario, desconto, subtotal, comissao_percentual) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (orc_id, it.get("tipo"), ref_id, it.get("descricao"), codigo, unidade,
-                 qtd, vu, desc, subtotal, float(it.get("comissao_percentual") or 0)),
-                commit=True,
-            )
+        _copiar_itens_os(oid, orc_id)
         _recalcular_total(orc_id)
 
         # 3) A OS de origem permanece na lista, agora aguardando aprovação do cliente.
