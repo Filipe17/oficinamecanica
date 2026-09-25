@@ -197,6 +197,12 @@ def listar():
         f"LEFT JOIN veiculos v ON v.id=o.veiculo_id "
         f"LEFT JOIN usuarios u ON u.id=o.mecanico_id "
         f"{clausula} ORDER BY o.id DESC LIMIT 200", params)
+    # Mesma normalização do detalhe: telas que abrem a OS a partir da lista
+    # (ex.: painel do mecânico) também precisam da data em AAAA-MM-DD.
+    lista = [dict(o) for o in lista]
+    for o in lista:
+        o["previsao"] = _data_iso(o.get("previsao"))
+        o["validade"] = _data_iso(o.get("validade"))
     return jsonify({"dados": lista})
 
 
@@ -286,6 +292,7 @@ def detalhe(oid):
         return jsonify({"erro": "OS não encontrada"}), 404
     o = dict(o)
     o["previsao"] = _data_iso(o.get("previsao"))
+    o["validade"] = _data_iso(o.get("validade"))
     o["itens"] = query("SELECT * FROM os_itens WHERE os_id=?", (oid,))
     import json as _json
     try: o["os_referencia"] = _json.loads(o.get("os_referencia") or "[]")
@@ -311,7 +318,7 @@ def criar():
         "desconto, total, criado_em, os_referencia) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (_proximo_numero(eh_orc), d.get("cliente_id"), d.get("veiculo_id"),
-         mecanico_id, d.get("data", now()), d.get("previsao"),
+         mecanico_id, d.get("data") or now(), _data_iso(d.get("previsao")),
          d.get("status", "aberta"), d.get("problema"), d.get("diagnostico"), d.get("diagnostico_tecnico"),
          d.get("horas_trabalhadas", 0), d.get("garantia"), d.get("observacoes"),
          d.get("validade"), d.get("forma_pagamento"), d.get("condicoes"),
@@ -338,10 +345,12 @@ def editar(oid):
     atual = query("SELECT * FROM ordens_servico WHERE id=?", (oid,), fetchone=True) or {}
     for k in ("cliente_id", "veiculo_id", "mecanico_id", "previsao", "problema",
               "diagnostico", "diagnostico_tecnico", "garantia", "observacoes",
-              "validade", "forma_pagamento", "condicoes", "obs_finais"):
+              "validade", "forma_pagamento", "condicoes", "obs_finais",
+              "desconto", "horas_trabalhadas"):
         if k not in d:
             d[k] = atual.get(k)
     d["previsao"] = _data_iso(d.get("previsao"))
+    d["validade"] = _data_iso(d.get("validade"))
     query(
         "UPDATE ordens_servico SET cliente_id=?, veiculo_id=?, mecanico_id=?, "
         "previsao=?, status=?, problema=?, diagnostico=?, diagnostico_tecnico=?, horas_trabalhadas=?, "
