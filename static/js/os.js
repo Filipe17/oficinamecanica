@@ -531,7 +531,7 @@
         // OS de origem como OS relacionada na nota.
         if (r.orcamento_id) {
           sessionStorage.setItem("orc_os_origem", JSON.stringify({
-            id: r.orcamento_id, numero: r.os_numero,
+            id: r.orcamento_id, numero: r.os_numero, os_id: r.os_id || id,
           }));
         }
         Modal.fechar();

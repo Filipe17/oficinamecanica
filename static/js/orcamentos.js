@@ -202,10 +202,14 @@
         if (orc) {
           await abrirEditor(orc.id);
           // Vincula a OS de origem automaticamente
-          if (!osRefs.some((r) => r.id === origem.id)) {
-            osRefs.push({ id: origem.id, numero: origem.numero, cliente: "" });
-            renderOSRefs();
+          // O backend já grava a OS de origem no orçamento; aqui só completa
+          // se faltar. Compara pelo número: origem.id é o id do ORÇAMENTO.
+          if (!osRefs.some((r) => r.numero === origem.numero)) {
+            const osId = origem.os_id || (ordens.find((o) => o.numero === origem.numero) || {}).id;
+            osRefs.push({ id: osId, numero: origem.numero, cliente: orc.cliente_nome || "" });
           }
+          osRefs = normalizarOSRefs(osRefs);
+          renderOSRefs();
         }
       } catch (_) {}
     }
@@ -239,6 +243,7 @@
     } else {
       osRefs = [];
     }
+    osRefs = normalizarOSRefs(osRefs);
 
     Layout.set(`
       <div class="orc">
@@ -401,7 +406,7 @@
 
     const linhas = osRefs.map((o, i) => `<tr>
       <td><b>${esc(o.numero)}</b></td>
-      <td>${esc(o.cliente || "—")}</td>
+      <td>${esc(nomeCurto(o.cliente) || "—")}</td>
       <td class="text-right">${editavel ? `<button class="icon-btn btn--sm" title="Remover" onclick="window.__orc.remOS(${i})"><i class="fa-solid fa-trash"></i></button>` : ""}</td>
     </tr>`).join("");
 
@@ -424,6 +429,34 @@
         }
       });
     }
+  }
+
+  // Remove OS repetidas (mesmo número) e completa id/cliente a partir da
+  // lista de OS carregada — corrige vínculos antigos gravados sem o nome.
+  function normalizarOSRefs(lista) {
+    const vistos = new Set();
+    return (lista || []).reduce((acc, r) => {
+      if (!r) return acc;
+      const ref = typeof r === "object" ? { ...r } : { id: r };
+      const os = ordens.find((o) => (ref.numero && o.numero === ref.numero) || (!ref.numero && o.id === ref.id));
+      if (os) {
+        ref.id = os.id;
+        ref.numero = ref.numero || os.numero;
+        if (!ref.cliente) ref.cliente = os.cliente_nome || "";
+      }
+      const chave = ref.numero || `id:${ref.id}`;
+      if (vistos.has(chave)) return acc;
+      vistos.add(chave);
+      acc.push(ref);
+      return acc;
+    }, []);
+  }
+
+  // "FILIPE AUGUSTO RIBEIRO" -> "FILIPE RIBEIRO" (cabe na coluna)
+  function nomeCurto(nome) {
+    const p = String(nome || "").trim().split(/\s+/).filter(Boolean);
+    if (p.length <= 2) return p.join(" ");
+    return `${p[0]} ${p[p.length - 1]}`;
   }
 
   function focarNovoOS() { document.querySelector(".orc-os-novo")?.focus(); }

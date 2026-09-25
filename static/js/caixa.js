@@ -275,6 +275,9 @@ function debounce(fn, ms = 350) {
   // st já declarado no boot
   let aba = "aguardando";
   let aguardando = [];
+  let idsConhecidos = null;      // cobranças já vistas (para avisar das novas)
+  let assinaturaLista = "";      // evita redesenhar a lista sem mudança
+  let monitorando = false;
 
   /* ------------------------------------------------------------ carregar */
   // carregar definido acima
@@ -397,14 +400,76 @@ function debounce(fn, ms = 350) {
     });
     renderAba();
     atualizarContador();
+    iniciarMonitor();
   }
 
   async function atualizarContador() {
     try {
       const r = await API.get("/api/caixa/receber");
+      const dados = r.dados || [];
       const el = document.getElementById("cx-n-ag");
-      if (el) el.textContent = r.dados.length || "";
+      if (el) el.textContent = dados.length || "";
+      avisarNovas(dados);
+      return dados;
+    } catch (_) { return null; }
+  }
+
+  /* ------------------------------------------ monitor de novas cobranças
+     O caixa não usa o app.js, então não tinha atualização automática: um
+     orçamento finalizado só aparecia depois de F5. Agora a lista é
+     conferida a cada 5s (e na hora em que a aba volta a ficar visível),
+     com aviso e som quando chega uma cobrança nova. */
+  function avisarNovas(dados) {
+    const ids = new Set(dados.map((c) => c.id));
+    if (idsConhecidos) {
+      const novas = dados.filter((c) => !idsConhecidos.has(c.id));
+      novas.forEach((c) => toast(
+        `Nova cobrança: ${c.os_numero || ""} — ${c.cliente_nome || ""} — ${money(c.restante)}`, "success"));
+      if (novas.length) bip();
+    }
+    idsConhecidos = ids;
+  }
+
+  function bip() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      [0, 0.18].forEach((t) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.15, ctx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.15);
+        o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.16);
+      });
+      setTimeout(() => ctx.close(), 800);
     } catch (_) {}
+  }
+
+  function iniciarMonitor() {
+    if (monitorando) return;
+    monitorando = true;
+    let rodando = false, ultima = 0;
+    const verificar = async (forcar) => {
+      if (document.visibilityState === "hidden" || rodando) return;
+      if (!document.getElementById("cx-aba")) return;          // saiu / tela de login
+      const agora = Date.now();
+      if (!forcar && agora - ultima < 4500) return;
+      rodando = true; ultima = agora;
+      try {
+        const dados = await atualizarContador();
+        // Redesenha a lista só na aba "Aguardando", sem modal aberto
+        // (não atrapalha um recebimento em andamento).
+        if (dados && aba === "aguardando" && !document.getElementById("modal-atual")) {
+          await listarAguardando(true);
+        }
+      } finally { rodando = false; }
+    };
+    setInterval(() => verificar(false), 5000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") verificar(true);
+    });
+    window.addEventListener("focus", () => verificar(true));
   }
 
   function renderAba() {
@@ -428,14 +493,22 @@ function debounce(fn, ms = 350) {
     listarAguardando();
   }
 
-  async function listarAguardando() {
+  async function listarAguardando(silencioso = false) {
     const q = document.getElementById("ag-q")?.value || "";
     const data = document.getElementById("ag-data")?.value || "";
     const box = document.getElementById("ag-lista");
+    if (!box) return;
     try {
       const r = await API.get(`/api/caixa/receber?q=${encodeURIComponent(q)}&data=${data}`);
       aguardando = r.dados;
-    } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    } catch (e) {
+      if (!silencioso) box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+      return;
+    }
+    // Atualização automática: só redesenha se algo mudou
+    const assinatura = JSON.stringify([st && st.aberto, aguardando.map((c) => [c.id, c.restante, c.status])]);
+    if (silencioso && assinatura === assinaturaLista && box.querySelector("table, .empty")) return;
+    assinaturaLista = assinatura;
     if (!aguardando.length) {
       box.innerHTML = `<div class="empty"><i class="fa-solid fa-circle-check"></i>Nenhum orçamento aguardando pagamento.</div>`;
       return;
