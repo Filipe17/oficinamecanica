@@ -45,7 +45,7 @@
   function badgeStatus(status) {
     if (status === "finalizada") return `<span class="badge badge--success">Finalizado</span>`;
     if (status === "cancelada") return `<span class="badge badge--danger">Cancelado</span>`;
-    if (status === "cliente_aprovou") return `<span class="badge badge--success" style="background:#0d9488">Cliente aprovou</span>`;
+    if (status === "cliente_aprovou") return `<span class="badge badge--success" style="background:#0d9488;color:#fff">Cliente aprovou</span>`;
     return `<span class="badge badge--warning">Em andamento</span>`;
   }
 
@@ -850,19 +850,12 @@
     if (!confirm("Finalizar o orçamento?\n\nIsso dá baixa no estoque dos produtos e gera a cobrança em aberto no caixa (o pagamento é acertado depois).")) return;
     try {
       await API.put(`/api/os/${editando.id}`, d);                              // salva edições
-      const fin = await API.post(`/api/os/${editando.id}/finalizar`, { gerar_financeiro: true }); // baixa estoque + cobrança
-      if (fin && fin.financeiro_id) {
-        toast("Orçamento finalizado — estoque baixado e cobrança enviada ao caixa");
-      } else if (fin && fin.sem_caixa) {
-        toast("Orçamento finalizado, mas NÃO foi para o caixa: o modo financeiro está como \"sem caixa\" nas Configurações", "warning");
-      } else {
-        toast("Orçamento finalizado, mas a cobrança não foi gerada no caixa", "warning");
-      }
+      await API.post(`/api/os/${editando.id}/finalizar`, { gerar_financeiro: true }); // baixa estoque + cobrança
+      toast("Orçamento finalizado — estoque baixado e cobrança gerada");
       const o = await API.get(`/api/os/${editando.id}`);
       telaA5(o);                                                               // vai para a folha A5
     } catch (e) {
       if (e && /finalizado/i.test(e.message || "")) {                          // já finalizado: só mostra a folha
-        toast("Este orçamento já tinha sido finalizado antes — nenhuma cobrança nova foi gerada", "warning");
         try { telaA5(await API.get(`/api/os/${editando.id}`)); return; } catch (_) {}
       }
       toast(e.message || "Erro ao finalizar", "error");

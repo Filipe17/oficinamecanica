@@ -16,6 +16,11 @@
   // Só-leitura quando o perfil tem nível "visualizar" (1) no módulo correspondente.
   const MODULO_PAG = EH_ORC ? "orcamentos" : "ordem_servico";
   const isMecanico = Layout.usuario?.perfil === "mecanico";
+  // "2026-09-25 18:49:12" -> "25/09/2026 18:49"
+  const fmtDataHora = (v) => {
+    const m = String(v || "").match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : String(v || "");
+  };
   const soLeitura = Layout.usuario?.perfil !== "administrador"
                  && (Layout.permissoes?.[MODULO_PAG] ?? 2) < 2;
 
@@ -126,8 +131,11 @@
             <span class="badge badge--${STATUS_TOM[o.status] || ""}">${STATUS_LABEL[o.status] || o.status}</span>
             ${o.os_origem_id ? `<span class="badge" style="background:#f59e0b20;color:#f59e0b;margin-left:4px;font-size:.7rem">retorno</span>` : ""}
           </td>
-          <td>${o.mecanico_nome || "-"}</td>
+          <td>${o.mecanico_nome || "-"}${!EH_ORC && o.retirada_avisada_em && o.status === "finalizada_mecanico" ? `<div style="font-size:.72rem;color:#16a34a;margin-top:2px"><i class="fa-solid fa-check"></i> cliente avisado</div>` : ""}</td>
           <td class="text-right">
+            ${!EH_ORC && !isMecanico && o.status === "finalizada_mecanico"
+              ? `<button class="icon-btn btn--sm" style="color:#16a34a" title="${o.retirada_avisada_em ? "Cliente avisado em " + fmtDataHora(o.retirada_avisada_em) + " — avisar de novo" : "Avisar cliente que o veículo está pronto"}" onclick="window.__os.avisarRetirada(${o.id})"><i class="fa-brands fa-whatsapp"></i></button>`
+              : ""}
             <button class="icon-btn btn--sm" title="Abrir" onclick="window.__os.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
             ${soLeitura || isMecanico ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
           </td></tr>`).join("")}
@@ -310,6 +318,9 @@
       ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirChecklist(${o.id})"><i class="fa-solid fa-clipboard-check"></i> Checklist</button>` : ""}
       ${ed && !EH_ORC ? `<button class="btn btn--outline" onclick="window.__os.abrirFotos(${o.id})"><i class="fa-solid fa-camera"></i> Fotos</button>` : ""}
       ${ed && !EH_ORC && !isMecanico && o.status === "finalizada" ? `<button class="btn btn--outline" onclick="window.__nps?.abrirEnvio(${o.id},${o.cliente_id},'${(o.cliente_nome||'').replace(/'/g,"\'")}','${o.cliente_email||''}','${o.cliente_whatsapp||o.cliente_telefone||''}')"><i class="fa-solid fa-star"></i> NPS</button>` : ""}
+      ${ed && !EH_ORC && !isMecanico && ["finalizada","finalizada_mecanico"].includes(o.status)
+        ? `<button class="btn btn--outline" style="color:#16a34a;border-color:#16a34a" title="${o.retirada_avisada_em ? "Cliente avisado em " + fmtDataHora(o.retirada_avisada_em) : "Enviar mensagem de veículo pronto"}" onclick="window.__os.avisarRetirada(${o.id})"><i class="fa-brands fa-whatsapp"></i> ${o.retirada_avisada_em ? "Avisar de novo" : "Avisar cliente"}</button>`
+        : ""}
       ${ed && !EH_ORC && !isMecanico && ["finalizada","finalizada_mecanico"].includes(o.status) ? `<button class="btn btn--outline" onclick="window.__os.abrirRetorno(${o.id},'${(o.numero||'').replace(/'/g,"\'")}')"><i class="fa-solid fa-rotate-left"></i> OS Retorno</button>` : ""}
       ${!soLeitura && ed && EH_ORC ? `<button class="btn btn--accent" onclick="window.__os.converter(${o.id})"><i class="fa-solid fa-right-to-bracket"></i> Converter em OS</button>` : ""}
       ${!soLeitura && ed && !EH_ORC && o.status === "aguardando_aprovacao" && Layout.usuario?.perfil !== "mecanico"
@@ -537,6 +548,37 @@
       try {
         await API.post(`/api/os/${id}/finalizar`, gerar ? { gerar_financeiro: true, forma_pagamento: "dinheiro" } : {});
         toast("OS finalizada"); Modal.fechar(); carregar();
+      } catch (e) { toast(e.message, "error"); }
+    },
+    // Abre o WhatsApp com a mensagem de "veículo pronto" e registra o aviso.
+    async avisarRetirada(id) {
+      // Abre a aba já no clique: depois de um await o navegador bloqueia o pop-up.
+      const janela = window.open("", "_blank");
+      let o;
+      try { o = await API.get(`/api/os/${id}`); }
+      catch (e) { janela?.close(); toast(e.message, "error"); return; }
+      let fone = String(o.cliente_whatsapp || o.cliente_telefone || "").replace(/\D/g, "");
+      if (!fone) { janela?.close(); toast("Cliente sem WhatsApp/telefone no cadastro", "warning"); return; }
+      if (!(fone.startsWith("55") && fone.length >= 12)) fone = "55" + fone;
+      const cfg = Layout.config || {};
+      const oficina = cfg.empresa_nome || "a oficina";
+      const primeiro = String(o.cliente_nome || "").trim().split(/\s+/)[0] || "";
+      const nome = primeiro ? primeiro.charAt(0) + primeiro.slice(1).toLowerCase() : "";
+      const veiculo = [o.veiculo_modelo, o.veiculo_placa ? `placa ${o.veiculo_placa}` : ""]
+        .filter(Boolean).join(", ");
+      const msg =
+        `Olá${nome ? ", " + nome : ""}! Aqui é da ${oficina}.\n\n` +
+        `O serviço da ${o.numero || "sua OS"}${veiculo ? ` (${veiculo})` : ""} foi concluído ` +
+        `e o seu veículo já está pronto para retirada. 🚗✅\n\n` +
+        (cfg.empresa_telefone ? `Qualquer dúvida, fale com a gente: ${cfg.empresa_telefone}.\n` : "") +
+        `Obrigado pela confiança!`;
+      const url = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
+      if (janela) janela.location.href = url; else window.open(url, "_blank");
+      try {
+        await API.post(`/api/os/${id}/avisar-retirada`);
+        toast("Aviso registrado");
+        if (document.getElementById("os-form")) Modal.fechar();
+        carregar();
       } catch (e) { toast(e.message, "error"); }
     },
     async excluir(id) {
@@ -1323,8 +1365,11 @@
             <span class="badge badge--${STATUS_TOM[o.status] || ""}">${STATUS_LABEL[o.status] || o.status}</span>
             ${o.os_origem_id ? `<span class="badge" style="background:#f59e0b20;color:#f59e0b;margin-left:4px;font-size:.7rem">retorno</span>` : ""}
           </td>
-          <td>${o.mecanico_nome || "-"}</td>
+          <td>${o.mecanico_nome || "-"}${!EH_ORC && o.retirada_avisada_em && o.status === "finalizada_mecanico" ? `<div style="font-size:.72rem;color:#16a34a;margin-top:2px"><i class="fa-solid fa-check"></i> cliente avisado</div>` : ""}</td>
           <td class="text-right">
+            ${!EH_ORC && !isMecanico && o.status === "finalizada_mecanico"
+              ? `<button class="icon-btn btn--sm" style="color:#16a34a" title="${o.retirada_avisada_em ? "Cliente avisado em " + fmtDataHora(o.retirada_avisada_em) + " — avisar de novo" : "Avisar cliente que o veículo está pronto"}" onclick="window.__os.avisarRetirada(${o.id})"><i class="fa-brands fa-whatsapp"></i></button>`
+              : ""}
             <button class="icon-btn btn--sm" title="Abrir" onclick="window.__os.abrir(${o.id})"><i class="fa-solid fa-eye"></i></button>
             ${soLeitura || isMecanico ? "" : `<button class="icon-btn btn--sm" title="Excluir" onclick="window.__os.excluir(${o.id})"><i class="fa-solid fa-trash"></i></button>`}
           </td></tr>`).join("")}
