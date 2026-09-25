@@ -36,6 +36,7 @@ _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
 _gc("ordens_servico", "diagnostico_tecnico", "TEXT")
 _gc("ordens_servico", "os_referencia", "TEXT")
 _gc("ordens_servico", "orc_finalizado_notif", "INTEGER DEFAULT 0")
+_gc("ordens_servico", "retirada_avisada_em", "TEXT")
 
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
@@ -192,7 +193,9 @@ def listar():
     clausula = "WHERE " + " AND ".join(where)
     lista = query(
         f"SELECT o.*, c.nome AS cliente_nome, v.placa AS veiculo_placa, "
-        f"v.modelo AS veiculo_modelo, u.nome AS mecanico_nome FROM ordens_servico o "
+        f"v.modelo AS veiculo_modelo, u.nome AS mecanico_nome, "
+        f"c.telefone AS cliente_telefone, c.whatsapp AS cliente_whatsapp, "
+        f"c.email AS cliente_email FROM ordens_servico o "
         f"LEFT JOIN clientes c ON c.id=o.cliente_id "
         f"LEFT JOIN veiculos v ON v.id=o.veiculo_id "
         f"LEFT JOIN usuarios u ON u.id=o.mecanico_id "
@@ -282,7 +285,9 @@ def detalhe(oid):
         return jsonify({"erro": "Esta OS pertence a outro mecânico"}), 403
     o = query(
         "SELECT o.*, c.nome AS cliente_nome, v.placa AS veiculo_placa, "
-        "v.modelo AS veiculo_modelo, u.nome AS mecanico_nome "
+        "v.modelo AS veiculo_modelo, u.nome AS mecanico_nome, "
+        "c.telefone AS cliente_telefone, c.whatsapp AS cliente_whatsapp, "
+        "c.email AS cliente_email "
         "FROM ordens_servico o "
         "LEFT JOIN clientes c ON c.id=o.cliente_id "
         "LEFT JOIN veiculos v ON v.id=o.veiculo_id "
@@ -652,6 +657,25 @@ def para_orcamento(oid):
         "orcamento_numero": novo_numero,
         "os_numero": o.get("numero"),
     })
+
+
+@os_bp.route("/api/os/<int:oid>/avisar-retirada", methods=["POST"])
+@login_obrigatorio
+def avisar_retirada(oid):
+    """Registra que a gerência avisou o cliente que o veículo está pronto."""
+    if session.get("perfil") == "mecanico":
+        return jsonify({"erro": "Apenas a gerência pode avisar o cliente"}), 403
+    o = query("SELECT id, status FROM ordens_servico WHERE id=? AND eh_orcamento=0",
+              (oid,), fetchone=True)
+    if not o:
+        return jsonify({"erro": "OS não encontrada"}), 404
+    if o.get("status") not in ("finalizada_mecanico", "finalizada"):
+        return jsonify({"erro": "A OS ainda não foi finalizada pelo mecânico"}), 400
+    quando = now()
+    query("UPDATE ordens_servico SET retirada_avisada_em=? WHERE id=?",
+          (quando, oid), commit=True)
+    registrar_log(session["user_id"], "avisar_retirada", str(oid))
+    return jsonify({"ok": True, "retirada_avisada_em": quando})
 
 
 @os_bp.route("/api/os/<int:oid>/converter", methods=["POST"])
