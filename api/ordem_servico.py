@@ -631,7 +631,9 @@ def para_orcamento(oid):
          o.get("horas_trabalhadas", 0), o.get("garantia"), o.get("observacoes"),
          o.get("validade"), o.get("forma_pagamento"), o.get("condicoes"),
          o.get("obs_finais"), 1, o.get("desconto", 0), 0, now(),
-         _json.dumps([{"id": oid, "numero": o.get("numero"), "cliente": ""}])),
+         _json.dumps([{"id": oid, "numero": o.get("numero"),
+                       "cliente": (query("SELECT nome FROM clientes WHERE id=?",
+                                         (o.get("cliente_id"),), fetchone=True) or {}).get("nome") or ""}])),
         commit=True,
     )
     orc_id = r["_lastid"]
@@ -666,6 +668,7 @@ def para_orcamento(oid):
     return jsonify({
         "ok": True,
         "orcamento_id": orc_id,
+        "os_id": oid,
         "orcamento_numero": novo_numero,
         "os_numero": o.get("numero"),
     })
