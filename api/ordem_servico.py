@@ -57,12 +57,24 @@ def _dono_os(oid):
 
 
 def _proximo_numero(eh_orcamento=0):
-    """Gera número sequencial no formato OS-000001 ou ORC-000001."""
-    if eh_orcamento:
-        r = query("SELECT COUNT(*) AS n FROM ordens_servico WHERE eh_orcamento=1", fetchone=True)
-        return f"ORC-{(r['n'] + 1):06d}"
-    r = query("SELECT COUNT(*) AS n FROM ordens_servico WHERE eh_orcamento=0", fetchone=True)
-    return f"OS-{(r['n'] + 1):06d}"
+    """
+    Gera número sequencial no formato OS-000001 ou ORC-000001.
+
+    Usa o MAIOR número já emitido + 1. Antes era COUNT(*) + 1, que repetia
+    números depois de uma exclusão (ex.: com OS-000001, 000003 e 000005 na
+    base, a contagem é 3 e a próxima seria OS-000004, depois OS-000005 de novo).
+    Números de registros excluídos não são reaproveitados.
+    """
+    import re as _re
+    prefixo = "ORC-" if eh_orcamento else "OS-"
+    linhas = query("SELECT numero FROM ordens_servico WHERE numero LIKE ?",
+                   (prefixo + "%",))
+    maior = 0
+    for l in linhas:
+        m = _re.match(_re.escape(prefixo) + r"(\d+)$", str(l.get("numero") or ""))
+        if m:
+            maior = max(maior, int(m.group(1)))
+    return f"{prefixo}{maior + 1:06d}"
 
 
 def _chave_item(it):
