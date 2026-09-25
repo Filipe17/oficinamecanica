@@ -136,9 +136,18 @@ function debounce(fn, ms = 350) {
       document.getElementById("lg-eye").innerHTML = inp.type === "password"
         ? `<i class="fa-solid fa-eye"></i>` : `<i class="fa-solid fa-eye-slash"></i>`;
     };
+    let enviando = false;
     const entrar = async () => {
+      if (enviando) return;
       const email = document.getElementById("lg-user").value.trim();
       const senha = document.getElementById("lg-senha").value;
+      if (!email || !senha) {
+        document.getElementById(email ? "lg-senha" : "lg-user").focus();
+        return;
+      }
+      enviando = true;
+      const btn = document.getElementById("lg-ok");
+      btn.disabled = true;
       try {
         const r = await fetch("/api/caixa/login", {
           method: "POST",
@@ -150,7 +159,17 @@ function debounce(fn, ms = 350) {
       } catch (e) { telaLogin(e.message || "Falha no login"); }
     };
     document.getElementById("lg-ok").onclick = entrar;
-    document.addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); }, { once: true });
+    // Enter nos campos de usuário e senha envia o login.
+    // (Antes o listener era no document com { once: true }: ele disparava na
+    //  primeira tecla qualquer e se removia, então o Enter nunca funcionava.)
+    ["lg-user", "lg-senha"].forEach((id) => {
+      document.getElementById(id).addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); entrar(); }
+      });
+    });
+    // autofocus não funciona em HTML injetado via innerHTML: foca manualmente
+    const campo = document.getElementById(aviso ? "lg-senha" : "lg-user");
+    campo.focus();
   }
 
   /* ---------- verificar se tem token válido ---------- */
