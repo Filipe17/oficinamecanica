@@ -369,8 +369,10 @@ def finalizar(oid):
     from api.configuracoes import obter_config as _cfg
     if (_cfg().get("modo_financeiro") or "completo") == "sem_caixa":
         registrar_log(session["user_id"], "finalizar_os", str(oid))
-        return jsonify({"ok": True, "msg": "OS finalizada (modo sem caixa)"})
+        return jsonify({"ok": True, "msg": "OS finalizada (modo sem caixa)",
+                        "sem_caixa": True, "financeiro_id": None})
 
+    fin_id = None
     if o.get("eh_orcamento") == 1 and d.get("gerar_financeiro"):
         rfin = query(
             "INSERT INTO financeiro (tipo, descricao, cliente_id, os_id, valor, "
@@ -437,7 +439,7 @@ def finalizar(oid):
             pass
 
     registrar_log(session["user_id"], "finalizar_os", str(oid))
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "financeiro_id": fin_id})
 
 
 @os_bp.route("/api/os/<int:oid>/para-orcamento", methods=["POST"])
