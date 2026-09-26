@@ -248,15 +248,24 @@ def diagnostico_lido(oid):
 @os_bp.route("/api/os/orc-finalizado-pendente", methods=["GET"])
 @login_obrigatorio
 def orc_finalizado_pendente():
-    """OS com orçamento finalizado aguardando o mecânico fechar a OS."""
+    """
+    OS com orçamento finalizado aguardando o mecânico fechar a OS.
+    Não lista OS que o mecânico já concluiu (finalizada pelo mecânico,
+    finalizada ou cancelada) e, para o mecânico, só as OS dele.
+    """
+    where = ["o.orc_finalizado_notif=1", "o.eh_orcamento=0",
+             "o.status NOT IN ('finalizada_mecanico','finalizada','cancelada')"]
+    params = []
+    if session.get("perfil") == "mecanico":
+        where.append("o.mecanico_id=?")
+        params.append(session.get("user_id"))
     lista = query(
         "SELECT o.id, o.numero, o.status, "
         "c.nome AS cliente_nome, u.nome AS mecanico_nome "
         "FROM ordens_servico o "
         "LEFT JOIN clientes c ON c.id=o.cliente_id "
         "LEFT JOIN usuarios u ON u.id=o.mecanico_id "
-        "WHERE o.orc_finalizado_notif=1 AND o.eh_orcamento=0 "
-        "ORDER BY o.id DESC")
+        "WHERE " + " AND ".join(where) + " ORDER BY o.id DESC", tuple(params))
     return jsonify({"dados": lista})
 
 
@@ -388,6 +397,10 @@ def editar(oid):
         query("UPDATE ordens_servico SET os_referencia=? WHERE id=?",
               (_json.dumps(d["os_referencia"]), oid), commit=True)
     _recalcular_total(oid)
+    # OS concluída pelo mecânico (ou encerrada): o aviso de "orçamento
+    # finalizado — feche a OS" já cumpriu seu papel.
+    if d.get("status") in ("finalizada_mecanico", "finalizada", "cancelada"):
+        query("UPDATE ordens_servico SET orc_finalizado_notif=0 WHERE id=?", (oid,), commit=True)
     # Itens da OS mudaram: leva as alterações para o orçamento gerado dela
     # (só orçamentos ainda não finalizados). Falha aqui não quebra a edição.
     if "itens" in d:
@@ -509,7 +522,8 @@ def finalizar(oid):
             except ValueError:
                 pass  # produto pode ter sido removido; ignora silenciosamente
 
-    query("UPDATE ordens_servico SET status='finalizada' WHERE id=?", (oid,), commit=True)
+    query("UPDATE ordens_servico SET status='finalizada', orc_finalizado_notif=0 WHERE id=?",
+          (oid,), commit=True)
 
     # Gera as comissões do mecânico responsável (não gera para orçamento).
     if o.get("eh_orcamento") != 1:
