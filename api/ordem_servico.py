@@ -203,6 +203,23 @@ def listar():
         params.append(session.get("user_id"))
 
     clausula = "WHERE " + " AND ".join(where)
+
+    # ?assinatura=1: devolve só um "resumo" da lista (hash). As telas consultam
+    # isso a cada poucos segundos e só baixam a lista inteira quando muda.
+    if request.args.get("assinatura") == "1":
+        import hashlib
+        linhas = query(
+            f"SELECT o.id, o.numero, o.status, o.total, o.cliente_id, o.veiculo_id, "
+            f"o.mecanico_id, o.previsao, o.retirada_avisada_em FROM ordens_servico o "
+            f"LEFT JOIN clientes c ON c.id=o.cliente_id "
+            f"LEFT JOIN veiculos v ON v.id=o.veiculo_id "
+            f"{clausula} ORDER BY o.id DESC LIMIT 500", params)
+        chaves = ("id", "numero", "status", "total", "cliente_id", "veiculo_id",
+                  "mecanico_id", "previsao", "retirada_avisada_em")
+        texto = "|".join(",".join(str(l.get(k)) for k in chaves) for l in linhas)
+        return jsonify({"assinatura": hashlib.md5(texto.encode()).hexdigest(),
+                        "n": len(linhas)})
+
     lista = query(
         f"SELECT o.*, c.nome AS cliente_nome, v.placa AS veiculo_placa, "
         f"v.modelo AS veiculo_modelo, u.nome AS mecanico_nome, "
