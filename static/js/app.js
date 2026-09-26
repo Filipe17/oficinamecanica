@@ -630,9 +630,9 @@ window._abrirOSDiag = function(idx) {
   if (o) Layout._abrirOS(o.id);
 };
 
-Layout._abrirOS = function (id) {
-  // Marca como lido em background (não bloqueia o redirect)
-  try { API.post(`/api/os/${id}/diagnostico-lido`, {}); } catch (_) {}
+Layout._abrirOS = async function (id) {
+  // Marca como lido antes de navegar (senão a navegação cancela a requisição)
+  try { await API.post(`/api/os/${id}/diagnostico-lido`, {}); } catch (_) {}
   Modal.fechar();
   // Navega para a OS — location.assign força reload mesmo na mesma página
   location.assign(`/ordem_servico?abrir=${id}`);
@@ -676,10 +676,15 @@ Layout.abrirNotifOrcFin = function () {
   );
 };
 
-window._abrirOSOrcFin = function(idx) {
+window._abrirOSOrcFin = async function(idx) {
   const o = (window._orcFinPendentes || [])[idx];
   if (!o) return;
-  try { API.post(`/api/os/${o.id}/orc-finalizado-lido`, {}); } catch (_) {}
+  // Espera marcar como lido ANTES de sair da página: antes a requisição era
+  // cancelada pela navegação e o aviso voltava a aparecer.
+  try { await API.post(`/api/os/${o.id}/orc-finalizado-lido`, {}); } catch (_) {}
+  window._orcFinPendentes = (window._orcFinPendentes || []).filter((x) => x.id !== o.id);
+  const btn = document.getElementById("btn-notif-orc-fin");
+  if (btn) btn.style.display = window._orcFinPendentes.length ? "inline-flex" : "none";
   Modal.fechar();
   location.assign(`/ordem_servico?abrir=${o.id}`);
 };
