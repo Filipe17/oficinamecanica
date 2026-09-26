@@ -723,20 +723,39 @@ Layout.iniciar = async function (...args) {
    - pausa com a aba em segundo plano (não gasta servidor à toa).
    Cada tela decide se pode recarregar (ex.: a OS não recarrega com modal aberto).
    ========================================================================= */
+// Detecta mudança nas OS/orçamentos com uma consulta leve (?assinatura=1).
+// Devolve true quando a lista mudou desde a última conferência.
+window.OSSync = {
+  _ult: {},
+  async mudou(params) {
+    const qs = new URLSearchParams(params || {});
+    qs.set("assinatura", "1");
+    const chave = qs.toString();
+    try {
+      const r = await API.get(`/api/os?${chave}`);
+      if (this._ult[chave] === r.assinatura) return false;
+      const primeira = !(chave in this._ult);
+      this._ult[chave] = r.assinatura;
+      return !primeira;               // 1ª conferência só guarda a referência
+    } catch (_) { return false; }
+  },
+};
+
 (function() {
-  const INTERVALO = 10000;
+  // Cada tela pode pedir um intervalo menor (ex.: OS e Orçamentos: 3s).
+  const intervalo = () => Number(window.__recarregarIntervalo) || 10000;
   let ultima = 0, rodando = false;
   async function recarregar(forcar) {
     if (typeof window.__recarregar !== "function") return;
     if (document.visibilityState === "hidden") return;
     const agora = Date.now();
-    if (rodando || agora - ultima < 2000) return;
-    if (!forcar && agora - ultima < INTERVALO - 500) return;
+    if (rodando || agora - ultima < 1500) return;
+    if (!forcar && agora - ultima < intervalo() - 300) return;
     rodando = true; ultima = agora;
     try { await window.__recarregar(); } catch(_) {}
     finally { rodando = false; }
   }
-  setInterval(() => recarregar(false), INTERVALO);
+  setInterval(() => recarregar(false), 1000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") recarregar(true);
   });

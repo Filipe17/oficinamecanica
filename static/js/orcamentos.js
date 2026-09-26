@@ -187,6 +187,20 @@
 
     _renderLista(lista);
 
+    // Atualização automática da lista de orçamentos (antes não existia):
+    // confere a cada 3s com uma consulta leve e só redesenha se mudou.
+    window.__recarregarIntervalo = 3000;
+    window.OSSync && OSSync.mudou({ orcamento: "1" });   // guarda a referência atual
+    window.__recarregar = async () => {
+      if (editando || document.getElementById("modal-atual")) return;
+      if (!document.getElementById("orc-busca")) return;
+      if (!window.OSSync || !(await OSSync.mudou({ orcamento: "1" }))) return;
+      try {
+        _listaOrc = (await API.get("/api/os?orcamento=1")).dados || [];
+        _filtrarEAtualizar();
+      } catch (_) {}
+    };
+
     const bn = document.getElementById("orc-novo");
     if (bn) bn.onclick = () => abrirEditor(null);
 

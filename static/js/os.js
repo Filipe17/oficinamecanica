@@ -1358,11 +1358,14 @@
     // dele). Não mexe enquanto um card está sendo arrastado.
     if (viewAtual === "kanban") {
       if (document.querySelector(".dragging")) return;
+      if (window.OSSync && !(await OSSync.mudou({ orcamento: "0", q: busca || "", v: "kanban" }))) return;
       return carregarKanban(true);
     }
     const p = new URLSearchParams({ orcamento: EH_ORC });
     if (filtroStatus) p.set("status", filtroStatus);
     if (busca) p.set("q", busca);
+    // Só baixa a lista inteira quando algo mudou (consulta leve a cada 3s)
+    if (window.OSSync && !(await OSSync.mudou(Object.fromEntries(p)))) return;
     try {
       const r = await API.get(`/api/os?${p}`);
       const lista = r.dados || [];
@@ -1399,7 +1402,7 @@
       try {
         const os = await API.get(`/api/os/${_abrirId}`);
         if (os.status === "finalizada") {
-          window.__recarregar = carregarSilencioso;
+          window.__recarregar = carregarSilencioso; window.__recarregarIntervalo = 3000;
         } else {
           abrirEditor({ id: _abrirId });
         }
@@ -1408,7 +1411,7 @@
       }
     });
   } else {
-    window.__recarregar = carregarSilencioso;
+    window.__recarregar = carregarSilencioso; window.__recarregarIntervalo = 3000;
     carregar();
   }
 })();
