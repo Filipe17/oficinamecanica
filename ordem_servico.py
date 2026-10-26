@@ -36,6 +36,7 @@ _gc("ordens_servico", "diagnostico_notificado", "INTEGER DEFAULT 0")
 _gc("ordens_servico", "diagnostico_tecnico", "TEXT")
 _gc("ordens_servico", "os_referencia", "TEXT")
 _gc("ordens_servico", "orc_finalizado_notif", "INTEGER DEFAULT 0")
+_gc("ordens_servico", "estoque_baixado", "INTEGER DEFAULT 0")
 
 STATUS_VALIDOS = {
     "aberta", "em_analise", "aguardando_aprovacao", "aguardando_pecas",
@@ -460,6 +461,38 @@ def _gerar_comissoes_os(o, oid):
         )
 
 
+def _ids_referencia(o):
+    """IDs das OS ligadas a um orçamento (campo os_referencia)."""
+    import json as _json
+    try:
+        refs = _json.loads(o.get("os_referencia") or "[]")
+    except Exception:
+        return []
+    return [r.get("id") if isinstance(r, dict) else r for r in refs if r]
+
+
+def _estoque_ja_baixado(o):
+    """
+    True se os produtos deste trabalho já saíram do estoque, seja pela OS,
+    seja pelo orçamento ligado a ela. Considera também registros antigos,
+    finalizados antes da coluna estoque_baixado existir.
+    """
+    if o.get("estoque_baixado"):
+        return True
+    if o.get("eh_orcamento") == 1:
+        for ref_id in _ids_referencia(o):
+            r = query("SELECT estoque_baixado, status FROM ordens_servico "
+                      "WHERE id=? AND eh_orcamento=0", (ref_id,), fetchone=True)
+            if r and (r.get("estoque_baixado") or r.get("status") == "finalizada"):
+                return True
+        return False
+    # OS: procura orçamento já finalizado que aponte para ela
+    cands = query("SELECT id, os_referencia FROM ordens_servico "
+                  "WHERE eh_orcamento=1 AND status='finalizada' AND os_referencia LIKE ?",
+                  (f"%{o['id']}%",))
+    return any(o["id"] in _ids_referencia(c) for c in cands)
+
+
 @os_bp.route("/api/os/<int:oid>/finalizar", methods=["POST"])
 @login_obrigatorio
 def finalizar(oid):
@@ -481,15 +514,23 @@ def finalizar(oid):
     if o.get("status") != "finalizada_mecanico" and o.get("eh_orcamento") != 1:
         return jsonify({"erro": "A OS precisa estar com status 'Finalizada pelo mecânico' para finalizar definitivamente"}), 400
 
-    # Baixa de estoque para itens do tipo produto
-    itens = query("SELECT * FROM os_itens WHERE os_id=? AND tipo='produto'", (oid,))
-    for it in itens:
-        if it.get("referencia_id"):
-            try:
-                movimentar_estoque(it["referencia_id"], "saida", it["quantidade"],
-                                   origem="os", documento=o["numero"])
-            except ValueError:
-                pass  # produto pode ter sido removido; ignora silenciosamente
+    # Baixa de estoque UMA vez por trabalho: quem finalizar primeiro (OS ou
+    # orçamento ligado) baixa; o outro só marca. Evita baixa em dobro.
+    estoque_ja_baixado = _estoque_ja_baixado(o)
+    if not estoque_ja_baixado:
+        itens = query("SELECT * FROM os_itens WHERE os_id=? AND tipo='produto'", (oid,))
+        for it in itens:
+            if it.get("referencia_id"):
+                try:
+                    movimentar_estoque(it["referencia_id"], "saida", it["quantidade"],
+                                       origem="os", documento=o["numero"])
+                except ValueError:
+                    pass  # produto pode ter sido removido; ignora silenciosamente
+    ids_marcar = [oid]
+    if o.get("eh_orcamento") == 1:
+        ids_marcar += _ids_referencia(o)
+    for mid in ids_marcar:
+        query("UPDATE ordens_servico SET estoque_baixado=1 WHERE id=?", (mid,), commit=True)
 
     query("UPDATE ordens_servico SET status='finalizada' WHERE id=?", (oid,), commit=True)
 
